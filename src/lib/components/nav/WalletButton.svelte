@@ -326,7 +326,7 @@
 				out:fly={{ y: -5, duration: 200 }}
 				class="modern-wallet-dropdown"
 			>
-				<div class="tabs">
+				<!-- <div class="tabs">
 					<button
 						class="tab-button {activeTab === 'wallet' ? 'active' : ''}"
 						on:click|stopPropagation={() => setActiveTab('wallet')}
@@ -342,7 +342,7 @@
 							<span class="tab-notification-indicator" />
 						{/if}
 					</button>
-				</div>
+				</div> -->
 
 				{#if activeTab === 'wallet'}
 					<div class="wallet-info">
@@ -398,7 +398,7 @@
 								</a>
 							</div>
 						</div>
-						<div class="info-row">
+						<!-- <div class="info-row">
 							<span class="info-label">My Profile:</span>
 							<a href={`/profile`} rel="noopener noreferrer" class="explorer-link">
 								<button class="btn-info p-1 text-bg text-xs rounded-md pt-0 pb-0 me-2">View</button>
@@ -418,8 +418,8 @@
 									<line x1="10" y1="14" x2="21" y2="3" />
 								</svg>
 							</a>
-						</div>
-						<div class="info-row">
+						</div> -->
+						<!-- <div class="info-row">
 							<span class="info-label">Personal Mart:</span>
 							<button
 								class="share-button"
@@ -428,10 +428,10 @@
 							>
 								<i class="fa-solid fa-qrcode" /> Share
 							</button>
-						</div>
+						</div> -->
 					</div>
 
-					<div class="nsfw-toggle">
+					<!-- <div class="nsfw-toggle">
 						<label class="inline-flex items-center cursor-pointer">
 							<input type="checkbox" bind:checked={$showNsfw} class="sr-only peer" />
 							<div
@@ -439,7 +439,7 @@
 							/>
 							<span class="ms-3 text-sm font-medium text-gray-200">Show NSFW content</span>
 						</label>
-					</div>
+					</div> -->
 
 					<div class="wallet-actions">
 						{#if $connected_wallet_addresses.length > 1}
@@ -801,6 +801,10 @@
 		font-size: 12px;
 		color: rgba(255, 255, 255, 0.9);
 		word-break: break-all;
+	}
+
+	.btn-primary {
+		border: none !important;
 	}
 
 	.copy-button {

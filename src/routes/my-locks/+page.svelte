@@ -86,7 +86,7 @@
 					additionalRegisters: box.additionalRegisters,
 					blocksRemaining: Math.max(0, unlockHeight - currentHeight)
 				};
-			});
+			}).filter((box) => box.depositorAddress === $connected_wallet_address);
 
 			// Calculate stats
 			totalValueLocked = mewLockBoxes.reduce((sum, box) => sum + box.value / 1e9, 0);
