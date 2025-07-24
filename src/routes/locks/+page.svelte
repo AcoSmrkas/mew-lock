@@ -6,6 +6,7 @@
 	import { getBlockHeight } from '$lib/api-explorer/explorer.ts';
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
+	import { priceService } from '$lib/services/priceService';
 
 	// MewLock variables
 	let mewLockBoxes = [];
@@ -21,6 +22,13 @@
 	// View filters
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
+	
+	// Leaderboard sorting
+	let leaderboardSortBy = 'totalValueLocked'; // 'totalValueLocked', 'usdValue', 'locks', 'duration'
+	let leaderboardSortOrder = 'desc'; // 'asc', 'desc'
+
+	// Price data
+	let totalUsdValue = 0;
 
 	// MewLockV2 contract address
 	const MEWLOCK_CONTRACT_ADDRESS =
@@ -29,7 +37,86 @@
 	onMount(async () => {
 		await getCurrentBlockHeight();
 		await loadMewLockBoxes();
+		await calculateUsdValues();
 	});
+
+	async function calculateUsdValues() {
+		try {
+			let total = 0;
+			
+			for (const box of mewLockBoxes) {
+				// Calculate ERG value
+				const ergAmount = box.value / 1e9;
+				const ergUsdValue = priceService.calculateUsdValue(ergAmount);
+				total += ergUsdValue;
+				
+				// Calculate token values
+				if (box.assets) {
+					for (const asset of box.assets) {
+						const tokenPrice = await priceService.getTokenPrice(asset.tokenId);
+						if (tokenPrice) {
+							const decimals = asset.decimals || 0;
+							const tokenAmount = asset.amount / Math.pow(10, decimals);
+							const tokenUsdValue = tokenAmount * tokenPrice.usdPrice;
+							total += tokenUsdValue;
+						}
+					}
+				}
+			}
+			
+			totalUsdValue = total;
+		} catch (error) {
+			console.error('Error calculating USD values:', error);
+		}
+	}
+
+	async function calculateBoxUsdValue(box) {
+		let usdValue = 0;
+		
+		// Add ERG value
+		const ergAmount = box.value / 1e9;
+		usdValue += priceService.calculateUsdValue(ergAmount);
+		
+		// Add token values
+		if (box.assets) {
+			for (const asset of box.assets) {
+				const tokenPrice = await priceService.getTokenPrice(asset.tokenId);
+				if (tokenPrice) {
+					const decimals = asset.decimals || 0;
+					const tokenAmount = asset.amount / Math.pow(10, decimals);
+					usdValue += tokenAmount * tokenPrice.usdPrice;
+				}
+			}
+		}
+		
+		return usdValue;
+	}
+
+	async function calculateUserUsdValue(user) {
+		// Find all boxes for this user
+		const userBoxes = mewLockBoxes.filter(box => box.depositorAddress === user.address);
+		let totalUsdValue = 0;
+		
+		for (const box of userBoxes) {
+			// Add ERG value
+			const ergAmount = box.value / 1e9;
+			totalUsdValue += priceService.calculateUsdValue(ergAmount);
+			
+			// Add token values
+			if (box.assets) {
+				for (const asset of box.assets) {
+					const tokenPrice = await priceService.getTokenPrice(asset.tokenId);
+					if (tokenPrice) {
+						const decimals = asset.decimals || 0;
+						const tokenAmount = asset.amount / Math.pow(10, decimals);
+						totalUsdValue += tokenAmount * tokenPrice.usdPrice;
+					}
+				}
+			}
+		}
+		
+		return totalUsdValue;
+	}
 
 	// Convert public key to address using ErgoAddress
 	function convertPkToAddress(pkRegister) {
@@ -149,6 +236,63 @@
 		}
 	}
 
+	function toggleLeaderboardSort(newSortBy: string) {
+		if (leaderboardSortBy === newSortBy) {
+			leaderboardSortOrder = leaderboardSortOrder === 'asc' ? 'desc' : 'asc';
+		} else {
+			leaderboardSortBy = newSortBy;
+			leaderboardSortOrder = 'desc';
+		}
+		sortLeaderboard();
+	}
+
+	async function sortLeaderboard() {
+		const sortedLeaderboard = [...leaderboard];
+		
+		// For USD sorting, we need to calculate USD values
+		if (leaderboardSortBy === 'usdValue') {
+			const leaderboardWithUsd = await Promise.all(
+				sortedLeaderboard.map(async (user) => ({
+					...user,
+					usdValue: await calculateUserUsdValue(user)
+				}))
+			);
+			
+			leaderboardWithUsd.sort((a, b) => {
+				const result = a.usdValue - b.usdValue;
+				return leaderboardSortOrder === 'asc' ? result : -result;
+			});
+			
+			leaderboard = leaderboardWithUsd;
+		} else {
+			sortedLeaderboard.sort((a, b) => {
+				let aValue, bValue;
+				
+				switch (leaderboardSortBy) {
+					case 'totalValueLocked':
+						aValue = a.totalValueLocked;
+						bValue = b.totalValueLocked;
+						break;
+					case 'locks':
+						aValue = a.totalLocks;
+						bValue = b.totalLocks;
+						break;
+					case 'duration':
+						aValue = a.averageLockDuration;
+						bValue = b.averageLockDuration;
+						break;
+					default:
+						return 0;
+				}
+				
+				const result = aValue - bValue;
+				return leaderboardSortOrder === 'asc' ? result : -result;
+			});
+			
+			leaderboard = sortedLeaderboard;
+		}
+	}
+
 	// Calculate global token summaries for all locks
 	$: globalTokenSummaries = mewLockBoxes.reduce((summaries, box) => {
 		// Add ERG amount
@@ -260,6 +404,9 @@
 						<div class="stat-content">
 							<div class="stat-value">{nFormatter(totalValueLocked)}</div>
 							<div class="stat-label">Total ERG Locked</div>
+							{#if totalUsdValue > 0}
+								<div class="stat-usd">{priceService.formatUsd(totalUsdValue)}</div>
+							{/if}
 						</div>
 					</div>
 
@@ -336,11 +483,56 @@
 						<div class="table-header">
 							<div class="header-cell rank">Rank</div>
 							<div class="header-cell address">Address</div>
-							<div class="header-cell value">Total ERG Locked</div>
-							<div class="header-cell locks">Total Locks</div>
+							<div class="header-cell value sortable" on:click={() => toggleLeaderboardSort('totalValueLocked')}>
+								Total ERG Locked
+								{#if leaderboardSortBy === 'totalValueLocked'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if leaderboardSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</div>
+							<div class="header-cell usd-value sortable" on:click={() => toggleLeaderboardSort('usdValue')}>
+								USD Value
+								{#if leaderboardSortBy === 'usdValue'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if leaderboardSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</div>
+							<div class="header-cell locks sortable" on:click={() => toggleLeaderboardSort('locks')}>
+								Total Locks
+								{#if leaderboardSortBy === 'locks'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if leaderboardSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</div>
 							<div class="header-cell erg-locks">ERG Only</div>
 							<div class="header-cell token-locks">ERG+Token</div>
-							<div class="header-cell duration">Avg Duration</div>
+							<div class="header-cell duration sortable" on:click={() => toggleLeaderboardSort('duration')}>
+								Avg Duration
+								{#if leaderboardSortBy === 'duration'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if leaderboardSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</div>
 						</div>
 						{#each leaderboard.slice(0, 20) as user, index}
 							<div class="table-row">
@@ -355,6 +547,11 @@
 									</span>
 								</div>
 								<div class="table-cell value">{nFormatter(user.totalValueLocked)} ERG</div>
+								<div class="table-cell usd-value">
+									{#await calculateUserUsdValue(user) then usdValue}
+										{priceService.formatUsd(usdValue)}
+									{/await}
+								</div>
 								<div class="table-cell locks">{user.totalLocks}</div>
 								<div class="table-cell erg-locks">{user.ergOnlyLocks}</div>
 								<div class="table-cell token-locks">{user.tokenLocks}</div>
@@ -489,6 +686,11 @@
 								<div class="lock-content">
 									<div class="lock-amount">
 										<div class="amount-value">{nFormatter(lockBox.value / 1e9)} ERG</div>
+										{#await calculateBoxUsdValue(lockBox) then usdValue}
+											{#if usdValue > 0}
+												<div class="usd-value">{priceService.formatUsd(usdValue)}</div>
+											{/if}
+										{/await}
 									</div>
 
 									<div class="lock-timing">
@@ -549,6 +751,11 @@
 												+ {lockBox.assets.length} token{lockBox.assets.length === 1 ? '' : 's'}
 											</div>
 										{/if}
+										{#await calculateBoxUsdValue(lockBox) then usdValue}
+											{#if usdValue > 0}
+												<div class="usd-value">{priceService.formatUsd(usdValue)}</div>
+											{/if}
+										{/await}
 									</div>
 
 									{#if lockBox.assets && lockBox.assets.length > 0}
@@ -768,12 +975,12 @@
 
 	.table-header {
 		display: grid;
-		grid-template-columns: 60px 1fr 120px 80px 80px 100px 120px;
+		grid-template-columns: 60px 1fr 120px 100px 80px 80px 100px 120px;
 		gap: 1rem;
 		padding: 1rem 1.5rem;
 		background: rgba(255, 255, 255, 0.1);
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		min-width: 600px;
+		min-width: 700px;
 	}
 
 	.header-cell {
@@ -784,14 +991,30 @@
 		letter-spacing: 0.5px;
 	}
 
+	.header-cell.sortable {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		transition: color 0.2s;
+	}
+
+	.header-cell.sortable:hover {
+		color: white;
+	}
+
+	.header-cell.sortable svg {
+		opacity: 0.6;
+	}
+
 	.table-row {
 		display: grid;
-		grid-template-columns: 60px 1fr 120px 80px 80px 100px 120px;
+		grid-template-columns: 60px 1fr 120px 100px 80px 80px 100px 120px;
 		gap: 1rem;
 		padding: 1rem 1.5rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		transition: all 0.2s;
-		min-width: 600px;
+		min-width: 700px;
 	}
 
 	.table-row:hover {
@@ -1002,6 +1225,20 @@
 		font-weight: 700;
 		color: white;
 		margin-bottom: 0.25rem;
+	}
+
+	.usd-value {
+		font-size: 1rem;
+		font-weight: 500;
+		color: #4fd1c5;
+		margin-top: 0.25rem;
+	}
+
+	.stat-usd {
+		font-size: 0.875rem;
+		color: #4fd1c5;
+		font-weight: 500;
+		margin-top: 0.25rem;
 	}
 
 	.token-count {

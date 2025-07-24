@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { nFormatter, getImageUrl, setPlaceholderImage } from '$lib/utils/utils.js';
 	import { showNsfw } from '$lib/store/store.ts';
+	import { priceService } from '$lib/services/priceService';
 
 	export let tokenId = null; // null for ERG, tokenId for tokens
 	export let tokenName = 'ERG';
@@ -10,6 +11,25 @@
 	export let isStatCard = false; // for stat cards
 	export let statType = null; // 'locks', 'users', 'ready'
 	export let icon = null; // SVG path for stat cards
+
+	// Calculate USD value
+	async function calculateUsdValue() {
+		if (!totalAmount) return 0;
+		
+		if (!tokenId) {
+			// ERG
+			const ergAmount = totalAmount / 1e9;
+			return priceService.calculateUsdValue(ergAmount);
+		} else {
+			// Token
+			const tokenPrice = await priceService.getTokenPrice(tokenId);
+			if (tokenPrice) {
+				const tokenAmount = totalAmount / Math.pow(10, decimals);
+				return tokenAmount * tokenPrice.usdPrice;
+			}
+		}
+		return 0;
+	}
 
 	// Format amount based on decimals
 	$: formattedAmount = isStatCard
@@ -64,6 +84,11 @@
 			<div class="token-details">
 				<div class="token-amount">{formattedAmount}</div>
 				<div class="token-label">{tokenName} Locked</div>
+				{#await calculateUsdValue() then usdValue}
+					{#if usdValue > 0}
+						<div class="token-usd">{priceService.formatUsd(usdValue)}</div>
+					{/if}
+				{/await}
 			</div>
 		</div>
 	</div>
@@ -141,6 +166,13 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.token-usd {
+		color: #4fd1c5;
+		font-size: 0.7rem;
+		font-weight: 500;
+		margin-top: 0.125rem;
 	}
 
 	/* Stat Card Styles */

@@ -3,9 +3,13 @@
 	import { connected_wallet_address } from '$lib/store/store';
 	import WalletButton from '$lib/components/nav/WalletButton.svelte';
 	import MewLockModal from './MewLockModal.svelte';
+	import { priceService } from '$lib/services/priceService';
+	import { onMount } from 'svelte';
 
 	let mobileMenuOpen = false;
 	let showLockModal = false;
+	let tvl = 0;
+	let tvlLoading = true;
 
 	function toggleMobileMenu() {
 		mobileMenuOpen = !mobileMenuOpen;
@@ -24,6 +28,9 @@
 		showLockModal = false;
 	}
 
+	// MewLockV2 contract address
+	const MEWLOCK_CONTRACT_ADDRESS = '5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
+
 	// Navigation items
 	const navItems = [
 		{ href: '/', label: 'Home', icon: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z' },
@@ -36,6 +43,54 @@
 	];
 
 	$: currentPath = $page.url.pathname;
+
+	onMount(() => {
+		calculateTVL();
+		// Update TVL every 5 minutes
+		const interval = setInterval(calculateTVL, 5 * 60 * 1000);
+		return () => clearInterval(interval);
+	});
+
+	async function calculateTVL() {
+		try {
+			tvlLoading = true;
+			
+			// Ensure price service is initialized first
+			const ergPrice = await priceService.getErgPrice();
+			
+			// Fetch all locked boxes
+			const response = await fetch(`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`);
+			const data = await response.json();
+			const boxes = data.items || [];
+			
+			let totalUsdValue = 0;
+			
+			for (const box of boxes) {
+				// Add ERG value
+				const ergAmount = box.value ? parseInt(box.value) / 1e9 : 0;
+				totalUsdValue += ergAmount * ergPrice;
+				
+				// Add token values
+				if (box.assets && box.assets.length > 0) {
+					for (const asset of box.assets) {
+						const tokenPrice = await priceService.getTokenPrice(asset.tokenId);
+						if (tokenPrice && tokenPrice.usdPrice) {
+							const decimals = asset.decimals || 0;
+							const tokenAmount = asset.amount / Math.pow(10, decimals);
+							const tokenUsdValue = tokenAmount * tokenPrice.usdPrice;
+							totalUsdValue += tokenUsdValue;
+						}
+					}
+				}
+			}
+			
+			tvl = totalUsdValue;
+		} catch (error) {
+			console.error('Error calculating TVL:', error);
+		} finally {
+			tvlLoading = false;
+		}
+	}
 </script>
 
 <nav class="main-navigation">
@@ -69,6 +124,19 @@
 					{item.label}
 				</a>
 			{/each}
+			
+			<!-- TVL Display - Hidden -->
+			<div class="tvl-display" style="display: none;">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<path d="M7,15H9C9,16.08 10.37,17 12,17C13.63,17 15,16.08 15,15C15,13.9 13.96,13.5 11.76,12.97C9.64,12.44 7,11.78 7,9C7,7.21 8.47,5.69 10.5,5.18V3H13.5V5.18C15.53,5.69 17,7.21 17,9H15C15,7.92 13.63,7 12,7C10.37,7 9,7.92 9,9C9,10.1 10.04,10.5 12.24,11.03C14.36,11.56 17,12.22 17,15C17,16.79 15.53,18.31 13.5,18.82V21H10.5V18.82C8.47,18.31 7,16.79 7,15Z" fill="currentColor"/>
+				</svg>
+				<span class="tvl-label">TVL:</span>
+				{#if tvlLoading}
+					<span class="tvl-loading">...</span>
+				{:else}
+					<span class="tvl-value">{priceService.formatUsd(tvl)}</span>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Actions -->
@@ -225,6 +293,7 @@
 		background: rgba(102, 126, 234, 0.1);
 		border: 1px solid rgba(102, 126, 234, 0.2);
 	}
+
 
 	/* Actions */
 	.nav-actions.desktop {
