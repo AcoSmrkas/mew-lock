@@ -6,12 +6,16 @@
 	import SellWidget from '$lib/components/common/SellWidget.svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { ErgoAddress } from '@fleet-sdk/core';
+	import ErgopayModal from '../common/ErgopayModal.svelte';
 
 	let mewLockBoxes = [];
 	let loading = true;
 	let showSellWidget = false;
 	let selectedLockBox = null;
 	let withdrawing = false;
+	let showErgopayModal = false;
+	let isAuth = false;
+	let unsignedTx = null;
 
 	// MewLockV2 contract address
 	const MEWLOCK_CONTRACT_ADDRESS =
@@ -140,7 +144,6 @@
 				utxos = await fetchBoxes(get(connected_wallet_address));
 				height = await getBlockHeight();
 			}
-
 			// Create the withdrawal transaction
 			const withdrawalTx = await createMewLockWithdrawalTx(myAddress, utxos, height, lockBox);
 
@@ -158,9 +161,9 @@
 				// Refresh the MewLock boxes
 				await loadMewLockBoxes();
 			} else {
-				// Handle Ergopay case
-				console.log('Ergopay withdrawal not implemented yet');
-				showCustomToast('Ergopay withdrawal not implemented yet', 3000, 'warning');
+				unsignedTx = withdrawalTx;
+				isAuth = false;
+				showErgopayModal = true;
 			}
 		} catch (error) {
 			console.error('Error during withdrawal:', error);
@@ -304,6 +307,12 @@
 			<SellWidget on:close={closeSellWidget} />
 		</div>
 	</div>
+{/if}
+
+{#if showErgopayModal}
+	<ErgopayModal bind:showErgopayModal bind:isAuth bind:unsignedTx>
+		<button slot="btn">Close</button>
+	</ErgopayModal>
 {/if}
 
 <style>

@@ -8,12 +8,16 @@
 	import { get } from 'svelte/store';
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
+	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
 
 	// MewLock variables
 	let mewLockBoxes = [];
 	let loading = true;
 	let withdrawing = false;
 	let currentHeight = 0;
+	let showErgopayModal = false;
+	let isAuth = false;
+	let unsignedTx = null;
 
 	// Stats
 	let totalValueLocked = 0;
@@ -132,6 +136,10 @@
 					'success'
 				);
 				await loadMewLockBoxes();
+			} else {
+				unsignedTx = withdrawalTx;
+				isAuth = false;
+				showErgopayModal = true;
 			}
 		} catch (error) {
 			console.error('Withdrawal error:', error);
@@ -597,6 +605,12 @@
 		{/if}
 	</main>
 </div>
+
+{#if showErgopayModal}
+	<ErgopayModal bind:showErgopayModal bind:isAuth bind:unsignedTx>
+		<button slot="btn">Close</button>
+	</ErgopayModal>
+{/if}
 
 <style>
 	/* Base Styles */

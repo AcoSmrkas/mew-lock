@@ -20,7 +20,8 @@
 	import { fetchBoxes, getBlockHeight } from '$lib/api-explorer/explorer.ts';
 	import { createMewLockDepositTx } from '$lib/contract/mewLockTx.ts';
 	import { get } from 'svelte/store';
-	import JSONbig from 'json-bigint';
+	import JSONbig from 'json-bigint-native';
+	import ErgopayModal from './ErgopayModal.svelte';
 
 	const dispatch = createEventDispatcher();
 
@@ -35,6 +36,9 @@
 	let lockDurationSelect = 720;
 	let selectedTokensToLock = [];
 	let currentHeight = 0;
+	let showErgopayModal = false;
+	let isAuth = false;
+	let unsignedTx = null;
 
 	// Available tokens
 	let availableTokens = [];
@@ -270,6 +274,10 @@
 					'success'
 				);
 				closeModal();
+			} else {
+				unsignedTx = lockTx;
+				isAuth = false;
+				showErgopayModal = true;
 			}
 		} catch (error) {
 			console.error('Lock error:', error);
@@ -647,6 +655,12 @@
 		{/if}
 	</div>
 </div>
+
+{#if showErgopayModal}
+	<ErgopayModal bind:showErgopayModal bind:isAuth bind:unsignedTx>
+		<button slot="btn">Close</button>
+	</ErgopayModal>
+{/if}
 
 <style>
 	.modal-overlay {
