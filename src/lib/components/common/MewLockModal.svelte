@@ -471,6 +471,34 @@
 					{#if lockDurationSelect === -1}
 						<small class="block">{unlockCalculation}</small>
 					{/if}
+					
+					<!-- General withdrawal fee notice for all locks -->
+					<div class="withdrawal-fee-notice">
+						<div class="notice-icon">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22 22 17.52 22 12 17.52 2 12 2ZM13 17H11V11H13V17ZM13 9H11V7H13V9Z" fill="currentColor"/>
+							</svg>
+						</div>
+						<div class="notice-content">
+							<strong>Note:</strong> There is a 3% withdrawal fee when unlocking your assets.
+						</div>
+					</div>
+					
+					<!-- Storage rent warning for 4+ year locks -->
+					{#if lockDuration > 1051200}
+						<div class="storage-rent-warning">
+							<div class="warning-icon">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<path d="M12 2L1 21H23L12 2ZM12 6L19.53 19H4.47L12 6ZM11 10V14H13V10H11ZM11 16V18H13V16H11Z" fill="currentColor"/>
+								</svg>
+							</div>
+							<div class="warning-content">
+								<strong>Storage Rent Notice:</strong> Locks longer than 4 years will be subject to Ergo's storage rent mechanism. 
+								This means your locked assets may be charged periodic fees to remain on the blockchain.
+								<a href="https://ergoplatform.org/en/blog/2022-02-18-ergo-explainer-storage-rent/" target="_blank" rel="noopener">Learn more about storage rent</a>
+							</div>
+						</div>
+					{/if}
 				</div>
 
 				{#if lockType === 'tokens'}
@@ -828,6 +856,74 @@
 		font-size: 0.875rem;
 		margin-top: 0.25rem;
 		display: block;
+	}
+
+	.withdrawal-fee-notice {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		background: rgba(102, 126, 234, 0.1);
+		border: 1px solid rgba(102, 126, 234, 0.2);
+		border-radius: 6px;
+		padding: 0.75rem;
+		margin-top: 0.75rem;
+		font-size: 0.8rem;
+		line-height: 1.3;
+	}
+
+	.notice-icon {
+		color: #667eea;
+		flex-shrink: 0;
+		margin-top: 0.05rem;
+	}
+
+	.notice-content {
+		color: rgba(255, 255, 255, 0.85);
+		flex: 1;
+	}
+
+	.notice-content strong {
+		color: #667eea;
+		font-weight: 600;
+	}
+
+	.storage-rent-warning {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		background: rgba(251, 146, 60, 0.1);
+		border: 1px solid rgba(251, 146, 60, 0.3);
+		border-radius: 8px;
+		padding: 1rem;
+		margin-top: 0.75rem;
+		font-size: 0.875rem;
+		line-height: 1.4;
+	}
+
+	.warning-icon {
+		color: #fb923c;
+		flex-shrink: 0;
+		margin-top: 0.125rem;
+	}
+
+	.warning-content {
+		color: rgba(255, 255, 255, 0.9);
+		flex: 1;
+	}
+
+	.warning-content strong {
+		color: #fb923c;
+		font-weight: 600;
+	}
+
+	.warning-content a {
+		color: #667eea;
+		text-decoration: underline;
+		transition: color 0.2s;
+	}
+
+	.warning-content a:hover {
+		color: #5a67d8;
 	}
 
 	.mewlock-input,
