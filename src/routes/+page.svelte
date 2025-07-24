@@ -206,7 +206,7 @@
 								/>
 							</svg>
 							Lock Assets
-						</a>
+						<!-- </a>
 						<a href="/locks" class="cta-btn secondary">
 							<svg
 								width="16"
@@ -221,7 +221,7 @@
 								/>
 							</svg>
 							View All Locks
-						</a>
+						</a> -->
 					</div>
 				</div>
 
