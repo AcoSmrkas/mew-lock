@@ -39,7 +39,7 @@
 	let showErgopayModal = false;
 	let isAuth = false;
 	let unsignedTx = null;
-
+	let ergAmount = 1;
 	// Available tokens
 	let availableTokens = [];
 	let search = '';
@@ -65,6 +65,7 @@
 	$: if ($utxosTokenInfos && $utxosAssets && !$utxosLoading) {
 		loadAvailableTokens();
 	}
+$: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust based on actual lockDuration units
 
 	function calculateApprox(lockDuration) {
 		// Constants
@@ -185,7 +186,7 @@
 		lockType = type;
 		// Set default ERG amount for tokens mode (0.1 ERG for fees)
 		if (type === 'tokens') {
-			lockAmount = '0.1';
+			lockAmount = '1';
 		}
 		step = 2;
 	}
@@ -433,7 +434,16 @@
 						<small>Available: {nFormatter($connected_wallet_balance / 1e9)} ERG</small>
 					</div>
 				{/if}
-
+			<small>
+  ERG amount locked: 
+  <input 
+    type="number" 
+    min="1" 
+    step="1" 
+    bind:value={ergAmount} 
+    class="mewlock-input"
+  /> 
+</small>
 				<!-- Lock Duration -->
 				<!-- svelte-ignore a11y-label-has-associated-control -->
 				<div class="input-group">
@@ -493,8 +503,8 @@
 								</svg>
 							</div>
 							<div class="warning-content">
-								<strong>Storage Rent Notice:</strong> Locks longer than 4 years will be subject to Ergo's storage rent mechanism. 
-								This means your locked assets may be charged periodic fees to remain on the blockchain.
+								<strong>Storage Rent Notice:</strong> Locks longer than 4 years will be subject to Ergo's storage rent mechanism. ~0.14 ERG per box. 
+								This means your locked assets may be charged periodic fees to remain on the blockchain. suggested amount for token locks should be min 1 ERG.
 								<a href="https://ergoplatform.org/en/blog/2022-02-18-ergo-explainer-storage-rent/" target="_blank" rel="noopener">Learn more about storage rent</a>
 							</div>
 						</div>
@@ -507,9 +517,6 @@
 					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<div class="input-group">
 						<label>Select Tokens to Lock</label>
-						<div class="erg-notice">
-							<small>ERG amount locked: 0.1 ERG (minimum for transaction fees)</small>
-						</div>
 
 						{#if !availableTokens || availableTokens.length === 0}
 							<div class="no-tokens-message">
