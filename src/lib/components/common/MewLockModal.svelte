@@ -459,7 +459,7 @@
 						>Unlock at height: {unlockHeight} (Current: {currentHeight})</small
 					>
 					{#if lockDurationSelect === -1}
-						<small class="block">Approx. {unlockCalculation}</small>
+						<small class="block">{unlockCalculation}</small>
 					{/if}
 				</div>
 
