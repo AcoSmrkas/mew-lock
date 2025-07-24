@@ -434,16 +434,23 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 						<small>Available: {nFormatter($connected_wallet_balance / 1e9)} ERG</small>
 					</div>
 				{/if}
-			<small>
-  ERG amount locked: 
-  <input 
-    type="number" 
-    min="1" 
-    step="1" 
-    bind:value={ergAmount} 
-    class="mewlock-input"
-  /> 
-</small>
+				{#if lockType === 'tokens'}
+					<!-- ERG Amount for tokens -->
+					<!-- svelte-ignore a11y-label-has-associated-control -->
+					<div class="input-group">
+						<!-- svelte-ignore a11y-label-has-associated-control -->
+						<label>ERG Amount for Fees</label>
+						<input
+							type="number"
+							bind:value={ergAmount}
+							placeholder="Enter ERG amount for fees"
+							step="0.01"
+							min="0.01"
+							class="mewlock-input"
+						/>
+						<small>Minimum 0.1 ERG recommended for transaction fees</small>
+					</div>
+				{/if}
 				<!-- Lock Duration -->
 				<!-- svelte-ignore a11y-label-has-associated-control -->
 				<div class="input-group">
