@@ -54,7 +54,7 @@ function getDecimals(value, additional = 1) {
 	return decimals;
 }
 
-export function nFormatter(num) {
+export function nFormatter(num, useChar = true, noDeci = false) {
 	if (num == undefined) {
 		return num;
 	}
@@ -88,6 +88,15 @@ export function nFormatter(num) {
 		.find(function (item) {
 			return num >= item.value;
 		});
+
+	if (!useChar) {
+		item = null;
+	}
+
+	if (noDeci) {
+		minimumFractionDigits = 0
+		digits = 0;
+	}
 
 	return item
 		? (num / item.value)
