@@ -312,7 +312,13 @@
 <div class="container">
 	<br />
 	<h2 class="section-title text-4xl font-bold text-white text-center pt-2 mb-5">
-		{viewMode === 'delegations' ? 'Delegations' : viewMode === 'lending' ? 'Lending' : viewMode === 'offers' ? 'Offers' : 'Offers'}
+		{viewMode === 'delegations'
+			? 'Delegations'
+			: viewMode === 'lending'
+			? 'Lending'
+			: viewMode === 'offers'
+			? 'Offers'
+			: 'Offers'}
 	</h2>
 
 	<div id="filters" class="filters-container">
@@ -381,9 +387,9 @@
 						{/each}
 					</select>
 
-					<select 
-						bind:value={bundle} 
-						id="bundle" 
+					<select
+						bind:value={bundle}
+						id="bundle"
 						class="filter-select"
 						on:change={() => {
 							if (bundle === 'delegations') {

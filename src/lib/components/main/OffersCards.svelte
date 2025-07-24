@@ -3,7 +3,12 @@
 	import BuyWidget from '$lib/components/common/BuyWidget.svelte';
 	import Loading from '$lib/components/common/Loading.svelte';
 	import { fetchAssetsInfo } from '$lib/store/store';
-	import { API_HOST, OLD_CONTRACTS_CRC32, CONTRACT_CRC32, OFFERS_CRC32 } from '$lib/common/const.ts';
+	import {
+		API_HOST,
+		OLD_CONTRACTS_CRC32,
+		CONTRACT_CRC32,
+		OFFERS_CRC32
+	} from '$lib/common/const.ts';
 
 	let offers = [];
 	let loadComplete = false;
@@ -18,7 +23,7 @@
 		try {
 			// Fetch offers strictly from OFFERS_CRC32 contract only
 			const url = `${API_HOST}mart/getOrders?contract[]=${OFFERS_CRC32}&offset=0&limit=10&status=Order`;
-			
+
 			const response = await fetch(url);
 			if (!response.ok) {
 				throw new Error(`Error fetching offers: ${response.statusText}`);

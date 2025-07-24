@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { createEventDispatcher } from 'svelte';
-	import { 
-		connected_wallet_address, 
+	import {
+		connected_wallet_address,
 		selected_wallet_ergo,
 		utxosAssets,
 		utxosTokenInfos,
@@ -11,16 +11,16 @@
 		fetchUtxos,
 		utxosLoading
 	} from '$lib/store/store.ts';
-	import { 
-		nFormatter, 
-		showCustomToast, 
-		getImageUrl, 
-		setPlaceholderImage 
+	import {
+		nFormatter,
+		showCustomToast,
+		getImageUrl,
+		setPlaceholderImage
 	} from '$lib/utils/utils.js';
 	import { fetchBoxes, getBlockHeight } from '$lib/api-explorer/explorer.ts';
 	import { createMewLockDepositTx } from '$lib/contract/mewLockTx.ts';
 	import { get } from 'svelte/store';
-import JSONbig from 'json-bigint';
+	import JSONbig from 'json-bigint';
 
 	const dispatch = createEventDispatcher();
 
@@ -32,16 +32,21 @@ import JSONbig from 'json-bigint';
 	// Lock configuration
 	let lockAmount = '';
 	let lockDuration = 720; // Default 720 blocks (~12 hours)
+	let lockDurationSelect = 720;
 	let selectedTokensToLock = [];
 	let currentHeight = 0;
 
 	// Available tokens
 	let availableTokens = [];
 	let search = '';
-	$: filteredTokens = availableTokens.filter(token => 
-		token.name?.toLowerCase().includes(search.toLowerCase()) ||
-		token.tokenId.toLowerCase().includes(search.toLowerCase())
+	$: filteredTokens = availableTokens.filter(
+		(token) =>
+			token.name?.toLowerCase().includes(search.toLowerCase()) ||
+			token.tokenId.toLowerCase().includes(search.toLowerCase())
 	);
+
+	let unlockCalculation = '';
+	$: unlockCalculation = calculateApprox(lockDuration);
 
 	onMount(async () => {
 		await getCurrentHeight();
@@ -57,6 +62,78 @@ import JSONbig from 'json-bigint';
 		loadAvailableTokens();
 	}
 
+	function calculateApprox(lockDuration) {
+		// Constants
+		const BLOCKS_PER_DAY = 720;
+		const BLOCKS_PER_HOUR = BLOCKS_PER_DAY / 24; // 30 blocks per hour
+		const BLOCKS_PER_MONTH = BLOCKS_PER_DAY * 30; // Approximate month
+		const BLOCKS_PER_YEAR = BLOCKS_PER_DAY * 365; // Approximate year
+
+		// Handle edge cases
+		if (lockDuration <= 0) {
+			return 'Already unlocked';
+		}
+
+		// Calculate time units
+		const years = Math.floor(lockDuration / BLOCKS_PER_YEAR);
+		const months = Math.floor((lockDuration % BLOCKS_PER_YEAR) / BLOCKS_PER_MONTH);
+		const days = Math.floor((lockDuration % BLOCKS_PER_MONTH) / BLOCKS_PER_DAY);
+		const hours = Math.floor((lockDuration % BLOCKS_PER_DAY) / BLOCKS_PER_HOUR);
+
+		// Build result string
+		let result = 'Unlocks in approximately ';
+
+		if (years > 0) {
+			if (years === 1) {
+				result += '1 year';
+			} else {
+				result += `${years} years`;
+			}
+
+			if (months > 0) {
+				result += ` and ${months} month${months === 1 ? '' : 's'}`;
+			}
+		} else if (months > 0) {
+			if (months === 1) {
+				result += '1 month';
+			} else {
+				result += `${months} months`;
+			}
+
+			if (days > 0 && months < 3) {
+				// Only show days if less than 3 months
+				result += ` and ${days} day${days === 1 ? '' : 's'}`;
+			}
+		} else if (days > 0) {
+			if (days === 1) {
+				result += '1 day';
+			} else {
+				result += `${days} days`;
+			}
+
+			if (hours > 0 && days <= 7) {
+				// Only show hours if less than a week
+				result += ` and ${hours} hour${hours === 1 ? '' : 's'}`;
+			}
+		} else if (hours > 0) {
+			if (hours === 1) {
+				result += '1 hour';
+			} else {
+				result += `${hours} hours`;
+			}
+		} else {
+			// Less than an hour
+			const minutes = Math.round((lockDuration / BLOCKS_PER_HOUR) * 60);
+			if (minutes <= 1) {
+				result += 'less than 1 minute';
+			} else {
+				result += `${minutes} minutes`;
+			}
+		}
+
+		return result;
+	}
+
 	async function getCurrentHeight() {
 		try {
 			const response = await getBlockHeight();
@@ -68,21 +145,21 @@ import JSONbig from 'json-bigint';
 
 	async function loadAvailableTokens() {
 		console.log('Loading available tokens...');
-		
+
 		// Wait for UTXOS to be ready (matching SellWidget pattern)
 		let utxosReady = !get(utxosLoading);
 		if (!utxosReady) {
 			do {
-				await new Promise(resolve => setTimeout(resolve, 100));
+				await new Promise((resolve) => setTimeout(resolve, 100));
 				utxosReady = !get(utxosLoading);
 			} while (!utxosReady);
 		}
-		
+
 		if ($selected_wallet_ergo) {
 			// Use SellWidget's proven pattern
 			let assets = JSONbig.parse(JSONbig.stringify(get(utxosAssets)));
 			const tokenInfos = get(utxosTokenInfos);
-			
+
 			for (const asset of assets) {
 				const tokenInfo = tokenInfos.find((info) => info.id === asset.tokenId);
 				if (tokenInfo) {
@@ -91,9 +168,9 @@ import JSONbig from 'json-bigint';
 					asset.displayAmount = Number(asset.amount) / Math.pow(10, asset.decimals);
 				}
 			}
-			
+
 			// Filter tokens with positive balance
-			availableTokens = assets.filter(token => token.amount > 0);
+			availableTokens = assets.filter((token) => token.amount > 0);
 			console.log('Available tokens loaded:', availableTokens);
 		} else {
 			availableTokens = [];
@@ -117,33 +194,37 @@ import JSONbig from 'json-bigint';
 	}
 
 	function toggleTokenSelection(token) {
-		const index = selectedTokensToLock.findIndex(t => t.tokenId === token.tokenId);
+		const index = selectedTokensToLock.findIndex((t) => t.tokenId === token.tokenId);
 		if (index > -1) {
-			selectedTokensToLock = selectedTokensToLock.filter(t => t.tokenId !== token.tokenId);
+			selectedTokensToLock = selectedTokensToLock.filter((t) => t.tokenId !== token.tokenId);
 		} else {
-			selectedTokensToLock = [...selectedTokensToLock, { 
-				...token, 
-				amountToLock: '',
-				// Ensure we have the correct balance info
-				balance: token.amount,
-				displayAmount: token.displayAmount || (token.amount / Math.pow(10, token.decimals || 0))
-			}];
+			selectedTokensToLock = [
+				...selectedTokensToLock,
+				{
+					...token,
+					amountToLock: '',
+					// Ensure we have the correct balance info
+					balance: token.amount,
+					displayAmount: token.displayAmount || token.amount / Math.pow(10, token.decimals || 0)
+				}
+			];
 		}
 	}
 
 	function updateTokenAmount(tokenId: string, amount: string) {
-		selectedTokensToLock = selectedTokensToLock.map(token => 
-			token.tokenId === tokenId 
-				? { ...token, amountToLock: amount }
-				: token
+		selectedTokensToLock = selectedTokensToLock.map((token) =>
+			token.tokenId === tokenId ? { ...token, amountToLock: amount } : token
 		);
 	}
 
 	$: unlockHeight = currentHeight + parseInt(lockDuration);
-	$: canSubmit = lockType === 'erg' 
-		? lockAmount && parseFloat(lockAmount) > 0
-		: selectedTokensToLock.length > 0 && 
-		  selectedTokensToLock.every(token => token.amountToLock && parseFloat(token.amountToLock) > 0); // ERG amount auto-set for tokens
+	$: canSubmit =
+		lockType === 'erg'
+			? lockAmount && parseFloat(lockAmount) > 0
+			: selectedTokensToLock.length > 0 &&
+			  selectedTokensToLock.every(
+					(token) => token.amountToLock && parseFloat(token.amountToLock) > 0
+			  ); // ERG amount auto-set for tokens
 
 	async function handleLockSubmit() {
 		if (!canSubmit || processing) return;
@@ -163,10 +244,13 @@ import JSONbig from 'json-bigint';
 			}
 
 			// Prepare tokens for locking
-			const tokensToLock = lockType === 'tokens' ? selectedTokensToLock.map(token => ({
-				tokenId: token.tokenId,
-				amount: Math.round(parseFloat(token.amountToLock) * Math.pow(10, token.decimals))
-			})) : [];
+			const tokensToLock =
+				lockType === 'tokens'
+					? selectedTokensToLock.map((token) => ({
+							tokenId: token.tokenId,
+							amount: Math.round(parseFloat(token.amountToLock) * Math.pow(10, token.decimals))
+					  }))
+					: [];
 
 			const lockTx = createMewLockDepositTx(
 				myAddress,
@@ -180,7 +264,11 @@ import JSONbig from 'json-bigint';
 			if (get(selected_wallet_ergo) !== 'ergopay') {
 				const signed = await ergo.sign_tx(lockTx);
 				const transactionId = await ergo.submit_tx(signed);
-				showCustomToast(`Tokens locked! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`, 10000, 'success');
+				showCustomToast(
+					`Tokens locked! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
+					10000,
+					'success'
+				);
 				closeModal();
 			}
 		} catch (error) {
@@ -196,27 +284,61 @@ import JSONbig from 'json-bigint';
 	}
 </script>
 
-<div class="modal-overlay" in:fade={{ duration: 200 }} out:fade={{ duration: 150 }} on:click={closeModal}>
-	<div class="modal-content" in:fly={{ y: 20, duration: 200 }} out:fade={{ duration: 150 }} on:click|stopPropagation>
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div
+	class="modal-overlay"
+	in:fade={{ duration: 200 }}
+	out:fade={{ duration: 150 }}
+	on:click={closeModal}
+>
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div
+		class="modal-content"
+		in:fly={{ y: 20, duration: 200 }}
+		out:fade={{ duration: 150 }}
+		on:click|stopPropagation
+	>
 		{#if step === 1}
 			<!-- Step 1: Choose Lock Type -->
 			<div class="modal-header">
 				<h2>Lock Your Assets</h2>
 				<button class="close-btn" on:click={closeModal}>
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
+							fill="currentColor"
+						/>
 					</svg>
 				</button>
 			</div>
 
 			<div class="modal-body">
-				<p class="step-description">Choose what you want to lock with MewLock time-based storage:</p>
-				
+				<p class="step-description">
+					Choose what you want to lock with MewLock time-based storage:
+				</p>
+
 				<div class="lock-type-grid">
 					<button class="lock-type-card" on:click={() => selectLockType('erg')}>
 						<div class="lock-type-icon">
-							<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+							<svg
+								width="48"
+								height="48"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<h3>ERG Only</h3>
@@ -228,8 +350,17 @@ import JSONbig from 'json-bigint';
 
 					<button class="lock-type-card" on:click={() => selectLockType('tokens')}>
 						<div class="lock-type-icon">
-							<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z" fill="currentColor"/>
+							<svg
+								width="48"
+								height="48"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<h3>ERG + Tokens</h3>
@@ -245,15 +376,33 @@ import JSONbig from 'json-bigint';
 			<div class="modal-header">
 				<div class="header-nav">
 					<button class="back-btn" on:click={goBack}>
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-							<path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="currentColor"/>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z"
+								fill="currentColor"
+							/>
 						</svg>
 					</button>
 					<h2>Configure Lock</h2>
 				</div>
 				<button class="close-btn" on:click={closeModal}>
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
+							fill="currentColor"
+						/>
 					</svg>
 				</button>
 			</div>
@@ -261,53 +410,80 @@ import JSONbig from 'json-bigint';
 			<div class="modal-body">
 				<!-- ERG Amount -->
 				{#if lockType === 'erg'}
+					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<div class="input-group">
+						<!-- svelte-ignore a11y-label-has-associated-control -->
 						<label>ERG Amount to Lock</label>
-						<input 
-							type="number" 
+						<input
+							type="number"
 							bind:value={lockAmount}
 							placeholder="Enter ERG amount"
 							step="0.001"
 							min="0.001"
 							class="mewlock-input"
-						>
+						/>
 						<small>Available: {nFormatter($connected_wallet_balance / 1e9)} ERG</small>
 					</div>
 				{/if}
 
 				<!-- Lock Duration -->
+				<!-- svelte-ignore a11y-label-has-associated-control -->
 				<div class="input-group">
+					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<label>Lock Duration</label>
-					<select bind:value={lockDuration} class="mewlock-select">
-						<option value={720}>12 hours (720 blocks)</option>
-						<option value={1440}>1 day (1,440 blocks)</option>
-						<option value={4320}>3 days (4,320 blocks)</option>
-						<option value={10080}>1 week (10,080 blocks)</option>
-						<option value={43200}>1 month (43,200 blocks)</option>
+					<select
+						bind:value={lockDurationSelect}
+						on:change={() =>
+							(lockDuration =
+								lockDurationSelect > 0 ? (lockDuration = lockDurationSelect) : lockDuration)}
+						class="mewlock-select"
+					>
+						<option value={360}>12 hours (360 blocks)</option>
+						<option value={720}>1 day (720 blocks)</option>
+						<option value={5040}>1 week (5,040 blocks)</option>
+						<option value={21600}>1 month (21,600 blocks)</option>
+						<option value={129600}>6 months (129,600 blocks)</option>
+						<option value={262800}>1 year (262,800 blocks)</option>
+						<option value={-1}>Custom</option>
 					</select>
-					<small>Unlock at height: {unlockHeight} (Current: {currentHeight})</small>
+					{#if lockDurationSelect === -1}
+						<input
+							placeholder="Enter custom duration"
+							type="number"
+							bind:value={lockDuration}
+							min="1"
+							class="mewlock-input"
+						/>
+					{/if}
+					<small class="block w-100"
+						>Unlock at height: {unlockHeight} (Current: {currentHeight})</small
+					>
+					{#if lockDurationSelect === -1}
+						<small class="block">Approx. {unlockCalculation}</small>
+					{/if}
 				</div>
 
 				{#if lockType === 'tokens'}
 					<!-- Token Selection -->
+					<!-- svelte-ignore a11y-label-has-associated-control -->
+					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<div class="input-group">
 						<label>Select Tokens to Lock</label>
 						<div class="erg-notice">
 							<small>ERG amount locked: 0.1 ERG (minimum for transaction fees)</small>
 						</div>
-						
+
 						{#if !availableTokens || availableTokens.length === 0}
 							<div class="no-tokens-message">
 								{#if !$utxosTokenInfos || !$utxosAssets}
 									<p>Loading your tokens...</p>
-									<div class="mini-spinner"></div>
+									<div class="mini-spinner" />
 								{:else}
 									<p>No tokens found in your wallet.</p>
 									<small>Make sure your wallet is connected and has tokens.</small>
 								{/if}
 							</div>
 						{:else}
-
 							<!-- Selected tokens section (for amount input) -->
 							{#if selectedTokensToLock.length > 0}
 								<div class="selected-tokens-section">
@@ -325,32 +501,60 @@ import JSONbig from 'json-bigint';
 														/>
 													{:else}
 														<div class="token-placeholder">
-															<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-																<path d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z" fill="currentColor"/>
+															<svg
+																width="24"
+																height="24"
+																viewBox="0 0 24 24"
+																fill="none"
+																xmlns="http://www.w3.org/2000/svg"
+															>
+																<path
+																	d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z"
+																	fill="currentColor"
+																/>
 															</svg>
 														</div>
 													{/if}
 												</div>
 												<div class="token-info">
 													<div class="token-name">{selectedToken.name || 'Unknown Token'}</div>
-													<div class="token-balance">{nFormatter(selectedToken.displayAmount || (selectedToken.amount / Math.pow(10, selectedToken.decimals || 0)))}</div>
+													<div class="token-balance">
+														{nFormatter(
+															selectedToken.displayAmount ||
+																selectedToken.amount / Math.pow(10, selectedToken.decimals || 0)
+														)}
+													</div>
 												</div>
-												<button class="remove-token" on:click={() => toggleTokenSelection(selectedToken)}>
-													<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-														<path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
+												<button
+													class="remove-token"
+													on:click={() => toggleTokenSelection(selectedToken)}
+												>
+													<svg
+														width="12"
+														height="12"
+														viewBox="0 0 24 24"
+														fill="none"
+														xmlns="http://www.w3.org/2000/svg"
+													>
+														<path
+															d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
+															fill="currentColor"
+														/>
 													</svg>
 												</button>
 												<div class="token-amount-input">
-													<input 
-														type="number" 
+													<input
+														type="number"
 														placeholder="Amount"
 														step="0.001"
 														min="0"
-														max={selectedToken.displayAmount || (selectedToken.amount / Math.pow(10, selectedToken.decimals || 0))}
+														max={selectedToken.displayAmount ||
+															selectedToken.amount / Math.pow(10, selectedToken.decimals || 0)}
 														value={selectedToken.amountToLock || ''}
-														on:input={(e) => updateTokenAmount(selectedToken.tokenId, e.target.value)}
+														on:input={(e) =>
+															updateTokenAmount(selectedToken.tokenId, e.target.value)}
 														class="amount-input"
-													>
+													/>
 												</div>
 											</div>
 										{/each}
@@ -361,18 +565,18 @@ import JSONbig from 'json-bigint';
 							<!-- Available tokens list -->
 							<div class="available-tokens-section">
 								<h4>Available Tokens</h4>
-								
-								{#if availableTokens.filter(token => !selectedTokensToLock.some(st => st.tokenId === token.tokenId)).length > 5}
-									<input 
-										type="text" 
+
+								{#if availableTokens.filter((token) => !selectedTokensToLock.some((st) => st.tokenId === token.tokenId)).length > 5}
+									<input
+										type="text"
 										bind:value={search}
 										placeholder="Search tokens..."
 										class="search-input"
-									>
+									/>
 								{/if}
-								
+
 								<div class="tokens-list">
-									{#each filteredTokens.filter(token => !selectedTokensToLock.some(st => st.tokenId === token.tokenId)) as token (token.tokenId)}
+									{#each filteredTokens.filter((token) => !selectedTokensToLock.some((st) => st.tokenId === token.tokenId)) as token (token.tokenId)}
 										<button class="token-list-item" on:click={() => toggleTokenSelection(token)}>
 											<div class="token-image">
 												{#if getImageUrl(token, false)}
@@ -384,19 +588,38 @@ import JSONbig from 'json-bigint';
 													/>
 												{:else}
 													<div class="token-placeholder">
-														<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-															<path d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z" fill="currentColor"/>
+														<svg
+															width="20"
+															height="20"
+															viewBox="0 0 24 24"
+															fill="none"
+															xmlns="http://www.w3.org/2000/svg"
+														>
+															<path
+																d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z"
+																fill="currentColor"
+															/>
 														</svg>
 													</div>
 												{/if}
 											</div>
 											<div class="token-details">
 												<div class="token-name">{token.name || 'Unknown Token'}</div>
-												<div class="token-balance">{nFormatter(token.displayAmount || (token.amount / Math.pow(10, token.decimals || 0)))}</div>
+												<div class="token-balance">
+													{nFormatter(
+														token.displayAmount || token.amount / Math.pow(10, token.decimals || 0)
+													)}
+												</div>
 											</div>
 											<div class="add-indicator">
-												<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-													<path d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor"/>
+												<svg
+													width="16"
+													height="16"
+													viewBox="0 0 24 24"
+													fill="none"
+													xmlns="http://www.w3.org/2000/svg"
+												>
+													<path d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" fill="currentColor" />
 												</svg>
 											</div>
 										</button>
@@ -408,8 +631,8 @@ import JSONbig from 'json-bigint';
 				{/if}
 
 				<!-- Submit Button -->
-				<button 
-					class="mewlock-btn submit-btn" 
+				<button
+					class="mewlock-btn submit-btn"
 					class:disabled={!canSubmit || processing}
 					disabled={!canSubmit || processing}
 					on:click={handleLockSubmit}
@@ -890,8 +1113,12 @@ import JSONbig from 'json-bigint';
 	}
 
 	@keyframes spin {
-		0% { transform: rotate(0deg); }
-		100% { transform: rotate(360deg); }
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
 	}
 
 	.mewlock-btn {

@@ -46,13 +46,7 @@ export function delegateV3Tx(
 	const feeTokenIdBytes = feeTokenId ? hexToBytes(feeTokenId) : new Uint8Array(0);
 	const feeConfig = SPair(
 		SLong(feeAmount),
-		SPair(
-			SColl(SByte, feeTokenIdBytes),
-			SPair(
-				SLong(BigInt(feePercent)),
-				SInt(minFeeBlocks)
-			)
-		)
+		SPair(SColl(SByte, feeTokenIdBytes), SPair(SLong(BigInt(feePercent)), SInt(minFeeBlocks)))
 	);
 
 	const contractBox = new OutputBuilder(SAFE_MIN_BOX_VALUE, DELEGATE_CONTRACT_V3)
@@ -83,19 +77,19 @@ export function activateDelegationV3Tx(
 	feeTokenId: string = ''
 ): any {
 	const delegate = ErgoAddress.fromBase58(delegateAddress);
-	
+
 	console.log('🚀 V3 ACTIVATION - Checking MEW tokens');
 	console.log('Required fee amount:', feeAmount.toString(), 'raw units');
 	console.log('Required fee token ID:', feeTokenId);
-	
+
 	// CHECK HOW MUCH MEW USER HAS
 	if (feeTokenId) {
 		console.log('📊 CHECKING USER MEW TOKENS:');
 		console.log('Total UTXOs provided:', additionalUtxos.length);
-		
+
 		let totalMewTokens = BigInt(0);
 		let mewUtxoCount = 0;
-		
+
 		additionalUtxos.forEach((utxo, index) => {
 			if (utxo.assets && utxo.assets.length > 0) {
 				utxo.assets.forEach((asset, assetIndex) => {
@@ -103,22 +97,26 @@ export function activateDelegationV3Tx(
 						const assetAmount = BigInt(asset.amount);
 						totalMewTokens += assetAmount;
 						mewUtxoCount++;
-						console.log(`  UTXO ${index}, Asset ${assetIndex}: ${assetAmount.toString()} MEW raw units`);
+						console.log(
+							`  UTXO ${index}, Asset ${assetIndex}: ${assetAmount.toString()} MEW raw units`
+						);
 					}
 				});
 			}
 		});
-		
+
 		console.log(`💰 TOTAL MEW AVAILABLE: ${totalMewTokens.toString()} raw units`);
 		console.log(`💰 TOTAL MEW AVAILABLE: ${Number(totalMewTokens) / 100} display MEW`);
 		console.log(`📦 MEW UTXOs found: ${mewUtxoCount}`);
 		console.log(`✅ Sufficient MEW? ${totalMewTokens >= feeAmount ? 'YES' : 'NO'}`);
-		
+
 		if (totalMewTokens < feeAmount) {
-			console.error(`❌ INSUFFICIENT MEW: Need ${feeAmount.toString()} but only have ${totalMewTokens.toString()}`);
+			console.error(
+				`❌ INSUFFICIENT MEW: Need ${feeAmount.toString()} but only have ${totalMewTokens.toString()}`
+			);
 		}
 	}
-	
+
 	// Parse fee config from the box
 	let feePercent = 3000; // Default 3%
 	try {
@@ -155,11 +153,13 @@ export function activateDelegationV3Tx(
 
 	if (feeTokenId) {
 		// Token fee payment - use SAFE_MIN_BOX_VALUE ERG + tokens
-		delegatorFeeBox = new OutputBuilder(SAFE_MIN_BOX_VALUE, delegatorAddress)
-			.addTokens([{ tokenId: feeTokenId, amount: delegatorFee }]);
-		
-		devFeeBox = new OutputBuilder(SAFE_MIN_BOX_VALUE, DEV_PK)
-			.addTokens([{ tokenId: feeTokenId, amount: devFee }]);
+		delegatorFeeBox = new OutputBuilder(SAFE_MIN_BOX_VALUE, delegatorAddress).addTokens([
+			{ tokenId: feeTokenId, amount: delegatorFee }
+		]);
+
+		devFeeBox = new OutputBuilder(SAFE_MIN_BOX_VALUE, DEV_PK).addTokens([
+			{ tokenId: feeTokenId, amount: devFee }
+		]);
 	} else {
 		// ERG fee payment - use fee amount as ERG value
 		delegatorFeeBox = new OutputBuilder(delegatorFee, delegatorAddress);
@@ -182,7 +182,7 @@ export function withdrawDelegationV3Tx(
 	additionalUtxos: Array<any>
 ): any {
 	console.log('🏦 V3 WITHDRAWAL - Following V2 ErgoScript pattern');
-	
+
 	// Parse state and duration from V3 structure (same as V2 logic)
 	const state = decodeFleetSInt(box.additionalRegisters.R7); // R7 = state
 	const duration = decodeFleetSInt(box.additionalRegisters.R6); // R6 = duration
@@ -190,7 +190,13 @@ export function withdrawDelegationV3Tx(
 
 	const isExpired = height > creationHeight + duration;
 
-	console.log('📊 V3 Withdrawal validation:', { state, duration, creationHeight, height, isExpired });
+	console.log('📊 V3 Withdrawal validation:', {
+		state,
+		duration,
+		creationHeight,
+		height,
+		isExpired
+	});
 
 	if (state === 2 && !isExpired) {
 		throw new Error('Cannot withdraw during active delegation period');
@@ -235,7 +241,7 @@ export function withdrawDelegationV3Tx(
 		R5: box.additionalRegisters.R5, // delegate unchanged
 		R6: box.additionalRegisters.R6, // duration unchanged
 		R7: box.additionalRegisters.R7, // state unchanged
-		R8: box.additionalRegisters.R8  // fee config unchanged (V3 uses single R8)
+		R8: box.additionalRegisters.R8 // fee config unchanged (V3 uses single R8)
 	});
 
 	console.log('🔥 V3 Withdrawal: Following exact V2 pattern with registers preserved');
@@ -299,29 +305,29 @@ export function parseFeeConfig(box: any) {
 		// Parse the SPair structure: (feeAmount, (feeTokenId, (feePercent, minFeeBlocks)))
 		const r8Hex = r8Register.serializedValue;
 		console.log('🔍 Parsing R8 fee config:', r8Hex);
-		
+
 		// Use Fleet SDK to parse the serialized data
 		const bytes = hexToBytes(r8Hex);
 		const parsed = SConstant.from(bytes);
-		
+
 		console.log('🔍 Parsed fee config:', parsed);
-		
+
 		// Parse the SPair structure manually based on known positions
 		const hexBytes = [];
 		for (let i = 0; i < r8Hex.length; i += 2) {
 			hexBytes.push(parseInt(r8Hex.substr(i, 2), 16));
 		}
-		
+
 		let feeAmount = BigInt(100); // Default fallback
 		let feeTokenId = '';
 		let feePercent = 3000;
 		let minFeeBlocks = 100;
-		
+
 		// Look for MEW token ID to determine if this is a token fee
-		const mewTokenId = "6c35aa395c7c75b0f67f7804d6930f0e11ef93c3387dc1faa86498d54af7962c";
+		const mewTokenId = '6c35aa395c7c75b0f67f7804d6930f0e11ef93c3387dc1faa86498d54af7962c';
 		if (r8Hex.includes(mewTokenId)) {
 			feeTokenId = mewTokenId;
-			
+
 			// The fee amount is stored as a single byte at position 33 for our structure
 			if (hexBytes.length > 33) {
 				feeAmount = BigInt(hexBytes[33]);
@@ -330,18 +336,20 @@ export function parseFeeConfig(box: any) {
 		} else {
 			// Check for other known token IDs or ERG fees
 			// For ERG fees, fee amount would be in a different position
-			
+
 			// Try to find fee amount in early positions for ERG
 			for (let i = 4; i < Math.min(12, hexBytes.length - 3); i++) {
-				const value = (hexBytes[i] << 24) | (hexBytes[i+1] << 16) | (hexBytes[i+2] << 8) | hexBytes[i+3];
-				if (value >= 1000000000 && value <= 10000000000) { // 1-10 ERG range in nanoERG
+				const value =
+					(hexBytes[i] << 24) | (hexBytes[i + 1] << 16) | (hexBytes[i + 2] << 8) | hexBytes[i + 3];
+				if (value >= 1000000000 && value <= 10000000000) {
+					// 1-10 ERG range in nanoERG
 					feeAmount = BigInt(value);
 					console.log(`✅ Extracted ERG fee amount: ${feeAmount} nanoERG`);
 					break;
 				}
 			}
 		}
-		
+
 		return {
 			feeAmount,
 			feeTokenId,

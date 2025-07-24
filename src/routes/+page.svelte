@@ -15,7 +15,8 @@
 	let currentHeight = 0;
 
 	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS = "5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU";
+	const MEWLOCK_CONTRACT_ADDRESS =
+		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
 
 	onMount(async () => {
 		await loadPlatformStats();
@@ -30,32 +31,32 @@
 			currentHeight = heightData.fullHeight || 0;
 
 			// Then get the boxes
-			const response = await fetch(`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`);
+			const response = await fetch(
+				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+			);
 			const data = await response.json();
-			
+
 			const boxes = data.items || [];
 			mewLockBoxes = boxes;
-			
-			// Calculate platform stats with proper data parsing  
+
+			// Calculate platform stats with proper data parsing
 			totalValueLocked = boxes.reduce((sum, box) => {
 				const value = box.value ? parseInt(box.value) / 1e9 : 0;
 				return sum + value;
 			}, 0);
-			
+
 			totalUsers = new Set(
-				boxes.map(box => box.additionalRegisters?.R4?.renderedValue)
-					.filter(address => address)
+				boxes.map((box) => box.additionalRegisters?.R4?.renderedValue).filter((address) => address)
 			).size;
-			
+
 			totalLocks = boxes.length;
-			
-			readyToUnlock = boxes.filter(box => {
-				const unlockHeight = box.additionalRegisters?.R5?.renderedValue 
-					? parseInt(box.additionalRegisters.R5.renderedValue) 
+
+			readyToUnlock = boxes.filter((box) => {
+				const unlockHeight = box.additionalRegisters?.R5?.renderedValue
+					? parseInt(box.additionalRegisters.R5.renderedValue)
 					: 0;
 				return currentHeight >= unlockHeight;
 			}).length;
-			
 		} catch (error) {
 			console.error('Error loading platform stats:', error);
 			// Set default values on error
@@ -70,15 +71,15 @@
 
 	// Separate ERG-only locks from ERG+token locks with proper data validation
 	$: ergOnlyLocks = mewLockBoxes
-		.filter(box => box && (!box.assets || box.assets.length === 0))
+		.filter((box) => box && (!box.assets || box.assets.length === 0))
 		.sort((a, b) => {
 			// Sort by creation time (newest first) using boxId as proxy
 			return b.boxId?.localeCompare(a.boxId) || 0;
 		})
 		.slice(0, 6);
-	
+
 	$: ergTokenLocks = mewLockBoxes
-		.filter(box => box && box.assets && box.assets.length > 0)
+		.filter((box) => box && box.assets && box.assets.length > 0)
 		.sort((a, b) => {
 			// Sort by creation time (newest first) using boxId as proxy
 			return b.boxId?.localeCompare(a.boxId) || 0;
@@ -87,8 +88,11 @@
 </script>
 
 <svelte:head>
-	<title>MewLock - Secure Time-Locked Asset Storage</title>
-	<meta name="description" content="Secure your ERG and tokens with time-locked smart contracts on Ergo blockchain. Set your own unlock conditions and maintain complete control.">
+	<title>Mew Lock - Secure Time-Locked Asset Storage</title>
+	<meta
+		name="description"
+		content="Secure your ERG and tokens with time-locked smart contracts on Ergo blockchain. Set your own unlock conditions and maintain complete control."
+	/>
 </svelte:head>
 
 <!-- Navigation -->
@@ -97,28 +101,37 @@
 <!-- Full Screen Hero Section -->
 <section class="hero-section">
 	<div class="hero-background">
-		<div class="hero-gradient"></div>
+		<div class="hero-gradient" />
 		<div class="hero-particles">
 			<!-- Animated background particles -->
-			<div class="particle particle-1"></div>
-			<div class="particle particle-2"></div>
-			<div class="particle particle-3"></div>
-			<div class="particle particle-4"></div>
-			<div class="particle particle-5"></div>
+			<div class="particle particle-1" />
+			<div class="particle particle-2" />
+			<div class="particle particle-3" />
+			<div class="particle particle-4" />
+			<div class="particle particle-5" />
 		</div>
 	</div>
-	
+
 	<div class="hero-content">
 		<div class="hero-center">
 			<!-- Main Logo/Brand -->
 			<div class="hero-logo">
 				<div class="logo-icon">
-					<svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+					<svg
+						width="60"
+						height="60"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+							fill="currentColor"
+						/>
 					</svg>
 				</div>
 				<div class="hero-text">
-					<h1 class="hero-title">MewLock</h1>
+					<h1 class="hero-title">Mew Lock</h1>
 					<p class="hero-subtitle">Secure Time-Locked Asset Storage</p>
 				</div>
 			</div>
@@ -176,18 +189,36 @@
 							</div>
 						</div>
 					{/if}
-					
+
 					<!-- CTA Buttons -->
 					<div class="hero-actions">
 						<a href="/my-locks" class="cta-btn primary">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+									fill="currentColor"
+								/>
 							</svg>
 							Lock Assets
 						</a>
 						<a href="/locks" class="cta-btn secondary">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21M16,8H18V15H16V8M12,2H14V15H12V2M8,13H10V15H8V13M4,17H6V15H4V17Z" fill="currentColor"/>
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21M16,8H18V15H16V8M12,2H14V15H12V2M8,13H10V15H8V13M4,17H6V15H4V17Z"
+									fill="currentColor"
+								/>
 							</svg>
 							View All Locks
 						</a>
@@ -203,9 +234,16 @@
 							<div class="preview-list">
 								{#each ergOnlyLocks.slice(0, 3) as lockBox}
 									<div class="preview-item">
-										<span class="preview-amount">{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG</span>
+										<span class="preview-amount"
+											>{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG</span
+										>
 										<span class="preview-status">
-											{currentHeight >= (lockBox.additionalRegisters?.R5?.renderedValue ? parseInt(lockBox.additionalRegisters.R5.renderedValue) : 0) ? '🔓' : '🔒'}
+											{currentHeight >=
+											(lockBox.additionalRegisters?.R5?.renderedValue
+												? parseInt(lockBox.additionalRegisters.R5.renderedValue)
+												: 0)
+												? '🔓'
+												: '🔒'}
 										</span>
 									</div>
 								{/each}
@@ -216,9 +254,17 @@
 							<div class="preview-list">
 								{#each ergTokenLocks.slice(0, 3) as lockBox}
 									<div class="preview-item">
-										<span class="preview-amount">{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG + {lockBox.assets?.length || 0}</span>
+										<span class="preview-amount"
+											>{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG + {lockBox.assets
+												?.length || 0}</span
+										>
 										<span class="preview-status">
-											{currentHeight >= (lockBox.additionalRegisters?.R5?.renderedValue ? parseInt(lockBox.additionalRegisters.R5.renderedValue) : 0) ? '🔓' : '🔒'}
+											{currentHeight >=
+											(lockBox.additionalRegisters?.R5?.renderedValue
+												? parseInt(lockBox.additionalRegisters.R5.renderedValue)
+												: 0)
+												? '🔓'
+												: '🔒'}
 										</span>
 									</div>
 								{/each}
@@ -237,34 +283,61 @@
 		<div class="footer-content">
 			<div class="footer-left">
 				<div class="footer-brand">
-					<h4>MewLock</h4>
+					<h4>Mew Lock</h4>
 					<p>Secure time-locked asset storage on Ergo</p>
 				</div>
 				<div class="footer-links">
 					<a href="https://t.me/MewFinance" target="_blank" class="footer-link">
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-							<path d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22S22 17.52 22 12S17.52 2 12 2M16.64 8.8C16.49 10.38 15.75 14.22 15.37 15.99C15.21 16.74 14.9 16.99 14.61 17.02C14.37 17.04 13.62 16.91 12.69 16.64L7.55 14.53C7.27 14.42 7.29 14.05 7.64 13.92L15.33 9.97C15.71 9.8 15.67 9.5 15.33 9.64L9.68 12.81L7.4 12.08C6.99 11.96 6.99 11.64 7.5 11.43L15.89 8.17C16.25 8.05 16.67 8.35 16.64 8.8Z" fill="currentColor"/>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22S22 17.52 22 12S17.52 2 12 2M16.64 8.8C16.49 10.38 15.75 14.22 15.37 15.99C15.21 16.74 14.9 16.99 14.61 17.02C14.37 17.04 13.62 16.91 12.69 16.64L7.55 14.53C7.27 14.42 7.29 14.05 7.64 13.92L15.33 9.97C15.71 9.8 15.67 9.5 15.33 9.64L9.68 12.81L7.4 12.08C6.99 11.96 6.99 11.64 7.5 11.43L15.89 8.17C16.25 8.05 16.67 8.35 16.64 8.8Z"
+								fill="currentColor"
+							/>
 						</svg>
 						Telegram
 					</a>
 					<a href="https://x.com/Mew_finance" target="_blank" class="footer-link">
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-							<path d="M22.46 6C21.69 6.35 20.86 6.58 20 6.69C20.88 6.16 21.56 5.32 21.88 4.31C21.05 4.81 20.13 5.16 19.16 5.36C18.37 4.5 17.26 4 16 4C13.65 4 11.73 5.92 11.73 8.29C11.73 8.63 11.77 8.96 11.84 9.27C8.28 9.09 5.11 7.38 3 4.79C2.63 5.42 2.42 6.16 2.42 6.94C2.42 8.43 3.17 9.75 4.33 10.5C3.62 10.5 2.96 10.3 2.38 10C2.38 10 2.38 10 2.38 10.03C2.38 12.11 3.86 13.85 5.82 14.24C5.46 14.34 5.08 14.39 4.69 14.39C4.42 14.39 4.15 14.36 3.89 14.31C4.43 16 6 17.26 7.89 17.29C6.43 18.45 4.58 19.13 2.56 19.13C2.22 19.13 1.88 19.11 1.54 19.07C3.44 20.29 5.7 21 8.12 21C16 21 20.33 14.46 20.33 8.79C20.33 8.6 20.33 8.42 20.32 8.23C21.16 7.63 21.88 6.87 22.46 6Z" fill="currentColor"/>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M22.46 6C21.69 6.35 20.86 6.58 20 6.69C20.88 6.16 21.56 5.32 21.88 4.31C21.05 4.81 20.13 5.16 19.16 5.36C18.37 4.5 17.26 4 16 4C13.65 4 11.73 5.92 11.73 8.29C11.73 8.63 11.77 8.96 11.84 9.27C8.28 9.09 5.11 7.38 3 4.79C2.63 5.42 2.42 6.16 2.42 6.94C2.42 8.43 3.17 9.75 4.33 10.5C3.62 10.5 2.96 10.3 2.38 10C2.38 10 2.38 10 2.38 10.03C2.38 12.11 3.86 13.85 5.82 14.24C5.46 14.34 5.08 14.39 4.69 14.39C4.42 14.39 4.15 14.36 3.89 14.31C4.43 16 6 17.26 7.89 17.29C6.43 18.45 4.58 19.13 2.56 19.13C2.22 19.13 1.88 19.11 1.54 19.07C3.44 20.29 5.7 21 8.12 21C16 21 20.33 14.46 20.33 8.79C20.33 8.6 20.33 8.42 20.32 8.23C21.16 7.63 21.88 6.87 22.46 6Z"
+								fill="currentColor"
+							/>
 						</svg>
 						Twitter
 					</a>
 				</div>
 			</div>
-			
+
 			<div class="footer-right">
 				<div class="footer-stats">
 					<span class="total-locked">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-							<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+								fill="currentColor"
+							/>
 						</svg>
 						{nFormatter(totalValueLocked, 2)} ERG Secured
 					</span>
-					<span class="copyright">© 2025 MewLock</span>
+					<span class="copyright">© 2025 Mew Lock</span>
 				</div>
 			</div>
 		</div>
@@ -428,7 +501,8 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% {
+		0%,
+		100% {
 			transform: scale(1);
 			box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4);
 		}
@@ -659,6 +733,7 @@
 	}
 
 	.cta-btn.primary:hover {
+		color: white !important;
 		transform: translateY(-3px);
 		box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
 	}
@@ -671,6 +746,7 @@
 	}
 
 	.cta-btn.secondary:hover {
+		color: white !important;
 		background: rgba(255, 255, 255, 0.15);
 		border-color: rgba(102, 126, 234, 0.5);
 		transform: translateY(-3px);
@@ -687,7 +763,6 @@
 		margin-top: 2rem;
 		animation: bounce 2s infinite;
 	}
-
 
 	/* Footer */
 	.footer {

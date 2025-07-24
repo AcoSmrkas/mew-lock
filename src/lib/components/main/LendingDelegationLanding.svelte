@@ -5,13 +5,13 @@
 	import { HERO_DESCRIPTION, LOGO_TEXT } from '$lib/common/const.ts';
 
 	export let showHero = true; // Allow hiding hero section
-	
+
 	let stats = {
 		totalLockedTokens: 0,
 		activeLocks: 0,
 		totalValueLocked: 0
 	};
-	
+
 	// How it works data - replace emojis with icons
 	const mewLockSteps = [
 		{
@@ -22,12 +22,14 @@
 		{
 			iconClass: 'fa-solid fa-clock',
 			title: 'Time-Based Security',
-			description: 'Your tokens are secured in the MewLock smart contract until the unlock height is reached.'
+			description:
+				'Your tokens are secured in the MewLock smart contract until the unlock height is reached.'
 		},
 		{
 			iconClass: 'fa-solid fa-unlock',
 			title: 'Withdraw When Ready',
-			description: 'Once the unlock height is reached, you can withdraw your tokens using your private key.'
+			description:
+				'Once the unlock height is reached, you can withdraw your tokens using your private key.'
 		}
 	];
 
@@ -37,33 +39,31 @@
 
 	async function fetchStats() {
 		try {
-			const mewLockAddress = "HP4Dp7BojEaMUQhmh7MbqbHcZvsF5SdZ"; // Your MewLock contract address
-			
+			const mewLockAddress = 'HP4Dp7BojEaMUQhmh7MbqbHcZvsF5SdZ'; // Your MewLock contract address
+
 			// Fetch MewLock stats
 			const mewLockResponse = await fetch(
 				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${mewLockAddress}`
 			);
 			const mewLockData = await mewLockResponse.json();
-			
-			const validLocks = mewLockData.items.filter(box => 
-				box.additionalRegisters?.R4 && 
-				box.additionalRegisters?.R5
+
+			const validLocks = mewLockData.items.filter(
+				(box) => box.additionalRegisters?.R4 && box.additionalRegisters?.R5
 			);
-			
+
 			stats.totalLockedTokens = validLocks.length;
-			
+
 			// Calculate total value locked
 			stats.totalValueLocked = validLocks.reduce((total, box) => {
-				return total + (parseInt(box.value) / 1e9);
+				return total + parseInt(box.value) / 1e9;
 			}, 0);
-			
+
 			// Get current height to determine active locks
 			const currentHeight = await getCurrentHeight();
-			stats.activeLocks = validLocks.filter(box => {
+			stats.activeLocks = validLocks.filter((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				return currentHeight < unlockHeight; // Still locked
 			}).length;
-
 		} catch (error) {
 			console.error('Error fetching stats:', error);
 		}
@@ -126,16 +126,17 @@
 					<div class="hero-gradient" />
 				</div>
 			</div>
-		
-		<!-- Compact stats in hero -->
-		<div class="hero-stats-compact">
-			<span class="stat-text">Total Locks: <strong>{stats.totalLockedTokens}</strong></span>
-			<span class="stat-text">Active Locks: <strong>{stats.activeLocks}</strong></span>
-			<span class="stat-text">Total Value Locked: <strong>{stats.totalValueLocked.toFixed(2)} ERG</strong></span>
-		</div>
-	</section>
-	{/if}
 
+			<!-- Compact stats in hero -->
+			<div class="hero-stats-compact">
+				<span class="stat-text">Total Locks: <strong>{stats.totalLockedTokens}</strong></span>
+				<span class="stat-text">Active Locks: <strong>{stats.activeLocks}</strong></span>
+				<span class="stat-text"
+					>Total Value Locked: <strong>{stats.totalValueLocked.toFixed(2)} ERG</strong></span
+				>
+			</div>
+		</section>
+	{/if}
 
 	<!-- How MewLock Works Section -->
 	<section class="how-it-works-section">
@@ -143,12 +144,12 @@
 			<h2 class="section-title">How MewLock Works</h2>
 			<p class="section-subtitle">Secure time-locked token storage on Ergo blockchain</p>
 		</div>
-		
+
 		<div class="steps-container">
 			{#each mewLockSteps as step, index}
 				<div class="step-card">
 					<div class="step-icon">
-						<i class="{step.iconClass}"></i>
+						<i class={step.iconClass} />
 					</div>
 					<h3 class="step-title">{step.title}</h3>
 					<p class="step-description">{step.description}</p>
@@ -163,7 +164,6 @@
 			<MewLockCards />
 		</div>
 	</section>
-
 </div>
 
 <style>
@@ -274,7 +274,6 @@
 		}
 	}
 
-
 	.hero-image-wrapper {
 		flex: 1;
 		position: relative;
@@ -347,7 +346,6 @@
 		font-weight: 600;
 	}
 
-
 	/* Offers Section */
 	.offers-section {
 		margin-bottom: 2rem;
@@ -419,7 +417,6 @@
 		line-height: 1.6;
 		margin: 0;
 	}
-
 
 	/* Responsive Design */
 	@media (max-width: 768px) {

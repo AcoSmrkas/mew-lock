@@ -14,7 +14,7 @@
 	let loading = true;
 	let withdrawing = false;
 	let currentHeight = 0;
-	
+
 	// Stats
 	let totalValueLocked = 0;
 	let totalUsers = 0;
@@ -26,7 +26,8 @@
 	let sortOrder = 'asc'; // 'asc', 'desc'
 
 	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS = "5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU";
+	const MEWLOCK_CONTRACT_ADDRESS =
+		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
@@ -38,12 +39,10 @@
 		try {
 			// Use renderedValue first, fallback to serializedValue
 			const publicKeyHex = pkRegister.renderedValue || pkRegister.serializedValue || pkRegister;
-			
+
 			// Remove '07' prefix if present
-			const publicKey = publicKeyHex.startsWith('07') 
-				? publicKeyHex.substring(2) 
-				: publicKeyHex;
-				
+			const publicKey = publicKeyHex.startsWith('07') ? publicKeyHex.substring(2) : publicKeyHex;
+
 			return ErgoAddress.fromPublicKey(publicKey).toString();
 		} catch (error) {
 			console.error('Address conversion error:', error, pkRegister);
@@ -63,15 +62,17 @@
 	async function loadMewLockBoxes() {
 		loading = true;
 		try {
-			const response = await fetch(`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`);
+			const response = await fetch(
+				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+			);
 			const data = await response.json();
-			
-			mewLockBoxes = data.items.map(box => {
+
+			mewLockBoxes = data.items.map((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
 				const isOwnBox = depositorAddress === $connected_wallet_address;
-				
+
 				return {
 					boxId: box.boxId,
 					value: parseInt(box.value),
@@ -88,10 +89,9 @@
 			});
 
 			// Calculate stats
-			totalValueLocked = mewLockBoxes.reduce((sum, box) => sum + (box.value / 1e9), 0);
-			totalUsers = new Set(mewLockBoxes.map(box => box.depositorAddress)).size;
+			totalValueLocked = mewLockBoxes.reduce((sum, box) => sum + box.value / 1e9, 0);
+			totalUsers = new Set(mewLockBoxes.map((box) => box.depositorAddress)).size;
 			totalLocks = mewLockBoxes.length;
-			
 		} catch (error) {
 			console.error('Error loading MewLock boxes:', error);
 		}
@@ -126,7 +126,11 @@
 			if (get(selected_wallet_ergo) !== 'ergopay') {
 				const signed = await ergo.sign_tx(withdrawalTx);
 				const transactionId = await ergo.submit_tx(signed);
-				showCustomToast(`Withdrawn! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`, 10000, 'success');
+				showCustomToast(
+					`Withdrawn! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
+					10000,
+					'success'
+				);
 				await loadMewLockBoxes();
 			}
 		} catch (error) {
@@ -136,7 +140,6 @@
 			withdrawing = false;
 		}
 	}
-
 
 	function toggleSort(newSortBy: string) {
 		if (sortBy === newSortBy) {
@@ -152,9 +155,9 @@
 	}
 
 	// Reactive statements for filtering and sorting
-	$: ownLocks = mewLockBoxes.filter(box => box.isOwnBox);
-	$: unlockableBoxes = ownLocks.filter(box => box.canWithdraw);
-	$: personalERGLocked = ownLocks.reduce((sum, box) => sum + (box.value / 1e9), 0);
+	$: ownLocks = mewLockBoxes.filter((box) => box.isOwnBox);
+	$: unlockableBoxes = ownLocks.filter((box) => box.canWithdraw);
+	$: personalERGLocked = ownLocks.reduce((sum, box) => sum + box.value / 1e9, 0);
 	$: personalLockCount = ownLocks.length;
 
 	// Calculate personal token summaries
@@ -167,7 +170,7 @@
 
 		// Add token amounts
 		if (box.assets && box.assets.length > 0) {
-			box.assets.forEach(asset => {
+			box.assets.forEach((asset) => {
 				if (!summaries[asset.tokenId]) {
 					summaries[asset.tokenId] = {
 						totalAmount: 0,
@@ -184,7 +187,9 @@
 		return summaries;
 	}, {});
 
-	$: personalTokenList = Object.values(personalTokenSummaries).filter(summary => summary.totalAmount > 0);
+	$: personalTokenList = Object.values(personalTokenSummaries).filter(
+		(summary) => summary.totalAmount > 0
+	);
 
 	// Filtering based on view mode
 	$: filteredBoxes = (() => {
@@ -202,7 +207,7 @@
 	// Sorting
 	$: sortedFilteredBoxes = [...filteredBoxes].sort((a, b) => {
 		let aValue, bValue;
-		
+
 		switch (sortBy) {
 			case 'height':
 				aValue = a.unlockHeight;
@@ -219,14 +224,14 @@
 			default:
 				return 0;
 		}
-		
+
 		const result = aValue - bValue;
 		return sortOrder === 'asc' ? result : -result;
 	});
 </script>
 
 <svelte:head>
-	<title>MewLock - Your Locked Assets</title>
+	<title>Mew Lock - Your Locked Assets</title>
 </svelte:head>
 
 <!-- Navigation -->
@@ -237,16 +242,27 @@
 		{#if !$connected_wallet_address}
 			<div class="connect-wallet-prompt">
 				<div class="connect-icon">
-					<svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4M20 18H4V8H20V18M17 12C17 11.4 16.6 11 16 11S15 11.4 15 12S15.4 13 16 13S17 12.6 17 12Z" fill="currentColor"/>
+					<svg
+						width="64"
+						height="64"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4M20 18H4V8H20V18M17 12C17 11.4 16.6 11 16 11S15 11.4 15 12S15.4 13 16 13S17 12.6 17 12Z"
+							fill="currentColor"
+						/>
 					</svg>
 				</div>
 				<h3>Connect Your Wallet</h3>
-				<p>Connect your wallet using the navigation menu above to view and manage your locked assets.</p>
+				<p>
+					Connect your wallet using the navigation menu above to view and manage your locked assets.
+				</p>
 			</div>
 		{:else if loading}
 			<div class="loading-state">
-				<div class="spinner"></div>
+				<div class="spinner" />
 				<p>Loading your locked assets...</p>
 			</div>
 		{:else}
@@ -256,8 +272,17 @@
 				<div class="stats-grid">
 					<div class="stat-card primary">
 						<div class="stat-icon">
-							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<div class="stat-content">
@@ -268,8 +293,17 @@
 
 					<div class="stat-card">
 						<div class="stat-icon">
-							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z" fill="currentColor"/>
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<div class="stat-content">
@@ -280,8 +314,17 @@
 
 					<div class="stat-card success">
 						<div class="stat-icon">
-							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" fill="currentColor"/>
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<div class="stat-content">
@@ -292,8 +335,17 @@
 
 					<div class="stat-card">
 						<div class="stat-icon">
-							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M5,6H23V18H5V6M14,9A3,3 0 0,1 17,12A3,3 0 0,1 14,15A3,3 0 0,1 11,12A3,3 0 0,1 14,9M9,8A2,2 0 0,1 7,10V14A2,2 0 0,1 9,16H19A2,2 0 0,1 21,14V10A2,2 0 0,1 19,8H9Z" fill="currentColor"/>
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M5,6H23V18H5V6M14,9A3,3 0 0,1 17,12A3,3 0 0,1 14,15A3,3 0 0,1 11,12A3,3 0 0,1 14,9M9,8A2,2 0 0,1 7,10V14A2,2 0 0,1 9,16H19A2,2 0 0,1 21,14V10A2,2 0 0,1 19,8H9Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<div class="stat-content">
@@ -330,22 +382,22 @@
 					<div class="controls">
 						<!-- View Filter -->
 						<div class="view-controls">
-							<button 
-								class="filter-btn" 
+							<button
+								class="filter-btn"
 								class:active={viewFilter === 'mine'}
 								on:click={() => setViewFilter('mine')}
 							>
 								Mine ({ownLocks.length})
 							</button>
-							<button 
-								class="filter-btn" 
+							<button
+								class="filter-btn"
 								class:active={viewFilter === 'ready'}
 								on:click={() => setViewFilter('ready')}
 							>
 								Ready ({unlockableBoxes.length})
 							</button>
-							<button 
-								class="filter-btn" 
+							<button
+								class="filter-btn"
 								class:active={viewFilter === 'all'}
 								on:click={() => setViewFilter('all')}
 							>
@@ -355,50 +407,68 @@
 
 						<!-- Sort Controls -->
 						<div class="sort-controls">
-							<button 
-								class="sort-btn" 
+							<button
+								class="sort-btn"
 								class:active={sortBy === 'height'}
 								on:click={() => toggleSort('height')}
 							>
 								Height
 								{#if sortBy === 'height'}
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										xmlns="http://www.w3.org/2000/svg"
+									>
 										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor"/>
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
 										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor"/>
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
 										{/if}
 									</svg>
 								{/if}
 							</button>
-							<button 
-								class="sort-btn" 
+							<button
+								class="sort-btn"
 								class:active={sortBy === 'amount'}
 								on:click={() => toggleSort('amount')}
 							>
 								Amount
 								{#if sortBy === 'amount'}
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										xmlns="http://www.w3.org/2000/svg"
+									>
 										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor"/>
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
 										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor"/>
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
 										{/if}
 									</svg>
 								{/if}
 							</button>
-							<button 
-								class="sort-btn" 
+							<button
+								class="sort-btn"
 								class:active={sortBy === 'tokens'}
 								on:click={() => toggleSort('tokens')}
 							>
 								Tokens
 								{#if sortBy === 'tokens'}
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										xmlns="http://www.w3.org/2000/svg"
+									>
 										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor"/>
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
 										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor"/>
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
 										{/if}
 									</svg>
 								{/if}
@@ -411,8 +481,8 @@
 				{#if sortedFilteredBoxes.length > 0}
 					<div class="locks-grid">
 						{#each sortedFilteredBoxes as lockBox (lockBox.boxId)}
-							<div 
-								class="lock-card" 
+							<div
+								class="lock-card"
 								class:own={lockBox.isOwnBox}
 								class:ready={lockBox.canWithdraw}
 								transition:fly={{ y: 20, duration: 300 }}
@@ -447,7 +517,8 @@
 										<div class="token-list">
 											{#each lockBox.assets.slice(0, 3) as asset}
 												<div class="token-item">
-													{nFormatter(asset.amount / (10 ** (asset.decimals || 0)))} {asset.name || 'Token'}
+													{nFormatter(asset.amount / 10 ** (asset.decimals || 0))}
+													{asset.name || 'Token'}
 												</div>
 											{/each}
 											{#if lockBox.assets.length > 3}
@@ -469,19 +540,37 @@
 
 								{#if lockBox.isOwnBox && lockBox.canWithdraw}
 									<div class="lock-actions">
-										<button 
+										<button
 											class="withdraw-btn"
 											disabled={withdrawing}
 											on:click={() => handleWithdrawal(lockBox)}
 										>
 											{#if withdrawing}
-												<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-													<path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" fill="currentColor"/>
+												<svg
+													width="16"
+													height="16"
+													viewBox="0 0 24 24"
+													fill="none"
+													xmlns="http://www.w3.org/2000/svg"
+												>
+													<path
+														d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"
+														fill="currentColor"
+													/>
 												</svg>
 												Withdrawing...
 											{:else}
-												<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-													<path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" fill="currentColor"/>
+												<svg
+													width="16"
+													height="16"
+													viewBox="0 0 24 24"
+													fill="none"
+													xmlns="http://www.w3.org/2000/svg"
+												>
+													<path
+														d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"
+														fill="currentColor"
+													/>
 												</svg>
 												Withdraw
 											{/if}
@@ -494,8 +583,17 @@
 				{:else}
 					<div class="empty-state">
 						<div class="empty-icon">
-							<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+							<svg
+								width="48"
+								height="48"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+									fill="currentColor"
+								/>
 							</svg>
 						</div>
 						<h3>No Assets Found</h3>
@@ -514,7 +612,6 @@
 		{/if}
 	</main>
 </div>
-
 
 <style>
 	/* Base Styles */
@@ -537,8 +634,6 @@
 		margin: 0 auto;
 	}
 
-
-
 	.header-title-area h1 {
 		font-size: 3rem;
 		font-weight: 800;
@@ -556,7 +651,6 @@
 		margin: 0;
 		max-width: 600px;
 	}
-
 
 	/* Main Content */
 	.locks-main {
@@ -617,8 +711,12 @@
 	}
 
 	@keyframes spin {
-		0% { transform: rotate(0deg); }
-		100% { transform: rotate(360deg); }
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
 	}
 
 	/* Personal Stats */
@@ -1005,14 +1103,12 @@
 		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 	}
 
-
 	/* Responsive */
 	@media (max-width: 768px) {
 		.locks-header,
 		.locks-main {
 			padding: 1rem;
 		}
-
 
 		.header-title-area h1 {
 			font-size: 2rem;

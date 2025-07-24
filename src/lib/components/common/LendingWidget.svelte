@@ -16,7 +16,7 @@
 	import { get } from 'svelte/store';
 
 	export let showModal = false;
-	
+
 	let processing = false;
 	let showErgopayModal = false;
 	let unsignedTx = null;
@@ -54,17 +54,17 @@
 
 	async function loadUserAssets() {
 		if (!$connected_wallet_address) return;
-		
+
 		loadingAssets = true;
 		try {
 			const boxes = await fetchBoxes($connected_wallet_address);
-			const allAssets = boxes.flatMap(box => box.assets || []);
-			
+			const allAssets = boxes.flatMap((box) => box.assets || []);
+
 			// Group assets by tokenId and sum amounts
 			const assetMap = new Map();
-			allAssets.forEach(asset => {
-				const existing = assetMap.get(asset.tokenId) || { 
-					tokenId: asset.tokenId, 
+			allAssets.forEach((asset) => {
+				const existing = assetMap.get(asset.tokenId) || {
+					tokenId: asset.tokenId,
 					amount: BigInt(0),
 					name: asset.name || 'Unknown Token',
 					decimals: asset.decimals || 0
@@ -72,8 +72,8 @@
 				existing.amount += BigInt(asset.amount);
 				assetMap.set(asset.tokenId, existing);
 			});
-			
-			userAssets = Array.from(assetMap.values()).filter(asset => asset.amount > 0);
+
+			userAssets = Array.from(assetMap.values()).filter((asset) => asset.amount > 0);
 		} catch (error) {
 			console.error('Error loading user assets:', error);
 			showCustomToast('Failed to load your assets', 3000, 'danger');
@@ -82,7 +82,7 @@
 	}
 
 	function toggleAssetSelection(asset: any) {
-		const index = selectedLoanTokens.findIndex(token => token.tokenId === asset.tokenId);
+		const index = selectedLoanTokens.findIndex((token) => token.tokenId === asset.tokenId);
 		if (index >= 0) {
 			selectedLoanTokens.splice(index, 1);
 			selectedAssetAmounts.delete(asset.tokenId);
@@ -98,13 +98,13 @@
 	}
 
 	function isAssetSelected(asset: any): boolean {
-		return selectedLoanTokens.some(token => token.tokenId === asset.tokenId);
+		return selectedLoanTokens.some((token) => token.tokenId === asset.tokenId);
 	}
 
 	async function createLoan() {
 		console.log('🏦 User attempting to create loan offer...');
 		console.log('👤 User address:', $connected_wallet_address);
-		
+
 		if (!isWalletConected()) {
 			console.log('❌ Wallet not connected');
 			showCustomToast('Please connect your wallet first', 3000, 'info');
@@ -137,14 +137,24 @@
 
 		console.log('🎯 USER LOAN CREATION ATTEMPT:');
 		console.log('🔹 User:', $connected_wallet_address);
-		console.log('🔹 Selected tokens to lend:', selectedLoanTokens.map(t => ({
-			name: t.name,
-			tokenId: t.tokenId,
-			userAmount: selectedAssetAmounts.get(t.tokenId)
-		})));
+		console.log(
+			'🔹 Selected tokens to lend:',
+			selectedLoanTokens.map((t) => ({
+				name: t.name,
+				tokenId: t.tokenId,
+				userAmount: selectedAssetAmounts.get(t.tokenId)
+			}))
+		);
 		console.log('🔹 Collateral type:', collateralType);
-		console.log('🔹 Collateral amount:', collateralAmount, collateralType === 'erg' ? 'ERG' : 'tokens');
-		console.log('🔹 Collateral token ID:', collateralType === 'token' ? collateralTokenId : 'N/A (ERG)');
+		console.log(
+			'🔹 Collateral amount:',
+			collateralAmount,
+			collateralType === 'erg' ? 'ERG' : 'tokens'
+		);
+		console.log(
+			'🔹 Collateral token ID:',
+			collateralType === 'token' ? collateralTokenId : 'N/A (ERG)'
+		);
 		console.log('🔹 Lending fee:', lendingFeeErg, 'ERG');
 		console.log('🔹 Fee percentage:', feePercent, 'basis points');
 		console.log('🔹 Duration:', durationBlocks, 'blocks (~' + formatDuration(durationBlocks) + ')');
@@ -155,7 +165,7 @@
 		try {
 			console.log('🔧 Processing loan tokens...');
 			// Prepare loan tokens with specified amounts
-			const loanTokens = selectedLoanTokens.map(token => {
+			const loanTokens = selectedLoanTokens.map((token) => {
 				const userAmount = selectedAssetAmounts.get(token.tokenId) || '1';
 				const adjustedAmount = BigInt(userAmount) * BigInt(10 ** (token.decimals || 0));
 				console.log(`  📦 Token: ${token.name} (${token.tokenId})`);
@@ -172,23 +182,30 @@
 			console.log('🔍 SECURE VERSION: Validating user has loan tokens to lock...');
 			// SECURE: Alice must have the tokens to lock them in the contract
 			for (const loanToken of loanTokens) {
-				const userToken = userAssets.find(asset => asset.tokenId === loanToken.tokenId);
+				const userToken = userAssets.find((asset) => asset.tokenId === loanToken.tokenId);
 				console.log(`  🔹 Checking ${loanToken.tokenId}:`);
 				console.log(`     - Required to lock: ${loanToken.amount}`);
 				console.log(`     - Available: ${userToken?.amount || 'NOT FOUND'}`);
-				console.log(`     - Sufficient: ${userToken && userToken.amount >= loanToken.amount ? 'YES' : 'NO'}`);
-				
+				console.log(
+					`     - Sufficient: ${userToken && userToken.amount >= loanToken.amount ? 'YES' : 'NO'}`
+				);
+
 				if (!userToken || userToken.amount < loanToken.amount) {
-					throw new Error(`Insufficient balance for ${loanToken.tokenId} - need ${loanToken.amount} but only have ${userToken?.amount || 0}`);
+					throw new Error(
+						`Insufficient balance for ${loanToken.tokenId} - need ${
+							loanToken.amount
+						} but only have ${userToken?.amount || 0}`
+					);
 				}
 			}
 
 			console.log('🔧 Processing collateral requirements...');
 			// Prepare collateral info
 			const collateralTokenIdBytes = collateralType === 'token' ? collateralTokenId : '';
-			const collateralAmountBigInt = collateralType === 'erg' 
-				? BigInt(parseFloat(collateralAmount) * 1e9) // Convert ERG to nanoERG
-				: BigInt(parseFloat(collateralAmount) * 1e9); // Assume token decimals handled elsewhere
+			const collateralAmountBigInt =
+				collateralType === 'erg'
+					? BigInt(parseFloat(collateralAmount) * 1e9) // Convert ERG to nanoERG
+					: BigInt(parseFloat(collateralAmount) * 1e9); // Assume token decimals handled elsewhere
 
 			console.log(`  💰 Collateral details:`);
 			console.log(`     - Type: ${collateralType}`);
@@ -205,16 +222,16 @@
 			// Get user UTXOs
 			const userBoxes = await fetchBoxes($connected_wallet_address);
 			console.log(`  📦 Total user boxes found: ${userBoxes.length}`);
-			
+
 			// SECURE VERSION: Filter UTXOs that contain the required loan tokens
-			const utxos = userBoxes.filter(box => {
+			const utxos = userBoxes.filter((box) => {
 				// Filter boxes that contain the required loan tokens to lock
 				if (loanTokens.length === 0) return BigInt(box.value) >= BigInt(RECOMMENDED_MIN_FEE_VALUE);
-				
-				return loanTokens.every(loanToken => {
-					return box.assets?.some(asset => 
-						asset.tokenId === loanToken.tokenId && 
-						BigInt(asset.amount) >= loanToken.amount
+
+				return loanTokens.every((loanToken) => {
+					return box.assets?.some(
+						(asset) =>
+							asset.tokenId === loanToken.tokenId && BigInt(asset.amount) >= loanToken.amount
 					);
 				});
 			});
@@ -229,7 +246,7 @@
 			console.log('🏦 Final loan creation parameters:');
 			console.log({
 				lenderAddress: $connected_wallet_address,
-				loanTokens: loanTokens.map(t => ({ ...t, amount: t.amount.toString() })),
+				loanTokens: loanTokens.map((t) => ({ ...t, amount: t.amount.toString() })),
 				collateralTokenIdBytes,
 				collateralAmountBigInt: collateralAmountBigInt.toString(),
 				feePercent,
@@ -262,10 +279,10 @@
 				if (!window.ergo) {
 					throw new Error('Wallet not connected');
 				}
-				
+
 				console.log('✍️ Signing transaction...');
 				const signed = await window.ergo.sign_tx(unsigned);
-				
+
 				console.log('📤 Submitting transaction...');
 				const transactionId = await window.ergo.submit_tx(signed);
 
@@ -317,13 +334,13 @@
 
 	function calculateAPR(): string {
 		if (!lendingFeeErg || !collateralAmount || parseFloat(collateralAmount) === 0) return '0';
-		
+
 		const fee = parseFloat(lendingFeeErg);
 		const collateral = parseFloat(collateralAmount);
 		const durationHours = durationBlocks / 60;
 		const durationYears = durationHours / (24 * 365);
-		
-		const apr = (fee / collateral) / durationYears * 100;
+
+		const apr = (fee / collateral / durationYears) * 100;
 		return apr.toFixed(2);
 	}
 </script>
@@ -346,11 +363,14 @@
 					<div class="form-section">
 						<h3>Loan Tokens</h3>
 						<p class="section-description">Select tokens you want to lend out</p>
-						
+
 						{#if selectedLoanTokens.length === 0}
 							<div class="no-selection">
 								<p>No tokens selected for lending</p>
-								<button class="select-btn" on:click={() => showAssetSelector = !showAssetSelector}>
+								<button
+									class="select-btn"
+									on:click={() => (showAssetSelector = !showAssetSelector)}
+								>
 									{showAssetSelector ? 'Hide' : 'Select'} Tokens
 								</button>
 							</div>
@@ -359,32 +379,41 @@
 								{#each selectedLoanTokens as token}
 									<div class="token-item">
 										<div class="token-info">
-											<img 
-												src={getImageUrl(token, true)} 
+											<img
+												src={getImageUrl(token, true)}
 												alt={token.name}
 												class="token-image"
 												onerror={(e) => setPlaceholderImage(e, token)}
 											/>
 											<div class="token-details">
 												<span class="token-name">{token.name || 'Unknown Token'}</span>
-												<span class="token-balance">Balance: {nFormatter(Number(token.amount) / (10 ** (token.decimals || 0)))}</span>
+												<span class="token-balance"
+													>Balance: {nFormatter(
+														Number(token.amount) / 10 ** (token.decimals || 0)
+													)}</span
+												>
 											</div>
 										</div>
 										<div class="amount-input">
-											<input 
-												type="number" 
-												min="1" 
-												max={Number(token.amount) / (10 ** (token.decimals || 0))}
+											<input
+												type="number"
+												min="1"
+												max={Number(token.amount) / 10 ** (token.decimals || 0)}
 												step="0.0001"
 												value={selectedAssetAmounts.get(token.tokenId) || ''}
 												oninput={(e) => updateAssetAmount(token.tokenId, e.target.value)}
 												placeholder="Amount"
 											/>
-											<button class="remove-btn" on:click={() => toggleAssetSelection(token)}>×</button>
+											<button class="remove-btn" on:click={() => toggleAssetSelection(token)}
+												>×</button
+											>
 										</div>
 									</div>
 								{/each}
-								<button class="add-more-btn" on:click={() => showAssetSelector = !showAssetSelector}>
+								<button
+									class="add-more-btn"
+									on:click={() => (showAssetSelector = !showAssetSelector)}
+								>
 									{showAssetSelector ? 'Hide' : 'Add More'} Tokens
 								</button>
 							</div>
@@ -400,19 +429,21 @@
 								{:else}
 									<div class="assets-grid">
 										{#each userAssets as asset}
-											<div 
+											<div
 												class="asset-item {isAssetSelected(asset) ? 'selected' : ''}"
 												on:click={() => toggleAssetSelection(asset)}
 											>
-												<img 
-													src={getImageUrl(asset, true)} 
+												<img
+													src={getImageUrl(asset, true)}
 													alt={asset.name}
 													class="asset-image"
 													onerror={(e) => setPlaceholderImage(e, asset)}
 												/>
 												<div class="asset-info">
 													<span class="asset-name">{asset.name || 'Unknown'}</span>
-													<span class="asset-amount">{nFormatter(Number(asset.amount) / (10 ** (asset.decimals || 0)))}</span>
+													<span class="asset-amount"
+														>{nFormatter(Number(asset.amount) / 10 ** (asset.decimals || 0))}</span
+													>
 												</div>
 												{#if isAssetSelected(asset)}
 													<div class="selected-check">✓</div>
@@ -428,7 +459,7 @@
 					<div class="form-section">
 						<h3>Collateral Requirements</h3>
 						<p class="section-description">What collateral should borrowers provide?</p>
-						
+
 						<div class="collateral-type">
 							<label>
 								<input type="radio" bind:group={collateralType} value="erg" />
@@ -443,10 +474,10 @@
 						{#if collateralType === 'erg'}
 							<div class="input-group">
 								<label>ERG Amount Required</label>
-								<input 
-									type="number" 
-									bind:value={collateralAmount} 
-									min="0.001" 
+								<input
+									type="number"
+									bind:value={collateralAmount}
+									min="0.001"
 									step="0.001"
 									placeholder="e.g., 10.0"
 								/>
@@ -455,18 +486,18 @@
 						{:else}
 							<div class="input-group">
 								<label>Token ID</label>
-								<input 
-									type="text" 
-									bind:value={collateralTokenId} 
+								<input
+									type="text"
+									bind:value={collateralTokenId}
 									placeholder="Token ID for collateral"
 								/>
 							</div>
 							<div class="input-group">
 								<label>Token Amount Required</label>
-								<input 
-									type="number" 
-									bind:value={collateralAmount} 
-									min="1" 
+								<input
+									type="number"
+									bind:value={collateralAmount}
+									min="1"
 									step="1"
 									placeholder="e.g., 1000"
 								/>
@@ -476,13 +507,13 @@
 
 					<div class="form-section">
 						<h3>Loan Terms</h3>
-						
+
 						<div class="input-group">
 							<label>Lending Fee</label>
-							<input 
-								type="number" 
-								bind:value={lendingFeeErg} 
-								min="0.001" 
+							<input
+								type="number"
+								bind:value={lendingFeeErg}
+								min="0.001"
 								step="0.001"
 								placeholder="0.01"
 							/>
@@ -491,9 +522,9 @@
 
 						<div class="input-group">
 							<label>Fee Percentage (for platform)</label>
-							<input 
-								type="number" 
-								bind:value={feePercent} 
+							<input
+								type="number"
+								bind:value={feePercent}
 								min={LENDING_MIN_FEE_PERCENT}
 								max="10000"
 								step="100"
@@ -503,10 +534,10 @@
 
 						<div class="input-group">
 							<label>Loan Duration</label>
-							<input 
-								type="number" 
-								bind:value={durationBlocks} 
-								min="100" 
+							<input
+								type="number"
+								bind:value={durationBlocks}
+								min="100"
 								step="60"
 								placeholder="1440"
 							/>
@@ -519,12 +550,17 @@
 						<div class="summary-grid">
 							<div class="summary-item">
 								<span class="summary-label">Tokens to Lend:</span>
-								<span class="summary-value">{selectedLoanTokens.length} token{selectedLoanTokens.length !== 1 ? 's' : ''}</span>
+								<span class="summary-value"
+									>{selectedLoanTokens.length} token{selectedLoanTokens.length !== 1
+										? 's'
+										: ''}</span
+								>
 							</div>
 							<div class="summary-item">
 								<span class="summary-label">Collateral Required:</span>
 								<span class="summary-value">
-									{collateralAmount || '0'} {collateralType === 'erg' ? 'ERG' : 'Tokens'}
+									{collateralAmount || '0'}
+									{collateralType === 'erg' ? 'ERG' : 'Tokens'}
 								</span>
 							</div>
 							<div class="summary-item">
@@ -544,9 +580,9 @@
 
 					<div class="modal-footer">
 						<button class="cancel-btn" on:click={closeModal}>Cancel</button>
-						<button 
-							class="create-btn" 
-							on:click={createLoan} 
+						<button
+							class="create-btn"
+							on:click={createLoan}
 							disabled={processing || selectedLoanTokens.length === 0}
 						>
 							{processing ? 'Creating...' : 'Create Loan Offer'}
@@ -780,7 +816,8 @@
 		margin: 0 0 12px 0;
 	}
 
-	.loading, .no-assets {
+	.loading,
+	.no-assets {
 		text-align: center;
 		color: rgba(255, 255, 255, 0.6);
 		padding: 20px;

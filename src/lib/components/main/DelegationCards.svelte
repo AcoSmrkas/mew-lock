@@ -34,17 +34,17 @@
 	// Helper function to get token name from token ID
 	function getFeeTokenName(tokenId: string): string {
 		if (!tokenId) return 'ERG';
-		
+
 		// Check in ASSETS first
-		const asset = ASSETS.find(a => a.tokenId === tokenId || a.tokenid === tokenId);
+		const asset = ASSETS.find((a) => a.tokenId === tokenId || a.tokenid === tokenId);
 		if (asset) return asset.name;
-		
+
 		// Check in delegation's own tokens
 		for (const delegation of delegations) {
-			const token = delegation.tokens.find(t => t.tokenId === tokenId);
+			const token = delegation.tokens.find((t) => t.tokenId === tokenId);
 			if (token && token.name) return token.name;
 		}
-		
+
 		// Return truncated token ID if name not found
 		return `${tokenId.substring(0, 8)}...`;
 	}
@@ -55,23 +55,23 @@
 			// ERG has 9 decimals
 			return nFormatter(Number(amount) / 1e9);
 		}
-		
+
 		// Check token decimals in ASSETS
-		const asset = ASSETS.find(a => a.tokenId === tokenId || a.tokenid === tokenId);
+		const asset = ASSETS.find((a) => a.tokenId === tokenId || a.tokenid === tokenId);
 		if (asset && asset.decimals !== undefined) {
 			const divisor = Math.pow(10, asset.decimals);
 			return nFormatter(Number(amount) / divisor);
 		}
-		
+
 		// Check in delegation tokens
 		for (const delegation of delegations) {
-			const token = delegation.tokens.find(t => t.tokenId === tokenId);
+			const token = delegation.tokens.find((t) => t.tokenId === tokenId);
 			if (token && token.decimals !== undefined) {
 				const divisor = Math.pow(10, token.decimals);
 				return nFormatter(Number(amount) / divisor);
 			}
 		}
-		
+
 		// Default to 9 decimals if not found
 		return nFormatter(Number(amount) / 1e9);
 	}
@@ -171,7 +171,10 @@
 		}
 
 		// Check wallet connection - ErgoPay doesn't use ergoConnector
-		if ($selected_wallet_ergo !== 'ergopay' && !window.ergoConnector[$selected_wallet_ergo]?.isConnected) {
+		if (
+			$selected_wallet_ergo !== 'ergopay' &&
+			!window.ergoConnector[$selected_wallet_ergo]?.isConnected
+		) {
 			showCustomToast('Connect wallet first.', 1500, 'info');
 			return;
 		}
@@ -187,7 +190,7 @@
 
 		try {
 			let myAddress, height;
-			
+
 			if ($selected_wallet_ergo === 'ergopay') {
 				// For ErgoPay, use connected wallet address and current block height
 				myAddress = $connected_wallet_address;
@@ -217,30 +220,32 @@
 					// Parse fee configuration from delegation
 					const feeConfig = parseFeeConfig(originalBox);
 					console.log('🔍 Fee config extracted:', feeConfig);
-					
+
 					let additionalUtxos;
 					const userBoxes = await fetchBoxes(myAddress);
 					console.log('📦 Total user boxes fetched:', userBoxes.length);
-					
+
 					if (feeConfig.feeTokenId) {
 						// TOKEN FEE (MEW) - need boxes with the specific token + enough ERG for tx fees
 						console.log('💰 Looking for token fee UTXOs with token ID:', feeConfig.feeTokenId);
-						
+
 						// Find boxes with MEW tokens
-						const tokenBoxes = userBoxes.filter(box => {
+						const tokenBoxes = userBoxes.filter((box) => {
 							if (!box.assets || box.assets.length === 0) return false;
-							return box.assets.some(asset => asset.tokenId === feeConfig.feeTokenId);
+							return box.assets.some((asset) => asset.tokenId === feeConfig.feeTokenId);
 						});
-						
+
 						// Also need boxes with enough ERG for transaction fees
-						const ergBoxes = userBoxes.filter(box => 
-							BigInt(box.value) >= BigInt(RECOMMENDED_MIN_FEE_VALUE)
+						const ergBoxes = userBoxes.filter(
+							(box) => BigInt(box.value) >= BigInt(RECOMMENDED_MIN_FEE_VALUE)
 						);
-						
+
 						// Combine unique boxes (token boxes + erg boxes)
-						const combinedBoxes = [...new Map([...tokenBoxes, ...ergBoxes].map(box => [box.boxId, box])).values()];
+						const combinedBoxes = [
+							...new Map([...tokenBoxes, ...ergBoxes].map((box) => [box.boxId, box])).values()
+						];
 						additionalUtxos = combinedBoxes;
-						
+
 						console.log('📊 Token boxes found:', tokenBoxes.length);
 						console.log('📊 ERG boxes found:', ergBoxes.length);
 						console.log('📊 Combined UTXOs for activation:', additionalUtxos.length);
@@ -248,20 +253,20 @@
 						// ERG FEE - need boxes with enough ERG value
 						const totalNeeded = feeConfig.feeAmount + BigInt(RECOMMENDED_MIN_FEE_VALUE);
 						console.log('💰 Looking for ERG fee UTXOs, total needed:', totalNeeded.toString());
-						
+
 						if ($selected_wallet_ergo === 'ergopay') {
-							additionalUtxos = userBoxes.filter(box => box.value >= totalNeeded.toString());
+							additionalUtxos = userBoxes.filter((box) => box.value >= totalNeeded.toString());
 						} else {
-							additionalUtxos = userBoxes.filter(box => BigInt(box.value) >= totalNeeded);
+							additionalUtxos = userBoxes.filter((box) => BigInt(box.value) >= totalNeeded);
 						}
 						console.log('📊 ERG UTXOs found:', additionalUtxos.length);
 					}
-					
+
 					unsigned = activateDelegationV3Tx(
-						box, 
-						myAddress, 
-						height, 
-						additionalUtxos, 
+						box,
+						myAddress,
+						height,
+						additionalUtxos,
 						feeConfig.feeAmount,
 						feeConfig.feeTokenId
 					);
@@ -271,32 +276,32 @@
 				case 'withdrawCancelled':
 					// Request enough for mining fee
 					const withdrawAmount = BigInt(RECOMMENDED_MIN_FEE_VALUE);
-					
+
 					let withdrawUtxos;
 					if ($selected_wallet_ergo === 'ergopay') {
 						const userBoxes = await fetchBoxes(myAddress);
-						withdrawUtxos = userBoxes.filter(box => box.value >= withdrawAmount.toString());
+						withdrawUtxos = userBoxes.filter((box) => box.value >= withdrawAmount.toString());
 					} else {
 						const userBoxes = await fetchBoxes(myAddress);
-						withdrawUtxos = userBoxes.filter(box => BigInt(box.value) >= withdrawAmount);
+						withdrawUtxos = userBoxes.filter((box) => BigInt(box.value) >= withdrawAmount);
 					}
-					
+
 					unsigned = withdrawDelegationV3Tx(box, myAddress, height, withdrawUtxos);
 					break;
 
 				case 'cancel':
 					// Emergency cancel delegation
 					const cancelAmount = BigInt(RECOMMENDED_MIN_FEE_VALUE);
-					
+
 					let cancelUtxos;
 					if ($selected_wallet_ergo === 'ergopay') {
 						const userBoxes = await fetchBoxes(myAddress);
-						cancelUtxos = userBoxes.filter(box => box.value >= cancelAmount.toString());
+						cancelUtxos = userBoxes.filter((box) => box.value >= cancelAmount.toString());
 					} else {
 						const userBoxes = await fetchBoxes(myAddress);
-						cancelUtxos = userBoxes.filter(box => BigInt(box.value) >= cancelAmount);
+						cancelUtxos = userBoxes.filter((box) => BigInt(box.value) >= cancelAmount);
 					}
-					
+
 					unsigned = cancelDelegationV3Tx(box, myAddress, height, cancelUtxos);
 					break;
 
@@ -392,7 +397,8 @@
 
 	function prevAsset(delegationId: string, totalAssets: number) {
 		if (!currentAssetIndex[delegationId]) currentAssetIndex[delegationId] = 0;
-		currentAssetIndex[delegationId] = (currentAssetIndex[delegationId] - 1 + totalAssets) % totalAssets;
+		currentAssetIndex[delegationId] =
+			(currentAssetIndex[delegationId] - 1 + totalAssets) % totalAssets;
 		currentAssetIndex = { ...currentAssetIndex }; // Trigger reactivity
 	}
 
@@ -458,7 +464,10 @@
 
 		if (isDelegate) {
 			if (delegation.state === 1 && !isExpired) {
-				const feeDisplay = `${formatFeeAmount(delegation.feeAmount, delegation.feeTokenId)} ${getFeeTokenName(delegation.feeTokenId)}`;
+				const feeDisplay = `${formatFeeAmount(
+					delegation.feeAmount,
+					delegation.feeTokenId
+				)} ${getFeeTokenName(delegation.feeTokenId)}`;
 				return [
 					{
 						action: 'activate',
@@ -503,11 +512,18 @@
 											class="single-asset-card-image"
 											on:error={(event) => setPlaceholderImage(event, delegation.tokens[0])}
 										/>
-										<div class="status-dot {getStateColor(delegation.state, delegation)}"></div>
-										<div class="amount-overlay">{nFormatter(Number(delegation.tokens[0].amount) / Math.pow(10, delegation.tokens[0].decimals || 0))}</div>
+										<div class="status-dot {getStateColor(delegation.state, delegation)}" />
+										<div class="amount-overlay">
+											{nFormatter(
+												Number(delegation.tokens[0].amount) /
+													Math.pow(10, delegation.tokens[0].decimals || 0)
+											)}
+										</div>
 									</div>
 									<div class="single-asset-card-info">
-										<div class="single-asset-card-name">{delegation.tokens[0].name || 'Unknown Token'}</div>
+										<div class="single-asset-card-name">
+											{delegation.tokens[0].name || 'Unknown Token'}
+										</div>
 									</div>
 								</div>
 							{:else}
@@ -523,7 +539,11 @@
 											/>
 											<div class="asset-text-info">
 												<span class="asset-name">{token.name || 'Unknown'}</span>
-												<span class="asset-amount">{nFormatter(Number(token.amount) / Math.pow(10, token.decimals || 0))}</span>
+												<span class="asset-amount"
+													>{nFormatter(
+														Number(token.amount) / Math.pow(10, token.decimals || 0)
+													)}</span
+												>
 											</div>
 										</div>
 									{/each}
@@ -545,11 +565,15 @@
 					<div class="addresses-section">
 						<div class="address-row">
 							<span class="address-label">From:</span>
-							<span class="address-value {isDelegator ? 'your-address' : ''}">{truncateAddress(delegation.delegator)}</span>
+							<span class="address-value {isDelegator ? 'your-address' : ''}"
+								>{truncateAddress(delegation.delegator)}</span
+							>
 						</div>
 						<div class="address-row">
 							<span class="address-label">To:</span>
-							<span class="address-value {isDelegate ? 'your-address' : ''}">{truncateAddress(delegation.delegate)}</span>
+							<span class="address-value {isDelegate ? 'your-address' : ''}"
+								>{truncateAddress(delegation.delegate)}</span
+							>
 						</div>
 					</div>
 
@@ -557,7 +581,7 @@
 						<div class="info-item">
 							<span class="info-label">Fee:</span>
 							<span class="info-value">
-								{formatFeeAmount(delegation.feeAmount, delegation.feeTokenId)} 
+								{formatFeeAmount(delegation.feeAmount, delegation.feeTokenId)}
 								{getFeeTokenName(delegation.feeTokenId)}
 							</span>
 						</div>
@@ -599,7 +623,6 @@
 		<Loading />
 	</div>
 {/if}
-
 
 {#if showErgopayModal}
 	<ErgopayModal
@@ -1040,7 +1063,6 @@
 		font-style: italic;
 	}
 
-
 	.no-delegations {
 		text-align: center;
 		padding: 3rem 1rem;
@@ -1056,22 +1078,22 @@
 			grid-template-columns: 1fr;
 			padding: 0 0.5rem;
 		}
-		
+
 		.delegation-item {
 			height: auto;
 			flex-direction: column;
 			min-width: auto;
 		}
-		
+
 		.image-container {
 			width: 100%;
 			height: 150px;
 		}
-		
+
 		.token-image {
 			border-radius: 12px 12px 0 0;
 		}
-		
+
 		.no-image {
 			border-radius: 12px 12px 0 0;
 		}
@@ -1442,11 +1464,11 @@
 			flex: 0 0 calc(100% - 0rem);
 			min-width: 280px;
 		}
-		
+
 		.asset-showcase {
 			height: 180px;
 		}
-		
+
 		.main-asset-image {
 			width: 80px;
 			height: 80px;

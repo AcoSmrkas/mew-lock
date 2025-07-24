@@ -27,8 +27,12 @@
 	// Navigation items
 	const navItems = [
 		{ href: '/', label: 'Home', icon: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z' },
-		{ href: '/locks', label: 'All Locks', icon: 'M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21M16,8H18V15H16V8M12,2H14V15H12V2M8,13H10V15H8V13M4,17H6V15H4V17Z' },
-		{ href: '/my-locks', label: 'My Locks', icon: 'M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z' }
+		// { href: '/locks', label: 'All Locks', icon: 'M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21M16,8H18V15H16V8M12,2H14V15H12V2M8,13H10V15H8V13M4,17H6V15H4V17Z' },
+		{
+			href: '/my-locks',
+			label: 'My Locks',
+			icon: 'M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z'
+		}
 	];
 
 	$: currentPath = $page.url.pathname;
@@ -38,22 +42,29 @@
 	<div class="nav-container">
 		<!-- Logo -->
 		<div class="nav-logo">
-			<a href="/" on:click={closeMobileMenu}>
-				<span class="logo-text">MewLock</span>
+			<a class="flex space-x-2 items-center" href="/" on:click={closeMobileMenu}>
+				<img class="w-auto h-10 inline" src="/logo.png" alt="" />
+				<span class="logo-text">Mew Lock</span>
 			</a>
 		</div>
 
 		<!-- Desktop Navigation -->
 		<div class="nav-links desktop">
 			{#each navItems as item}
-				<a 
-					href={item.href} 
-					class="nav-link" 
+				<a
+					href={item.href}
+					class="nav-link"
 					class:active={currentPath === item.href}
 					on:click={closeMobileMenu}
 				>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d={item.icon} fill="currentColor"/>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path d={item.icon} fill="currentColor" />
 					</svg>
 					{item.label}
 				</a>
@@ -64,8 +75,17 @@
 		<div class="nav-actions desktop">
 			{#if $connected_wallet_address}
 				<button class="lock-btn" on:click={openLockModal}>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+							fill="currentColor"
+						/>
 					</svg>
 					Lock Assets
 				</button>
@@ -75,27 +95,37 @@
 
 		<!-- Mobile Hamburger Menu -->
 		<button class="mobile-menu-btn" on:click={toggleMobileMenu} class:active={mobileMenuOpen}>
-			<span class="hamburger-line"></span>
-			<span class="hamburger-line"></span>
-			<span class="hamburger-line"></span>
+			<span class="hamburger-line" />
+			<span class="hamburger-line" />
+			<span class="hamburger-line" />
 		</button>
 	</div>
 
 	<!-- Mobile Menu Overlay -->
 	{#if mobileMenuOpen}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div class="mobile-menu-overlay" on:click={closeMobileMenu}>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<div class="mobile-menu" on:click|stopPropagation>
 				<!-- Mobile Navigation Links -->
 				<div class="mobile-nav-links">
 					{#each navItems as item}
-						<a 
-							href={item.href} 
-							class="mobile-nav-link" 
+						<a
+							href={item.href}
+							class="mobile-nav-link"
 							class:active={currentPath === item.href}
 							on:click={closeMobileMenu}
 						>
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d={item.icon} fill="currentColor"/>
+							<svg
+								width="20"
+								height="20"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path d={item.icon} fill="currentColor" />
 							</svg>
 							{item.label}
 						</a>
@@ -106,8 +136,17 @@
 				<div class="mobile-actions">
 					{#if $connected_wallet_address}
 						<button class="mobile-lock-btn" on:click={openLockModal}>
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+							<svg
+								width="20"
+								height="20"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+									fill="currentColor"
+								/>
 							</svg>
 							Lock Your Assets
 						</button>

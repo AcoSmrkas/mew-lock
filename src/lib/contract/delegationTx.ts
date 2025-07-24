@@ -306,19 +306,19 @@ export function withdrawTx(
 		'   - ErgoScript delegatorWithdraw path: delegatorProp && validScBoxSpent && (state == 1 || isExpiredTimeWindow)'
 	);
 
-    const outputZero = new OutputBuilder(
-				totalBoxValue, // OUTPUTS(0): All ERG from delegation box to delegator
-				withdrawerAddress
-			).addTokens(processedAssets);
+	const outputZero = new OutputBuilder(
+		totalBoxValue, // OUTPUTS(0): All ERG from delegation box to delegator
+		withdrawerAddress
+	).addTokens(processedAssets);
 
-    outputZero.setAdditionalRegisters({
-        R4: box.additionalRegisters.R4, // delegator unchanged
-        R5: box.additionalRegisters.R5, // delegate unchanged
-        R6: box.additionalRegisters.R6, // duration unchanged
-        R7: box.additionalRegisters.R7, // state unchanged
-        R8: box.additionalRegisters.R8, // required fee unchanged
-        R9: box.additionalRegisters.R9 // fee percent unchanged
-    })
+	outputZero.setAdditionalRegisters({
+		R4: box.additionalRegisters.R4, // delegator unchanged
+		R5: box.additionalRegisters.R5, // delegate unchanged
+		R6: box.additionalRegisters.R6, // duration unchanged
+		R7: box.additionalRegisters.R7, // state unchanged
+		R8: box.additionalRegisters.R8, // required fee unchanged
+		R9: box.additionalRegisters.R9 // fee percent unchanged
+	});
 
 	// Match the exact successful transaction structure:
 	// OUTPUTS(0) = delegator address with all delegation assets

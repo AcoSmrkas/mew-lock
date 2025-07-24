@@ -134,7 +134,7 @@
 					decimals: 9,
 					imageLink: 'https://ergexplorer.com/images/logo-new.png'
 				},
-				...ASSETS.map(asset => ({
+				...ASSETS.map((asset) => ({
 					tokenId: asset.tokenId || asset.tokenid,
 					name: asset.name,
 					decimals: asset.decimals,
@@ -222,14 +222,14 @@
 		if (feeTokenId) {
 			// For token fees, find the token decimals and convert properly
 			let tokenDecimals = 2; // Default for SigUSD/MEW
-			
-			const feeToken = supportedFeeTokens.find(t => 
-				(t.tokenId === feeTokenId) || (t.tokenId === feeTokenId && t.tokenId !== 'erg')
+
+			const feeToken = supportedFeeTokens.find(
+				(t) => t.tokenId === feeTokenId || (t.tokenId === feeTokenId && t.tokenId !== 'erg')
 			);
 			if (feeToken && feeToken.decimals !== undefined) {
 				tokenDecimals = feeToken.decimals;
 			}
-			
+
 			// Convert 1 MEW → 100 raw units (1 × 10^2)
 			feeAmountConverted = new BigNumber(feeInErg).times(10 ** tokenDecimals);
 		} else {
@@ -454,8 +454,12 @@
 			<div class="flex-1">
 				<div class="fee-info bg-form p-3 rounded-lg">
 					<p class="text-light text-sm mb-1"><strong>Fee Structure:</strong></p>
-					<p class="text-light text-xs">• Developer: {DELEGATION_MIN_FEE_PERCENT / 100}% of activation fee</p>
-					<p class="text-light text-xs">• Delegator: {100 - (DELEGATION_MIN_FEE_PERCENT / 100)}% of activation fee</p>
+					<p class="text-light text-xs">
+						• Developer: {DELEGATION_MIN_FEE_PERCENT / 100}% of activation fee
+					</p>
+					<p class="text-light text-xs">
+						• Delegator: {100 - DELEGATION_MIN_FEE_PERCENT / 100}% of activation fee
+					</p>
 				</div>
 			</div>
 		</div>

@@ -4,4 +4,3 @@
 
 <!-- Simplified Landing -->
 <LendingDelegationLanding showHero={true} />
-

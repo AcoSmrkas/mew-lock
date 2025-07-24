@@ -80,7 +80,7 @@
 	let offerToken = null;
 	let offerTokenError = '';
 	let triggerDelegationCreate = false;
-	
+
 	// MewLock variables
 	let mewLockBoxes = [];
 	let selectedMewLockBox = null;
@@ -90,7 +90,7 @@
 	let unlockHeight = '';
 	let currentHeight = 0;
 	let selectedTokensToLock = []; // Tokens selected for locking
-	
+
 	// Lending variables
 	let collateralTokenId = 'erg';
 	let collateralAmount = '';
@@ -288,7 +288,11 @@
 			return;
 		}
 		if ((paymentInErg && priceInErg == undefined) || (!paymentInErg && priceInToken == undefined)) {
-			showCustomToast(activeModalTab === 'storage' ? 'Set desired storage amount.' : 'Set a price.', 1500, 'info');
+			showCustomToast(
+				activeModalTab === 'storage' ? 'Set desired storage amount.' : 'Set a price.',
+				1500,
+				'info'
+			);
 			return;
 		}
 		if (!selectedCategory) {
@@ -556,14 +560,14 @@
 		try {
 			// Get collector's UTXOs
 			const utxosResponse = await fetchBoxes(address);
-			
+
 			// Get ERG balance
 			let ergBalance = 0;
 			const tokens = {};
 
 			for (const utxo of utxosResponse) {
 				ergBalance += parseInt(utxo.value);
-				
+
 				if (utxo.assets) {
 					for (const asset of utxo.assets) {
 						if (tokens[asset.tokenId]) {
@@ -597,10 +601,10 @@
 			const tokenIds = Object.keys(tokens);
 			if (tokenIds.length > 0) {
 				try {
-					const tokenInfoResponse = await axios.post(`https://api.ergexplorer.com/tokens/byId`, { 
+					const tokenInfoResponse = await axios.post(`https://api.ergexplorer.com/tokens/byId`, {
 						ids: tokenIds.slice(0, 30) // Limit to first 30 tokens
 					});
-					
+
 					for (const tokenInfo of tokenInfoResponse.data.items) {
 						if (tokens[tokenInfo.id]) {
 							const asset = {
@@ -624,7 +628,6 @@
 			}
 
 			collectorAssets = assets;
-
 		} catch (error) {
 			console.error('Failed to load collector assets:', error);
 		}
@@ -687,7 +690,7 @@
 
 	function selectTokenForLocking(token) {
 		// Check if token is already selected
-		if (selectedTokensToLock.some(t => t.tokenId === token.tokenId)) {
+		if (selectedTokensToLock.some((t) => t.tokenId === token.tokenId)) {
 			showCustomToast('Token already selected for locking.', 3000, 'warning');
 			return;
 		}
@@ -699,32 +702,40 @@
 		};
 
 		selectedTokensToLock = [...selectedTokensToLock, tokenToAdd];
-		
+
 		// Automatically set minimum ERG amount when tokens are selected to prevent storage rent
 		if (selectedTokensToLock.length > 0 && (!lockAmount || parseFloat(lockAmount) < 0.1)) {
 			lockAmount = '0.1';
-			showCustomToast(`${token.name} added. ERG amount set to minimum 0.1 ERG to prevent storage rent.`, 3000, 'info');
+			showCustomToast(
+				`${token.name} added. ERG amount set to minimum 0.1 ERG to prevent storage rent.`,
+				3000,
+				'info'
+			);
 		} else {
 			showCustomToast(`${token.name} added to lock list.`, 2000, 'success');
 		}
 	}
 
 	function removeTokenFromLocking(token) {
-		selectedTokensToLock = selectedTokensToLock.filter(t => t.tokenId !== token.tokenId);
+		selectedTokensToLock = selectedTokensToLock.filter((t) => t.tokenId !== token.tokenId);
 		showCustomToast(`${token.name} removed from lock list.`, 2000, 'info');
 	}
 
 	function updateTokenLockAmount(token, newAmount) {
-		const maxAmount = assets.find(a => a.tokenId === token.tokenId)?.displayAmount || 0;
-		
+		const maxAmount = assets.find((a) => a.tokenId === token.tokenId)?.displayAmount || 0;
+
 		if (newAmount > maxAmount) {
 			showCustomToast(`Maximum available: ${maxAmount} ${token.name}`, 3000, 'warning');
 			return;
 		}
 
-		selectedTokensToLock = selectedTokensToLock.map(t => 
-			t.tokenId === token.tokenId 
-				? { ...t, displayAmount: newAmount, amount: BigInt(Math.round(newAmount * Math.pow(10, t.decimals))) }
+		selectedTokensToLock = selectedTokensToLock.map((t) =>
+			t.tokenId === token.tokenId
+				? {
+						...t,
+						displayAmount: newAmount,
+						amount: BigInt(Math.round(newAmount * Math.pow(10, t.decimals)))
+				  }
 				: t
 		);
 	}
@@ -806,21 +817,21 @@
 			// Import the lending transaction function
 			const { createLoanTx } = await import('$lib/contract/lendingTx.ts');
 
-			const loanTokens = selectedAssets.map(token => ({
+			const loanTokens = selectedAssets.map((token) => ({
 				tokenId: token.tokenId,
 				amount: token.amount
 			}));
 
 			// Ensure collateralAmount is a string and parse it
 			const collateralAmountStr = String(collateralAmount);
-			
+
 			console.log('🔍 Collateral amount conversion:', {
 				original: collateralAmount,
 				asString: collateralAmountStr,
 				parsed: parseFloat(collateralAmountStr),
 				isErg: collateralTokenId === 'erg'
 			});
-			
+
 			// Convert collateral amount properly
 			let collateralAmountBigInt;
 			try {
@@ -840,7 +851,9 @@
 			}
 
 			// Convert lending fee to nano ERG
-			const lendingFeeNanoErgBigInt = BigInt(Math.round(parseFloat(lendingFeeErg) * Math.pow(10, 9)));
+			const lendingFeeNanoErgBigInt = BigInt(
+				Math.round(parseFloat(lendingFeeErg) * Math.pow(10, 9))
+			);
 
 			console.log('🏦 Creating loan offer:', {
 				lenderAddress: myAddress,
@@ -942,7 +955,11 @@
 		}
 		// Ensure minimum ERG amount when tokens are selected
 		if (selectedTokensToLock.length > 0 && parseFloat(lockAmount) < 0.1) {
-			showCustomToast('Minimum 0.1 ERG required when locking tokens to prevent storage rent.', 3000, 'warning');
+			showCustomToast(
+				'Minimum 0.1 ERG required when locking tokens to prevent storage rent.',
+				3000,
+				'warning'
+			);
 			return;
 		}
 		if (!unlockHeight || unlockHeight <= 0) {
@@ -972,7 +989,7 @@
 			const amountToLock = BigInt(Math.round(parseFloat(lockAmount) * 1e9));
 
 			// Prepare tokens to lock
-			const tokensToLock = selectedTokensToLock.map(token => ({
+			const tokensToLock = selectedTokensToLock.map((token) => ({
 				tokenId: token.tokenId,
 				amount: token.amount.toString()
 			}));
@@ -991,8 +1008,10 @@
 				const signed = await ergo.sign_tx(lockTx);
 				const transactionId = await ergo.submit_tx(signed);
 
-				const assetText = selectedTokensToLock.length > 0 ? 
-					`ERG and ${selectedTokensToLock.length} token(s)` : 'ERG';
+				const assetText =
+					selectedTokensToLock.length > 0
+						? `ERG and ${selectedTokensToLock.length} token(s)`
+						: 'ERG';
 
 				showCustomToast(
 					`${assetText} locked successfully! They will unlock at block ${unlockHeightValue}.<br>TX ID: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
@@ -1005,7 +1024,7 @@
 				lockDuration = 720;
 				unlockHeight = '';
 				selectedTokensToLock = [];
-				
+
 				// Update wallet balance
 				await loadWalletBoxes($connected_wallet_address, true);
 			} else {
@@ -1025,10 +1044,17 @@
 		processing = false;
 	}
 
-	async function createMewLockDeposit(myAddress, utxos, height, amountToLock, tokensToLock, unlockHeight) {
+	async function createMewLockDeposit(
+		myAddress,
+		utxos,
+		height,
+		amountToLock,
+		tokensToLock,
+		unlockHeight
+	) {
 		// Import the MewLock transaction function
 		const { createMewLockDepositTx } = await import('$lib/contract/mewLockTx.ts');
-		
+
 		return createMewLockDepositTx(
 			myAddress,
 			utxos,
@@ -1041,20 +1067,22 @@
 
 	async function loadMewLockBoxes() {
 		if (!$connected_wallet_address) return;
-		
+
 		mewLockBoxesLoading = true;
 		mewLockBoxes = [];
 
 		try {
-			const mewLockAddress = "HP4Dp7BojEaMUQhmh7MbqbHcZvsF5SdZ"; // Your MewLock contract address
-			
+			const mewLockAddress = 'HP4Dp7BojEaMUQhmh7MbqbHcZvsF5SdZ'; // Your MewLock contract address
+
 			// Get current block height
 			const currentHeight = await getBlockHeight();
-			
+
 			// Search for boxes at the MewLock contract address that belong to the user
-			const response = await axios.get(`https://api.ergexplorer.com/api/v1/boxes/unspent/byAddress/${mewLockAddress}`);
-			
-			const userBoxes = response.data.items.filter(box => {
+			const response = await axios.get(
+				`https://api.ergexplorer.com/api/v1/boxes/unspent/byAddress/${mewLockAddress}`
+			);
+
+			const userBoxes = response.data.items.filter((box) => {
 				// Check if R4 (depositor pubkey) matches user's address
 				return box.additionalRegisters?.R4?.renderedValue === $connected_wallet_address;
 			});
@@ -1062,7 +1090,7 @@
 			for (const box of userBoxes) {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
-				
+
 				mewLockBoxes.push({
 					boxId: box.boxId,
 					value: parseInt(box.value),
@@ -1076,7 +1104,6 @@
 
 			// Sort by unlock height (earliest first)
 			mewLockBoxes.sort((a, b) => a.unlockHeight - b.unlockHeight);
-			
 		} catch (error) {
 			console.error('Failed to load MewLock boxes:', error);
 			showCustomToast('Failed to load locked tokens.', 3000, 'danger');
@@ -1127,7 +1154,7 @@
 				// Refresh the MewLock boxes
 				await loadMewLockBoxes();
 				selectedMewLockBox = null;
-				
+
 				// Update wallet balance
 				await loadWalletBoxes($connected_wallet_address, true);
 			} else {
@@ -1146,20 +1173,18 @@
 	async function createMewLockWithdrawal(myAddress, utxos, height, lockBox) {
 		// Import the MewLock transaction function
 		const { createMewLockWithdrawalTx } = await import('$lib/contract/mewLockTx.ts');
-		
-		return createMewLockWithdrawalTx(
-			myAddress,
-			utxos,
-			height,
-			lockBox
-		);
+
+		return createMewLockWithdrawalTx(myAddress, utxos, height, lockBox);
 	}
 </script>
 
 <div class="mewlock-header">
 	<div class="header-title">
 		<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-			<path d="M18 11V7C18 4.79 16.21 3 14 3H10C7.79 3 6 4.79 6 7V11C4.9 11 4 11.9 4 13V19C4 20.1 4.9 21 6 21H18C19.1 21 20 20.1 20 19V13C20 11.9 19.1 11 18 11ZM12 17.5C11.17 17.5 10.5 16.83 10.5 16S11.17 14.5 12 14.5S13.5 15.17 13.5 16S12.83 17.5 12 17.5ZM8 11V7C8 5.9 8.9 5 10 5H14C15.1 5 16 5.9 16 7V11H8Z" fill="currentColor"/>
+			<path
+				d="M18 11V7C18 4.79 16.21 3 14 3H10C7.79 3 6 4.79 6 7V11C4.9 11 4 11.9 4 13V19C4 20.1 4.9 21 6 21H18C19.1 21 20 20.1 20 19V13C20 11.9 19.1 11 18 11ZM12 17.5C11.17 17.5 10.5 16.83 10.5 16S11.17 14.5 12 14.5S13.5 15.17 13.5 16S12.83 17.5 12 17.5ZM8 11V7C8 5.9 8.9 5 10 5H14C15.1 5 16 5.9 16 7V11H8Z"
+				fill="currentColor"
+			/>
 		</svg>
 		MewLock - Time-Locked Storage
 	</div>
@@ -1168,22 +1193,19 @@
 	</p>
 </div>
 
-
-
-
 <div class="mt-4">
 	<h6 class="text-white text-xl font-bold font-manrope text-center mb-3">Lock Your ERG</h6>
-	
+
 	<div class="mewlock-form-card">
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 			<div>
 				<label class="pb-1 font-bold text-md block" for="lockAmount">Amount to Lock (ERG):</label>
-				<input 
+				<input
 					id="lockAmount"
 					class="bg-form text-white text-sm rounded-lg focus-primary block w-full p-2.5"
-					type="number" 
-					bind:value={lockAmount} 
-					min="0.1" 
+					type="number"
+					bind:value={lockAmount}
+					min="0.1"
 					step="0.1"
 					placeholder="10.0"
 				/>
@@ -1193,33 +1215,35 @@
 			</div>
 			<div>
 				<label class="pb-1 font-bold text-md block" for="unlockHeight">Unlock Height (R5):</label>
-				<input 
+				<input
 					id="unlockHeight"
 					class="bg-form text-white text-sm rounded-lg focus-primary block w-full p-2.5"
-					type="number" 
-					bind:value={unlockHeight} 
-					min="1" 
+					type="number"
+					bind:value={unlockHeight}
+					min="1"
 					step="1"
 					placeholder="e.g., 1234567"
 				/>
 				<small class="text-light">Block height when tokens unlock</small>
 			</div>
 		</div>
-		
+
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 			<div>
-				<label class="pb-1 font-bold text-md block" for="lockDuration">Helper: Lock Duration (blocks):</label>
-				<input 
+				<label class="pb-1 font-bold text-md block" for="lockDuration"
+					>Helper: Lock Duration (blocks):</label
+				>
+				<input
 					id="lockDuration"
 					class="bg-form text-white text-sm rounded-lg focus-primary block w-full p-2.5"
-					type="number" 
-					bind:value={lockDuration} 
-					min="60" 
+					type="number"
+					bind:value={lockDuration}
+					min="60"
 					step="60"
 					placeholder="720"
 					on:input={updateUnlockHeight}
 				/>
-				<small class="text-light">~{Math.round(lockDuration/60)} hours from now</small>
+				<small class="text-light">~{Math.round(lockDuration / 60)} hours from now</small>
 			</div>
 			<div>
 				<label class="pb-1 font-bold text-md block">Current Block Height:</label>
@@ -1229,22 +1253,32 @@
 				<small class="text-light">Current blockchain height</small>
 			</div>
 		</div>
-		
+
 		<div class="p-3 bg-footer rounded-lg">
 			<h4 class="text-white font-bold mb-2">🔒 MewLock Smart Contract</h4>
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
 				<p class="text-gray-300"><strong>ERG Amount:</strong> {lockAmount || '0'} ERG</p>
-				<p class="text-gray-300"><strong>Additional Tokens:</strong> {selectedTokensToLock.length} selected</p>
+				<p class="text-gray-300">
+					<strong>Additional Tokens:</strong>
+					{selectedTokensToLock.length} selected
+				</p>
 				<p class="text-gray-300"><strong>R4 (depositorPubKey):</strong> Your public key</p>
 				<p class="text-gray-300"><strong>R5 (unlockHeight):</strong> {unlockHeight || 'Not set'}</p>
-				<p class="text-gray-300"><strong>Current Height:</strong> {currentHeight || 'Loading...'}</p>
+				<p class="text-gray-300">
+					<strong>Current Height:</strong>
+					{currentHeight || 'Loading...'}
+				</p>
 			</div>
 			{#if unlockHeight && currentHeight}
-				<p class="text-sm text-primary mt-2"><strong>⏰ Blocks to unlock:</strong> {Math.max(0, parseInt(unlockHeight) - currentHeight)}</p>
+				<p class="text-sm text-primary mt-2">
+					<strong>⏰ Blocks to unlock:</strong>
+					{Math.max(0, parseInt(unlockHeight) - currentHeight)}
+				</p>
 			{/if}
 			{#if selectedTokensToLock.length > 0}
 				<div class="mt-3 text-xs text-gray-400">
-					<strong>Selected tokens:</strong> {selectedTokensToLock.map(t => `${t.displayAmount} ${t.name}`).join(', ')}
+					<strong>Selected tokens:</strong>
+					{selectedTokensToLock.map((t) => `${t.displayAmount} ${t.name}`).join(', ')}
 				</div>
 			{/if}
 		</div>
@@ -1260,15 +1294,15 @@
 				<div class="mewlock-token-card">
 					<div class="flex justify-between items-center mb-2">
 						<span class="font-semibold text-white">{token.name}</span>
-						<button 
+						<button
 							class="text-red-400 hover:text-red-300 text-sm"
 							on:click={() => removeTokenFromLocking(token)}
 						>
-							<i class="fa-solid fa-times"></i>
+							<i class="fa-solid fa-times" />
 						</button>
 					</div>
 					<div class="flex items-center gap-2">
-						<input 
+						<input
 							type="number"
 							class="bg-form text-white text-sm rounded p-2 flex-1"
 							bind:value={token.displayAmount}
@@ -1290,16 +1324,22 @@
 	{#if !$connected_wallet_address}
 		<div class="bg-bg p-4 rounded-lg text-center">
 			<p class="text-gray-300 mb-2">
-				<i class="fa-solid fa-wallet text-2xl mb-2"></i>
+				<i class="fa-solid fa-wallet text-2xl mb-2" />
 			</p>
 			<p class="text-gray-300">Connect your wallet to view and select tokens for locking</p>
 		</div>
 	{:else}
 		<div class="mewlock-form-card mb-3">
 			<p class="text-gray-300 text-sm mb-2">
-				<strong>Address:</strong> 
-				<a href="https://ergexplorer.com/addresses/{$connected_wallet_address}" target="_new" class="text-primary">
-					{$connected_wallet_address.substring(0, 8)}...{$connected_wallet_address.substring($connected_wallet_address.length - 8)}
+				<strong>Address:</strong>
+				<a
+					href="https://ergexplorer.com/addresses/{$connected_wallet_address}"
+					target="_new"
+					class="text-primary"
+				>
+					{$connected_wallet_address.substring(0, 8)}...{$connected_wallet_address.substring(
+						$connected_wallet_address.length - 8
+					)}
 				</a>
 			</p>
 			<input
@@ -1311,13 +1351,18 @@
 		</div>
 		{#if assetsLoading}
 			<div class="bg-form p-8 rounded-lg text-center">
-				<div class="loading-spinner mx-auto mb-2"></div>
+				<div class="loading-spinner mx-auto mb-2" />
 				<p class="text-gray-400">Loading assets...</p>
 			</div>
 		{:else if assets.length > 0}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-				{#each assets.filter(a => a.tokenId !== 'erg' && a.name && a.name.toLowerCase().includes(search.toLowerCase()) && !selectedTokensToLock.some(t => t.tokenId === a.tokenId)) as token}
-					<div class="bg-form p-3 rounded-lg hover:bg-footer transition-colors cursor-pointer" on:click={() => selectTokenForLocking(token)}>
+				{#each assets.filter((a) => a.tokenId !== 'erg' && a.name && a.name
+							.toLowerCase()
+							.includes(search.toLowerCase()) && !selectedTokensToLock.some((t) => t.tokenId === a.tokenId)) as token}
+					<div
+						class="bg-form p-3 rounded-lg hover:bg-footer transition-colors cursor-pointer"
+						on:click={() => selectTokenForLocking(token)}
+					>
 						<div class="flex items-center gap-3">
 							<div class="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
 								<img
@@ -1335,7 +1380,7 @@
 								{/if}
 							</div>
 							<div class="text-primary">
-								<i class="fa-solid fa-plus"></i>
+								<i class="fa-solid fa-plus" />
 							</div>
 						</div>
 					</div>
@@ -1354,21 +1399,26 @@
 	class="flex sticky bg-form flex-col space-y-3 gap-[20px] sm:flex-row sm:space-y-0 sm:space-x-4 ms-[-22px] bottom-[-20px] sm:bottom-[-25px] p-4 justify-between"
 	style="width: calc(100% + 45px);"
 >
-	<button
-		disabled={processing}
-		class="mewlock-btn secondary flex-grow"
-		on:click={close}>Cancel</button
+	<button disabled={processing} class="mewlock-btn secondary flex-grow" on:click={close}
+		>Cancel</button
 	>
 	<button
 		class="mewlock-btn primary flex-grow"
 		disabled={processing || !lockAmount || lockAmount <= 0 || !unlockHeight || unlockHeight <= 0}
-		on:click={lockTokens}>
-		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-			<path d="M18 11V7C18 4.79 16.21 3 14 3H10C7.79 3 6 4.79 6 7V11C4.9 11 4 11.9 4 13V19C4 20.1 4.9 21 6 21H18C19.1 21 20 20.1 20 19V13C20 11.9 19.1 11 18 11ZM12 17.5C11.17 17.5 10.5 16.83 10.5 16S11.17 14.5 12 14.5S13.5 15.17 13.5 16S12.83 17.5 12 17.5ZM8 11V7C8 5.9 8.9 5 10 5H14C15.1 5 16 5.9 16 7V11H8Z" fill="currentColor"/>
-		</svg>
-		{selectedTokensToLock.length > 0 ? `Lock ERG + ${selectedTokensToLock.length} Token${selectedTokensToLock.length > 1 ? 's' : ''}` : 'Lock ERG'}
-	</button
+		on:click={lockTokens}
 	>
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<path
+				d="M18 11V7C18 4.79 16.21 3 14 3H10C7.79 3 6 4.79 6 7V11C4.9 11 4 11.9 4 13V19C4 20.1 4.9 21 6 21H18C19.1 21 20 20.1 20 19V13C20 11.9 19.1 11 18 11ZM12 17.5C11.17 17.5 10.5 16.83 10.5 16S11.17 14.5 12 14.5S13.5 15.17 13.5 16S12.83 17.5 12 17.5ZM8 11V7C8 5.9 8.9 5 10 5H14C15.1 5 16 5.9 16 7V11H8Z"
+				fill="currentColor"
+			/>
+		</svg>
+		{selectedTokensToLock.length > 0
+			? `Lock ERG + ${selectedTokensToLock.length} Token${
+					selectedTokensToLock.length > 1 ? 's' : ''
+			  }`
+			: 'Lock ERG'}
+	</button>
 </div>
 
 {#if showErgopayModal}

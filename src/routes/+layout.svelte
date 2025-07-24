@@ -94,13 +94,11 @@
 	{#if showModal}
 		<SellModal on:close={toggleModal} bind:offerTokenId bind:sellTokenId />
 	{/if}
-
 {:else}
 	<div class="container loading-holder">
 		<Loading />
 	</div>
 {/if}
-
 
 <style type="text/css">
 	.loading-holder {

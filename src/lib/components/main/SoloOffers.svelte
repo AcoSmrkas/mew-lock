@@ -32,9 +32,7 @@
 	});
 
 	function updateOrders(offers, mempoolBoxes) {
-		soloOrders = offers.filter(
-			(offer) => !mempoolBoxes.includes(offer.boxin)
-		);
+		soloOrders = offers.filter((offer) => !mempoolBoxes.includes(offer.boxin));
 		// soloOrders.unshift(parseMempoolBoxToOrder($unconfirmedOrderBoxes[0]))
 	}
 </script>

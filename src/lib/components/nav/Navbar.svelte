@@ -27,7 +27,6 @@
 <nav class="fixed top-0 w-full z-50 modern-nav">
 	<div class="nav-container">
 		<div class="flex items-center justify-between h-20">
-			
 			<!-- Logo/Brand -->
 			<div class="flex items-center">
 				<a href="/" class="brand-link">
@@ -36,7 +35,7 @@
 							<span class="text-3xl">🔒</span>
 						</div>
 						<div class="brand-text">
-							<span class="brand-name">MewLock</span>
+							<span class="brand-name">Mew Lock</span>
 							<span class="brand-tagline">Time-Locked Storage</span>
 						</div>
 					</div>
@@ -45,22 +44,9 @@
 
 			<!-- Desktop Navigation -->
 			<div class="hidden md:flex items-center space-x-1">
-				<a 
-					href="/" 
-					class="nav-link {pageName == '' ? 'active' : ''}"
-				>
-					🏠 Home
-				</a>
-				<a 
-					href="/explore" 
-					class="nav-link {pageName == 'explore' ? 'active' : ''}"
-				>
-					🔍 Explore
-				</a>
-				<a 
-					href="/activity" 
-					class="nav-link {pageName == 'activity' ? 'active' : ''}"
-				>
+				<a href="/" class="nav-link {pageName == '' ? 'active' : ''}"> 🏠 Home </a>
+				<a href="/explore" class="nav-link {pageName == 'explore' ? 'active' : ''}"> 🔍 Explore </a>
+				<a href="/activity" class="nav-link {pageName == 'activity' ? 'active' : ''}">
 					📊 Activity
 				</a>
 			</div>
@@ -72,17 +58,13 @@
 						<WalletButton />
 					</div>
 				{/if}
-				
+
 				<!-- Mobile menu button -->
-				<button 
-					type="button" 
-					on:click={toggleNav} 
-					class="mobile-menu-btn md:hidden"
-				>
+				<button type="button" on:click={toggleNav} class="mobile-menu-btn md:hidden">
 					<div class="hamburger {navCollapsed ? '' : 'active'}">
-						<span></span>
-						<span></span>
-						<span></span>
+						<span />
+						<span />
+						<span />
 					</div>
 				</button>
 			</div>
@@ -91,24 +73,20 @@
 		<!-- Mobile Navigation -->
 		<div class="mobile-nav {navCollapsed ? 'collapsed' : 'expanded'}">
 			<div class="mobile-nav-content">
-				<a 
-					href="/" 
-					class="mobile-nav-link {pageName == '' ? 'active' : ''}"
-					on:click={toggleNav}
-				>
+				<a href="/" class="mobile-nav-link {pageName == '' ? 'active' : ''}" on:click={toggleNav}>
 					<span class="mobile-nav-icon">🏠</span>
 					<span>Home</span>
 				</a>
-				<a 
-					href="/explore" 
+				<a
+					href="/explore"
 					class="mobile-nav-link {pageName == 'explore' ? 'active' : ''}"
 					on:click={toggleNav}
 				>
 					<span class="mobile-nav-icon">🔍</span>
 					<span>Explore</span>
 				</a>
-				<a 
-					href="/activity" 
+				<a
+					href="/activity"
 					class="mobile-nav-link {pageName == 'activity' ? 'active' : ''}"
 					on:click={toggleNav}
 				>
@@ -262,9 +240,16 @@
 		left: 0;
 	}
 
-	.hamburger span:nth-child(1) { top: 0; }
-	.hamburger span:nth-child(2) { top: 50%; transform: translateY(-50%); }
-	.hamburger span:nth-child(3) { bottom: 0; }
+	.hamburger span:nth-child(1) {
+		top: 0;
+	}
+	.hamburger span:nth-child(2) {
+		top: 50%;
+		transform: translateY(-50%);
+	}
+	.hamburger span:nth-child(3) {
+		bottom: 0;
+	}
 
 	.hamburger.active span:nth-child(1) {
 		transform: rotate(45deg);
@@ -346,16 +331,16 @@
 		.brand-name {
 			font-size: 1.25rem;
 		}
-		
+
 		.brand-tagline {
 			font-size: 0.7rem;
 		}
-		
+
 		.logo-container {
 			width: 45px;
 			height: 45px;
 		}
-		
+
 		.nav-container {
 			padding: 0 1rem;
 		}

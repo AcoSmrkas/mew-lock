@@ -13,9 +13,7 @@
 	function convertPkToAddress(pkRegister) {
 		try {
 			const publicKeyHex = pkRegister.renderedValue || pkRegister.serializedValue || pkRegister;
-			const publicKey = publicKeyHex.startsWith('07') 
-				? publicKeyHex.substring(2) 
-				: publicKeyHex;
+			const publicKey = publicKeyHex.startsWith('07') ? publicKeyHex.substring(2) : publicKeyHex;
 			return ErgoAddress.fromPublicKey(publicKey).toString();
 		} catch (error) {
 			console.error('Address conversion error:', error, pkRegister);
@@ -24,9 +22,13 @@
 	}
 
 	// Calculate derived properties with safety checks
-	$: unlockHeight = lockBox?.additionalRegisters?.R5?.renderedValue ? parseInt(lockBox.additionalRegisters.R5.renderedValue) : 0;
+	$: unlockHeight = lockBox?.additionalRegisters?.R5?.renderedValue
+		? parseInt(lockBox.additionalRegisters.R5.renderedValue)
+		: 0;
 	$: canWithdraw = currentHeight >= unlockHeight;
-	$: depositorAddress = lockBox?.additionalRegisters?.R4 ? convertPkToAddress(lockBox.additionalRegisters.R4) : 'Unknown';
+	$: depositorAddress = lockBox?.additionalRegisters?.R4
+		? convertPkToAddress(lockBox.additionalRegisters.R4)
+		: 'Unknown';
 	$: isOwnBox = depositorAddress === $connected_wallet_address;
 	$: blocksRemaining = Math.max(0, unlockHeight - currentHeight);
 	$: hasTokens = lockBox?.assets && lockBox.assets.length > 0;
@@ -44,8 +46,8 @@
 	}
 </script>
 
-<div 
-	class="locked-asset-card" 
+<div
+	class="locked-asset-card"
 	class:own-lock={isOwnBox}
 	class:unlockable={canWithdraw && isOwnBox}
 	class:has-tokens={hasTokens}
@@ -58,15 +60,29 @@
 				<span class="amount-currency">ERG</span>
 			</div>
 			{#if hasTokens}
-				<div class="token-count">+ {lockBox.assets.length} token{lockBox.assets.length > 1 ? 's' : ''}</div>
+				<div class="token-count">
+					+ {lockBox.assets.length} token{lockBox.assets.length > 1 ? 's' : ''}
+				</div>
 			{/if}
 		</div>
 		<div class="lock-status" class:ready={canWithdraw}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<svg
+				width="16"
+				height="16"
+				viewBox="0 0 24 24"
+				fill="none"
+				xmlns="http://www.w3.org/2000/svg"
+			>
 				{#if canWithdraw}
-					<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+					<path
+						d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+						fill="currentColor"
+					/>
 				{:else}
-					<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+					<path
+						d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+						fill="currentColor"
+					/>
 				{/if}
 			</svg>
 			{canWithdraw ? 'Unlocked' : 'Locked'}
@@ -92,7 +108,9 @@
 						</div>
 						<div class="token-info">
 							<span class="token-name">{asset.name || 'Unknown Token'}</span>
-							<span class="token-amount">{nFormatter(asset.amount / Math.pow(10, asset.decimals))}</span>
+							<span class="token-amount"
+								>{nFormatter(asset.amount / Math.pow(10, asset.decimals))}</span
+							>
 						</div>
 					</div>
 				{/each}
@@ -119,12 +137,14 @@
 					{#if isOwnBox}
 						<span class="own-text">You</span>
 					{:else}
-						<a 
-							href="https://ergexplorer.com/addresses/{depositorAddress}" 
+						<a
+							href="https://ergexplorer.com/addresses/{depositorAddress}"
 							target="_blank"
 							class="address-link"
 						>
-							{depositorAddress.substring(0, 4)}...{depositorAddress.substring(depositorAddress.length - 4)}
+							{depositorAddress.substring(0, 4)}...{depositorAddress.substring(
+								depositorAddress.length - 4
+							)}
 						</a>
 					{/if}
 				</span>
@@ -136,20 +156,36 @@
 	{#if isOwnBox}
 		<div class="card-actions">
 			{#if canWithdraw}
-				<button 
-					class="withdraw-btn"
-					disabled={withdrawing}
-					on:click={handleWithdraw}
-				>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
+				<button class="withdraw-btn" disabled={withdrawing} on:click={handleWithdraw}>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+							fill="currentColor"
+						/>
 					</svg>
-					{withdrawing ? 'Processing...' : `Withdraw ${hasTokens ? 'All Assets' : nFormatter(ergAmount) + ' ERG'}`}
+					{withdrawing
+						? 'Processing...'
+						: `Withdraw ${hasTokens ? 'All Assets' : nFormatter(ergAmount) + ' ERG'}`}
 				</button>
 			{:else}
 				<div class="locked-info">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M12,1A11,11 0 0,0 1,12A11,11 0 0,0 12,23A11,11 0 0,0 23,12A11,11 0 0,0 12,1M12,20C16.2,20 19.5,17.2 20,13.5V13.5C20,13.3 20,13.2 20,13H19L17.8,15.4C17.1,16.5 15.9,17.2 14.6,17.2C14.2,17.2 13.9,17.1 13.6,16.9C12.9,16.5 12.4,15.8 12.2,15H8V12H12.2C12.4,11.2 12.9,10.5 13.6,10.1C13.9,9.9 14.2,9.8 14.6,9.8C15.9,9.8 17.1,10.5 17.8,11.6L19,14H20C20,10.1 16.4,7 12,7C10.9,7 9.8,7.3 8.9,7.7L10.1,9.5C10.7,9.2 11.3,9 12,9C14.8,9 17,11.2 17,14S14.8,19 12,19C9.2,19 7,16.8 7,14C7,13.4 7.1,12.9 7.3,12.4L5.6,11.2C5.2,12.1 5,13.1 5,14.1C5,17.9 8.1,21 12,21V20Z" fill="currentColor"/>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M12,1A11,11 0 0,0 1,12A11,11 0 0,0 12,23A11,11 0 0,0 23,12A11,11 0 0,0 12,1M12,20C16.2,20 19.5,17.2 20,13.5V13.5C20,13.3 20,13.2 20,13H19L17.8,15.4C17.1,16.5 15.9,17.2 14.6,17.2C14.2,17.2 13.9,17.1 13.6,16.9C12.9,16.5 12.4,15.8 12.2,15H8V12H12.2C12.4,11.2 12.9,10.5 13.6,10.1C13.9,9.9 14.2,9.8 14.6,9.8C15.9,9.8 17.1,10.5 17.8,11.6L19,14H20C20,10.1 16.4,7 12,7C10.9,7 9.8,7.3 8.9,7.7L10.1,9.5C10.7,9.2 11.3,9 12,9C14.8,9 17,11.2 17,14S14.8,19 12,19C9.2,19 7,16.8 7,14C7,13.4 7.1,12.9 7.3,12.4L5.6,11.2C5.2,12.1 5,13.1 5,14.1C5,17.9 8.1,21 12,21V20Z"
+							fill="currentColor"
+						/>
 					</svg>
 					Unlocks in {blocksRemaining} blocks
 				</div>

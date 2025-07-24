@@ -12,8 +12,8 @@
 	}
 
 	// Separate ERG-only and token locks
-	$: ergOnlyLocks = mewLockBoxes.filter(box => !box.assets || box.assets.length === 0);
-	$: tokenLocks = mewLockBoxes.filter(box => box.assets && box.assets.length > 0);
+	$: ergOnlyLocks = mewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
+	$: tokenLocks = mewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
 </script>
 
 {#if ergOnlyLocks.length > 0}
@@ -24,11 +24,7 @@
 		</div>
 		<div class="assets-grid">
 			{#each ergOnlyLocks as box}
-				<LockedAssetCard 
-					{box}
-					{currentHeight}
-					on:withdraw={handleWithdraw}
-				/>
+				<LockedAssetCard {box} {currentHeight} on:withdraw={handleWithdraw} />
 			{/each}
 		</div>
 	</div>
@@ -42,11 +38,7 @@
 		</div>
 		<div class="assets-grid">
 			{#each tokenLocks as box}
-				<LockedAssetCard 
-					{box}
-					{currentHeight}
-					on:withdraw={handleWithdraw}
-				/>
+				<LockedAssetCard {box} {currentHeight} on:withdraw={handleWithdraw} />
 			{/each}
 		</div>
 	</div>

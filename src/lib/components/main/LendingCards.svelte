@@ -86,28 +86,29 @@
 			// Filter for NEW contract boxes only (must have R4-R9 registers)
 			const filteredBoxes = data.items.filter((box) => {
 				// NEW contract must have all registers R4-R9
-				const hasAllRegisters = box.additionalRegisters?.R4 &&
+				const hasAllRegisters =
+					box.additionalRegisters?.R4 &&
 					box.additionalRegisters?.R5 &&
 					box.additionalRegisters?.R6 &&
 					box.additionalRegisters?.R7 &&
 					box.additionalRegisters?.R8 &&
 					box.additionalRegisters?.R9;
-				
+
 				if (!hasAllRegisters) {
 					console.log('❌ Skipping box (missing registers):', box.boxId);
 					return false;
 				}
-				
+
 				// Additional check: NEW contract R9 should be Int (state), old contract R9 was GroupElement
 				const r9 = box.additionalRegisters.R9;
-				const isNewContract = r9?.sigmaType === 'SInt' || 
-					(r9?.serializedValue && r9.serializedValue.length <= 4); // Int serialized is short
-				
+				const isNewContract =
+					r9?.sigmaType === 'SInt' || (r9?.serializedValue && r9.serializedValue.length <= 4); // Int serialized is short
+
 				if (!isNewContract) {
 					console.log('❌ Skipping old contract box:', box.boxId);
 					return false;
 				}
-				
+
 				console.log('✅ Found NEW contract box:', box.boxId);
 				return true;
 			});
@@ -138,9 +139,12 @@
 
 	async function handleLendingAction(loan: any, action: string) {
 		console.log('🔥 Button clicked! Action:', action, 'Loan:', loan.boxId);
-		
+
 		// Check wallet connection
-		if ($selected_wallet_ergo !== 'ergopay' && !window.ergoConnector[$selected_wallet_ergo]?.isConnected) {
+		if (
+			$selected_wallet_ergo !== 'ergopay' &&
+			!window.ergoConnector[$selected_wallet_ergo]?.isConnected
+		) {
 			console.log('❌ Wallet not connected:', $selected_wallet_ergo);
 			showCustomToast('Connect wallet first.', 1500, 'info');
 			return;
@@ -156,13 +160,13 @@
 			console.log('⚠️ Already processing this loan:', loan.boxId);
 			return;
 		}
-		
+
 		console.log('✅ Starting action processing:', { action, boxId: loan.boxId });
 		processing[loan.boxId] = true;
 
 		try {
 			let myAddress, height;
-			
+
 			// Use connected wallet address and current height for all wallets
 			myAddress = $connected_wallet_address;
 			height = currentHeight;
@@ -182,74 +186,84 @@
 			let unsigned;
 
 			console.log('🔄 Processing action:', action);
-			
+
 			switch (action) {
 				case 'borrow':
 					console.log('📝 Building borrow transaction...');
 					// For borrowing, we need collateral UTXOs
 					const borrowAmount = BigInt(50000000) + BigInt(RECOMMENDED_MIN_FEE_VALUE); // Base amount
 					const userBoxes = await fetchBoxes(myAddress);
-					const borrowUtxos = userBoxes.filter(box => BigInt(box.value) >= borrowAmount);
-					
+					const borrowUtxos = userBoxes.filter((box) => BigInt(box.value) >= borrowAmount);
+
 					// For now, use some UTXOs as collateral (this should be more sophisticated)
 					const collateralUtxos = userBoxes.slice(0, 2);
-					
-					console.log('🔧 Calling borrowLoanTx with:', { box: box.boxId, myAddress, collateralUtxos: collateralUtxos.length, borrowUtxos: borrowUtxos.length });
+
+					console.log('🔧 Calling borrowLoanTx with:', {
+						box: box.boxId,
+						myAddress,
+						collateralUtxos: collateralUtxos.length,
+						borrowUtxos: borrowUtxos.length
+					});
 					unsigned = borrowLoanTx(box, myAddress, collateralUtxos, height, borrowUtxos);
 					break;
 
 				case 'repay':
 					console.log('📝 Building repay transaction...');
 					const repayBoxes = await fetchBoxes(myAddress);
-					
+
 					// Get the specific loan token ID from the loan box
 					const loanTokenId = loan.loanTokenId; // This should be available from parsed loan data
 					console.log('🎯 Looking for loan token ID:', loanTokenId);
-					
+
 					// Get UTXOs that contain the specific loan tokens we need to repay
-					const repaymentUtxos = repayBoxes.filter(box => 
-						box.address === myAddress &&
-						box.assets && box.assets.some(asset => 
-							asset.tokenId === loanTokenId && 
-							BigInt(asset.amount) > 0
-						)
+					const repaymentUtxos = repayBoxes.filter(
+						(box) =>
+							box.address === myAddress &&
+							box.assets &&
+							box.assets.some((asset) => asset.tokenId === loanTokenId && BigInt(asset.amount) > 0)
 					);
-					
+
 					// Get ERG UTXOs for fees (allow boxes with tokens, just avoid contracts)
-					const feeUtxos = repayBoxes.filter(box => 
-						BigInt(box.value) >= BigInt(RECOMMENDED_MIN_FEE_VALUE) &&
-						box.address === myAddress && // Only user's own P2PK boxes
-						box.address !== LENDING_CONTRACT // Avoid lending contract boxes
-						// Allow boxes with tokens - we just need ERG for fees
-					).slice(0, 3); // Limit to 3 UTXOs to avoid complexity
-					
+					const feeUtxos = repayBoxes
+						.filter(
+							(box) =>
+								BigInt(box.value) >= BigInt(RECOMMENDED_MIN_FEE_VALUE) &&
+								box.address === myAddress && // Only user's own P2PK boxes
+								box.address !== LENDING_CONTRACT // Avoid lending contract boxes
+							// Allow boxes with tokens - we just need ERG for fees
+						)
+						.slice(0, 3); // Limit to 3 UTXOs to avoid complexity
+
 					console.log('🔧 Repay UTXO selection:', {
 						loanTokenId,
 						repaymentUtxos: repaymentUtxos.length,
 						feeUtxos: feeUtxos.length,
 						totalUtxos: repaymentUtxos.length + feeUtxos.length + 1 // +1 for contract box
 					});
-					
+
 					if (repaymentUtxos.length === 0) {
 						throw new Error(`No UTXOs found with loan token ${loanTokenId}`);
 					}
-					
+
 					if (feeUtxos.length === 0) {
 						throw new Error('No fee UTXOs found (need boxes with sufficient ERG)');
 					}
-					
+
 					// Calculate total loan tokens available for repayment
 					const totalLoanTokens = repaymentUtxos.reduce((sum, box) => {
-						const tokenAssets = box.assets?.filter(asset => asset.tokenId === loanTokenId) || [];
-						return sum + tokenAssets.reduce((assetSum, asset) => assetSum + BigInt(asset.amount), BigInt(0));
+						const tokenAssets = box.assets?.filter((asset) => asset.tokenId === loanTokenId) || [];
+						return (
+							sum +
+							tokenAssets.reduce((assetSum, asset) => assetSum + BigInt(asset.amount), BigInt(0))
+						);
 					}, BigInt(0));
-					
+
 					console.log('💰 Loan token availability:', {
 						required: loan.loanAmount?.toString() || 'unknown',
 						available: totalLoanTokens.toString(),
 						sufficient: loan.loanAmount ? totalLoanTokens >= BigInt(loan.loanAmount) : 'unknown'
 					});
-					
+
 					unsigned = repayLoanTx(box, myAddress, repaymentUtxos, height, feeUtxos);
 					break;
 
@@ -257,9 +271,13 @@
 					console.log('📝 Building cancel transaction...');
 					const cancelAmount = BigInt(RECOMMENDED_MIN_FEE_VALUE);
 					const cancelBoxes = await fetchBoxes(myAddress);
-					const cancelUtxos = cancelBoxes.filter(box => BigInt(box.value) >= cancelAmount);
-					
-					console.log('🔧 Calling cancelLoanTx with:', { box: box.boxId, myAddress, cancelUtxos: cancelUtxos.length });
+					const cancelUtxos = cancelBoxes.filter((box) => BigInt(box.value) >= cancelAmount);
+
+					console.log('🔧 Calling cancelLoanTx with:', {
+						box: box.boxId,
+						myAddress,
+						cancelUtxos: cancelUtxos.length
+					});
 					unsigned = cancelLoanTx(box, myAddress, height, cancelUtxos);
 					break;
 
@@ -267,9 +285,15 @@
 					console.log('📝 Building liquidate transaction...');
 					const liquidateAmount = BigInt(RECOMMENDED_MIN_FEE_VALUE);
 					const liquidateBoxes = await fetchBoxes(myAddress);
-					const liquidateUtxos = liquidateBoxes.filter(box => BigInt(box.value) >= liquidateAmount);
-					
-					console.log('🔧 Calling liquidateLoanTx with:', { box: box.boxId, myAddress, liquidateUtxos: liquidateUtxos.length });
+					const liquidateUtxos = liquidateBoxes.filter(
+						(box) => BigInt(box.value) >= liquidateAmount
+					);
+
+					console.log('🔧 Calling liquidateLoanTx with:', {
+						box: box.boxId,
+						myAddress,
+						liquidateUtxos: liquidateUtxos.length
+					});
 					unsigned = liquidateLoanTx(box, myAddress, height, liquidateUtxos);
 					break;
 
@@ -278,8 +302,10 @@
 					throw new Error('Invalid action');
 			}
 
-			console.log('💰 Transaction built successfully, submitting...', { wallet: $selected_wallet_ergo });
-			
+			console.log('💰 Transaction built successfully, submitting...', {
+				wallet: $selected_wallet_ergo
+			});
+
 			if ($selected_wallet_ergo === 'ergopay') {
 				console.log('📱 Using Ergopay for transaction');
 				unsignedTx = unsigned;
@@ -290,13 +316,13 @@
 				if (!window.ergo) {
 					throw new Error('Wallet not connected');
 				}
-				
+
 				console.log('✍️ Signing transaction...');
 				const signed = await window.ergo.sign_tx(unsigned);
-				
+
 				console.log('📤 Submitting transaction...');
 				const transactionId = await window.ergo.submit_tx(signed);
-				
+
 				console.log('✅ Transaction submitted:', transactionId);
 
 				showCustomToast(
@@ -349,7 +375,10 @@
 	}
 
 	// Enhanced role detection with better error handling
-	async function checkUserRole(loan: any, userAddress: string): Promise<{ isLender: boolean; isBorrower: boolean }> {
+	async function checkUserRole(
+		loan: any,
+		userAddress: string
+	): Promise<{ isLender: boolean; isBorrower: boolean }> {
 		let isLender = false;
 		let isBorrower = false;
 
@@ -385,7 +414,7 @@
 	// Get button styling based on role and action
 	function getButtonClass(role: string, action: string): string {
 		const baseClass = 'primary-btn';
-		
+
 		switch (role) {
 			case 'lender':
 				if (action === 'cancel') return `${baseClass} lender-cancel`;
@@ -398,7 +427,7 @@
 				if (action === 'borrow') return `${baseClass} public-borrow`;
 				break;
 		}
-		
+
 		return baseClass;
 	}
 
@@ -443,103 +472,111 @@
 	<div class="lending-grid">
 		{#each loans as loan, index}
 			{#await checkUserRole(loan, $connected_wallet_address) then { isLender, isBorrower }}
-			<div class="simple-card">
-				<div class="card-content">
-					<div class="card-header-row">
-						<div class="card-title">
-							{getLoanTokensDisplay(loan.loanTokens)} Loan
+				<div class="simple-card">
+					<div class="card-content">
+						<div class="card-header-row">
+							<div class="card-title">
+								{getLoanTokensDisplay(loan.loanTokens)} Loan
+							</div>
+							<span class="compact-state-badge {getStateColor(loan.state)}">
+								{getStateLabel(loan.state)}
+							</span>
 						</div>
-						<span class="compact-state-badge {getStateColor(loan.state)}">
-							{getStateLabel(loan.state)}
-						</span>
-					</div>
-					
-					{#if isLender || isBorrower}
-						<div class="role-line">
-							{isLender ? '🏦 You are lending' : '💰 You borrowed this'}
-						</div>
-					{/if}
 
-					{#if loan.parseError}
-						<div class="parse-error-line">
-							⚠️ Parse error: {loan.parseError}
-						</div>
-					{/if}
-
-					<div class="loan-details">
-						<div class="detail-row">
-							<span class="detail-label">Loan:</span>
-							<span class="detail-value">{getLoanTokensDisplay(loan.loanTokens)}</span>
-						</div>
-						<div class="detail-row">
-							<span class="detail-label">Collateral:</span>
-							<span class="detail-value">{getCollateralDisplay(loan)}</span>
-						</div>
-						<div class="detail-row">
-							<span class="detail-label">Fee:</span>
-							<span class="detail-value">{nFormatter(Number(loan.lendingFee) / 1e9)} ERG</span>
-						</div>
-						<div class="detail-row">
-							<span class="detail-label">Duration:</span>
-							<span class="detail-value">{loan.duration} blocks</span>
-						</div>
-					</div>
-
-					<div class="addresses-section">
-						<div class="address-row">
-							<span class="address-label">Lender:</span>
-							<span class="address-value {isLender ? 'your-address' : ''}">{truncateAddress(loan.lenderAddress)}</span>
-						</div>
-						{#if loan.borrowerAddress}
-							<div class="address-row">
-								<span class="address-label">Borrower:</span>
-								<span class="address-value {isBorrower ? 'your-address' : ''}">{truncateAddress(loan.borrowerAddress)}</span>
+						{#if isLender || isBorrower}
+							<div class="role-line">
+								{isLender ? '🏦 You are lending' : '💰 You borrowed this'}
 							</div>
 						{/if}
-					</div>
 
-					<div class="info-grid">
-						<div class="info-item">
-							<span class="info-label">APR:</span>
-							<span class="info-value">{(loan.feePercent / 100).toFixed(1)}%</span>
-						</div>
-						<div class="info-item">
-							<span class="info-label">Status:</span>
-							<span class="info-value">{loan.state === 2 && !isExpired(loan) ? getRemainingTime(loan) : getStateLabel(loan.state)}</span>
-						</div>
-					</div>
-
-					<div class="card-footer">
-						{#if $connected_wallet_address}
-							{#await getEnhancedActions(loan, $connected_wallet_address, currentHeight) then actions}
-							{#each actions as actionItem}
-								{#if actionItem.action !== 'none'}
-									<button
-										class="action-btn {getButtonClass(actionItem.role, actionItem.action)}"
-										disabled={processing[loan.boxId]}
-										on:click={() => handleLendingAction(loan, actionItem.action)}
-										title={actionItem.description || ''}
-									>
-										{processing[loan.boxId] ? 'Processing...' : actionItem.label}
-									</button>
-								{:else}
-									<div class="status-info {getStatusClass(actionItem.role)}">
-										<span class="status-label">{actionItem.label}</span>
-										{#if actionItem.description}
-											<span class="status-description">{actionItem.description}</span>
-										{/if}
-									</div>
-								{/if}
-							{/each}
-							{:catch}
-								<div class="error-prompt">Error loading actions</div>
-							{/await}
-						{:else}
-							<div class="connect-prompt">Connect wallet to interact</div>
+						{#if loan.parseError}
+							<div class="parse-error-line">
+								⚠️ Parse error: {loan.parseError}
+							</div>
 						{/if}
+
+						<div class="loan-details">
+							<div class="detail-row">
+								<span class="detail-label">Loan:</span>
+								<span class="detail-value">{getLoanTokensDisplay(loan.loanTokens)}</span>
+							</div>
+							<div class="detail-row">
+								<span class="detail-label">Collateral:</span>
+								<span class="detail-value">{getCollateralDisplay(loan)}</span>
+							</div>
+							<div class="detail-row">
+								<span class="detail-label">Fee:</span>
+								<span class="detail-value">{nFormatter(Number(loan.lendingFee) / 1e9)} ERG</span>
+							</div>
+							<div class="detail-row">
+								<span class="detail-label">Duration:</span>
+								<span class="detail-value">{loan.duration} blocks</span>
+							</div>
+						</div>
+
+						<div class="addresses-section">
+							<div class="address-row">
+								<span class="address-label">Lender:</span>
+								<span class="address-value {isLender ? 'your-address' : ''}"
+									>{truncateAddress(loan.lenderAddress)}</span
+								>
+							</div>
+							{#if loan.borrowerAddress}
+								<div class="address-row">
+									<span class="address-label">Borrower:</span>
+									<span class="address-value {isBorrower ? 'your-address' : ''}"
+										>{truncateAddress(loan.borrowerAddress)}</span
+									>
+								</div>
+							{/if}
+						</div>
+
+						<div class="info-grid">
+							<div class="info-item">
+								<span class="info-label">APR:</span>
+								<span class="info-value">{(loan.feePercent / 100).toFixed(1)}%</span>
+							</div>
+							<div class="info-item">
+								<span class="info-label">Status:</span>
+								<span class="info-value"
+									>{loan.state === 2 && !isExpired(loan)
+										? getRemainingTime(loan)
+										: getStateLabel(loan.state)}</span
+								>
+							</div>
+						</div>
+
+						<div class="card-footer">
+							{#if $connected_wallet_address}
+								{#await getEnhancedActions(loan, $connected_wallet_address, currentHeight) then actions}
+									{#each actions as actionItem}
+										{#if actionItem.action !== 'none'}
+											<button
+												class="action-btn {getButtonClass(actionItem.role, actionItem.action)}"
+												disabled={processing[loan.boxId]}
+												on:click={() => handleLendingAction(loan, actionItem.action)}
+												title={actionItem.description || ''}
+											>
+												{processing[loan.boxId] ? 'Processing...' : actionItem.label}
+											</button>
+										{:else}
+											<div class="status-info {getStatusClass(actionItem.role)}">
+												<span class="status-label">{actionItem.label}</span>
+												{#if actionItem.description}
+													<span class="status-description">{actionItem.description}</span>
+												{/if}
+											</div>
+										{/if}
+									{/each}
+								{:catch}
+									<div class="error-prompt">Error loading actions</div>
+								{/await}
+							{:else}
+								<div class="connect-prompt">Connect wallet to interact</div>
+							{/if}
+						</div>
 					</div>
 				</div>
-			</div>
 			{:catch}
 				<div class="simple-card error-card">
 					<div class="card-content">

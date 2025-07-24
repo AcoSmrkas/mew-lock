@@ -14,7 +14,8 @@
 	let withdrawing = false;
 
 	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS = "5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU";
+	const MEWLOCK_CONTRACT_ADDRESS =
+		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
 
 	onMount(async () => {
 		await loadMewLockBoxes();
@@ -25,8 +26,8 @@
 		try {
 			const serializedValue = pkRegister.serializedValue || pkRegister;
 			// Remove '07' prefix if present (common in serialized public keys)
-			const publicKey = serializedValue.startsWith('07') 
-				? serializedValue.substring(2) 
+			const publicKey = serializedValue.startsWith('07')
+				? serializedValue.substring(2)
 				: serializedValue;
 			// Convert to Ergo address
 			return ErgoAddress.fromPublicKey(publicKey).toString();
@@ -41,18 +42,20 @@
 		try {
 			// Get current block height
 			const currentHeight = await getCurrentHeight();
-			
+
 			// Search for boxes at the MewLock contract address
-			const response = await fetch(`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`);
+			const response = await fetch(
+				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+			);
 			const data = await response.json();
-			
-			mewLockBoxes = data.items.map(box => {
+
+			mewLockBoxes = data.items.map((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorPubKey = box.additionalRegisters.R4.renderedValue;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
 				const isOwnBox = depositorAddress === $connected_wallet_address;
-				
+
 				return {
 					boxId: box.boxId,
 					value: parseInt(box.value),
@@ -71,7 +74,6 @@
 
 			// Sort by unlock height (earliest first)
 			mewLockBoxes.sort((a, b) => a.unlockHeight - b.unlockHeight);
-			
 		} catch (error) {
 			console.error('Error loading MewLock boxes:', error);
 		}
@@ -140,12 +142,7 @@
 			}
 
 			// Create the withdrawal transaction
-			const withdrawalTx = await createMewLockWithdrawalTx(
-				myAddress,
-				utxos,
-				height,
-				lockBox
-			);
+			const withdrawalTx = await createMewLockWithdrawalTx(myAddress, utxos, height, lockBox);
 
 			// Sign and submit the transaction
 			if (get(selected_wallet_ergo) !== 'ergopay') {
@@ -157,7 +154,7 @@
 					10000,
 					'success'
 				);
-				
+
 				// Refresh the MewLock boxes
 				await loadMewLockBoxes();
 			} else {
@@ -165,7 +162,6 @@
 				console.log('Ergopay withdrawal not implemented yet');
 				showCustomToast('Ergopay withdrawal not implemented yet', 3000, 'warning');
 			}
-
 		} catch (error) {
 			console.error('Error during withdrawal:', error);
 			showCustomToast(`Error during withdrawal: ${error.message}`, 5000, 'danger');
@@ -183,25 +179,25 @@
 <div class="mewlock-container">
 	<div class="header-section">
 		<div class="header-content">
-			<h2 class="section-title">MewLock - Time-Locked Storage</h2>
+			<h2 class="section-title">Mew Lock - Time-Locked Storage</h2>
 			<p class="section-subtitle">Secure your tokens with time-based smart contracts</p>
 		</div>
 		<div class="header-actions">
 			<button class="btn btn-primary" on:click={openLockModal}>
-				<i class="fa-solid fa-lock"></i> Lock Tokens
+				<i class="fa-solid fa-lock" /> Lock Tokens
 			</button>
 		</div>
 	</div>
 
 	{#if loading}
 		<div class="loading-container">
-			<div class="loading-spinner"></div>
+			<div class="loading-spinner" />
 			<p>Loading locked tokens...</p>
 		</div>
 	{:else if mewLockBoxes.length > 0}
 		<div class="offers-grid">
 			{#each mewLockBoxes as lockBox, index}
-				<div 
+				<div
 					class="mewlock-card {lockBox.canWithdraw ? 'unlocked' : 'locked'}"
 					class:own-box={lockBox.isOwnBox}
 					in:fly={{ y: 20, duration: 300, delay: index * 100 }}
@@ -212,15 +208,17 @@
 							<span class="amount">{nFormatter(lockBox.value / 1e9)}</span>
 							<span class="currency">ERG</span>
 							{#if lockBox.assets && lockBox.assets.length > 0}
-								<span class="token-count">+ {lockBox.assets.length} token{lockBox.assets.length > 1 ? 's' : ''}</span>
+								<span class="token-count"
+									>+ {lockBox.assets.length} token{lockBox.assets.length > 1 ? 's' : ''}</span
+								>
 							{/if}
 						</div>
 						<div class="status-badge {lockBox.canWithdraw ? 'unlocked' : 'locked'}">
-							<i class="fa-solid fa-{lockBox.canWithdraw ? 'unlock' : 'lock'}"></i>
+							<i class="fa-solid fa-{lockBox.canWithdraw ? 'unlock' : 'lock'}" />
 							{lockBox.canWithdraw ? 'Unlocked' : 'Locked'}
 						</div>
 					</div>
-					
+
 					<div class="card-body">
 						<div class="info-row">
 							<span class="label">Unlock Height:</span>
@@ -232,9 +230,9 @@
 						</div>
 						<div class="info-row">
 							<span class="label">Depositor:</span>
-							<a 
-								href="https://ergexplorer.com/addresses/{lockBox.depositorAddress}" 
-								target="_blank" 
+							<a
+								href="https://ergexplorer.com/addresses/{lockBox.depositorAddress}"
+								target="_blank"
 								class="value text-primary"
 							>
 								{lockBox.depositorAddress.substring(0, 8)}...
@@ -261,36 +259,30 @@
 							</div>
 						{/if}
 					</div>
-					
+
 					<div class="card-footer">
 						{#if lockBox.isOwnBox && lockBox.canWithdraw}
-							<button 
+							<button
 								class="btn btn-success btn-full"
 								disabled={withdrawing}
 								on:click={() => handleWithdrawal(lockBox)}
 							>
 								{#if withdrawing}
-									<i class="fa-solid fa-spinner fa-spin"></i> Processing...
+									<i class="fa-solid fa-spinner fa-spin" /> Processing...
 								{:else}
-									<i class="fa-solid fa-unlock"></i> Withdraw {nFormatter(lockBox.value / 1e9)} ERG
+									<i class="fa-solid fa-unlock" /> Withdraw {nFormatter(lockBox.value / 1e9)} ERG
 									{#if lockBox.assets && lockBox.assets.length > 0}
 										+ {lockBox.assets.length} token{lockBox.assets.length > 1 ? 's' : ''}
 									{/if}
 								{/if}
 							</button>
 						{:else if !lockBox.canWithdraw}
-							<button 
-								class="btn btn-secondary btn-full"
-								disabled
-							>
-								<i class="fa-solid fa-clock"></i> Locked for {lockBox.blocksRemaining} blocks
+							<button class="btn btn-secondary btn-full" disabled>
+								<i class="fa-solid fa-clock" /> Locked for {lockBox.blocksRemaining} blocks
 							</button>
 						{:else if !lockBox.isOwnBox}
-							<button 
-								class="btn btn-secondary btn-full opacity-50"
-								disabled
-							>
-								<i class="fa-solid fa-user-slash"></i> Not Your Lock
+							<button class="btn btn-secondary btn-full opacity-50" disabled>
+								<i class="fa-solid fa-user-slash" /> Not Your Lock
 							</button>
 						{/if}
 					</div>
@@ -299,7 +291,7 @@
 		</div>
 	{:else}
 		<div class="empty-state">
-			<i class="fa-solid fa-lock empty-icon"></i>
+			<i class="fa-solid fa-lock empty-icon" />
 			<h3>No Locked Tokens Found</h3>
 			<p>No tokens are currently locked in MewLock contracts</p>
 		</div>
@@ -373,8 +365,12 @@
 	}
 
 	@keyframes spin {
-		0% { transform: rotate(0deg); }
-		100% { transform: rotate(360deg); }
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
 	}
 
 	.offers-grid {

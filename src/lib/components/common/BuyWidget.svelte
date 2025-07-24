@@ -670,14 +670,8 @@
 	async function createMewLockDeposit(myAddress, utxos, height, amount, unlockHeight) {
 		// Import the MewLock transaction function
 		const { createMewLockDepositTx } = await import('$lib/contract/mewLockTx.ts');
-		
-		return createMewLockDepositTx(
-			myAddress,
-			utxos,
-			height,
-			BigInt(amount),
-			unlockHeight
-		);
+
+		return createMewLockDepositTx(myAddress, utxos, height, BigInt(amount), unlockHeight);
 	}
 </script>
 
@@ -773,8 +767,9 @@
 				</div>
 			{:else if offer.assets.length > 1 && !offer.payassettype}
 				<!-- Bundle Thumbnails -->
-				<div class="relative w-full h-[180px] bg-black flex items-center justify-center overflow-hidden">
-					
+				<div
+					class="relative w-full h-[180px] bg-black flex items-center justify-center overflow-hidden"
+				>
 					<!-- Animated Bundle Stack -->
 					<div class="bundle-stack">
 						{#each offer.assets.slice(0, 4) as asset, index}
@@ -835,14 +830,16 @@
 					{#each offer.assets.slice(0, 3) as asset, index}
 						<div class="summary-item">
 							<div class="summary-left">
-								<img 
-									src={imageUrls[index]} 
+								<img
+									src={imageUrls[index]}
 									alt=""
 									class="summary-icon"
 									on:error={(event) => setPlaceholderImage(event, asset)}
 								/>
 								<span class="summary-name">
-									{(asset.name || 'Asset').length > 15 ? (asset.name || 'Asset').substring(0, 15) + '...' : (asset.name || 'Asset')}
+									{(asset.name || 'Asset').length > 15
+										? (asset.name || 'Asset').substring(0, 15) + '...'
+										: asset.name || 'Asset'}
 								</span>
 							</div>
 							<span class="summary-amount">
@@ -1040,7 +1037,9 @@
 											<span class="font-bold text-primary">ERG</span>
 										</p>
 										<p class="text-xs text-gray-400">
-											Lock Duration: {offer.lockDuration || 720} blocks (~{Math.round((offer.lockDuration || 720) / 60)} hours)
+											Lock Duration: {offer.lockDuration || 720} blocks (~{Math.round(
+												(offer.lockDuration || 720) / 60
+											)} hours)
 										</p>
 									{:else}
 										<p>
@@ -1097,7 +1096,11 @@
 									class="btn btn-primary flex-grow"
 									on:click={handleButtonClick}
 								>
-									{isMewLock ? 'Lock Tokens' : (offer.seller === connectedWalletAddress ? 'Cancel' : 'Buy')}
+									{isMewLock
+										? 'Lock Tokens'
+										: offer.seller === connectedWalletAddress
+										? 'Cancel'
+										: 'Buy'}
 								</button>
 							</div>
 						</div>
@@ -1476,35 +1479,83 @@
 
 	/* Show asset name only for front item */
 	.stack-item-1 .asset-name-overlay,
-	.stack-item-2 .asset-name-overlay, 
+	.stack-item-2 .asset-name-overlay,
 	.stack-item-3 .asset-name-overlay {
 		opacity: 0;
 	}
 
 	/* Keyframe animations for rotating stack */
 	@keyframes rotateStack0 {
-		0%, 25% { z-index: 4; transform: rotate(-2deg) scale(1); }
-		33% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
-		75%, 100% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
+		0%,
+		25% {
+			z-index: 4;
+			transform: rotate(-2deg) scale(1);
+		}
+		33% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
+		75%,
+		100% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
 	}
 
 	@keyframes rotateStack1 {
-		0%, 25% { z-index: 3; transform: rotate(3deg) scale(0.95) translateX(8px) translateY(8px); }
-		33%, 50% { z-index: 4; transform: rotate(-2deg) scale(1); }
-		58% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
-		75%, 100% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
+		0%,
+		25% {
+			z-index: 3;
+			transform: rotate(3deg) scale(0.95) translateX(8px) translateY(8px);
+		}
+		33%,
+		50% {
+			z-index: 4;
+			transform: rotate(-2deg) scale(1);
+		}
+		58% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
+		75%,
+		100% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
 	}
 
 	@keyframes rotateStack2 {
-		0%, 50% { z-index: 2; transform: rotate(-1deg) scale(0.9) translateX(-6px) translateY(12px); }
-		58%, 75% { z-index: 4; transform: rotate(-2deg) scale(1); }
-		83% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
-		100% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
+		0%,
+		50% {
+			z-index: 2;
+			transform: rotate(-1deg) scale(0.9) translateX(-6px) translateY(12px);
+		}
+		58%,
+		75% {
+			z-index: 4;
+			transform: rotate(-2deg) scale(1);
+		}
+		83% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
+		100% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
 	}
 
 	@keyframes rotateStack3 {
-		0%, 75% { z-index: 1; transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px); }
-		83%, 100% { z-index: 4; transform: rotate(-2deg) scale(1); }
+		0%,
+		75% {
+			z-index: 1;
+			transform: rotate(2deg) scale(0.85) translateX(4px) translateY(16px);
+		}
+		83%,
+		100% {
+			z-index: 4;
+			transform: rotate(-2deg) scale(1);
+		}
 	}
 
 	/* Assets Summary */
@@ -1577,17 +1628,17 @@
 			width: 100px;
 			height: 120px;
 		}
-		
+
 		.bundle-item-container {
 			width: 100px;
 			height: 100px;
 		}
-		
+
 		.amount-badge {
 			font-size: 9px;
 			padding: 1px 4px;
 		}
-		
+
 		.asset-name-overlay {
 			font-size: 8px;
 			padding: 1px 6px;
