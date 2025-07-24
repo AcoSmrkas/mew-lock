@@ -46,6 +46,7 @@
 			<div class="hidden md:flex items-center space-x-1">
 				<a href="/" class="nav-link {pageName == '' ? 'active' : ''}"> 🏠 Home </a>
 				<a href="/explore" class="nav-link {pageName == 'explore' ? 'active' : ''}"> 🔍 Explore </a>
+				<a href="/locks" class="nav-link {pageName == 'locks' ? 'active' : ''}"> 🔒 Locks </a>
 				<a href="/activity" class="nav-link {pageName == 'activity' ? 'active' : ''}">
 					📊 Activity
 				</a>
@@ -58,6 +59,22 @@
 						<WalletButton />
 					</div>
 				{/if}
+
+				<!-- Mobile Lock Icon Button -->
+				<a href="/locks" class="lock-icon-btn md:hidden">
+					<svg
+						width="20"
+						height="20"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+							fill="currentColor"
+						/>
+					</svg>
+				</a>
 
 				<!-- Mobile menu button -->
 				<button type="button" on:click={toggleNav} class="mobile-menu-btn md:hidden">
@@ -84,6 +101,14 @@
 				>
 					<span class="mobile-nav-icon">🔍</span>
 					<span>Explore</span>
+				</a>
+				<a
+					href="/locks"
+					class="mobile-nav-link {pageName == 'locks' ? 'active' : ''}"
+					on:click={toggleNav}
+				>
+					<span class="mobile-nav-icon">🔒</span>
+					<span>Locks</span>
 				</a>
 				<a
 					href="/activity"
@@ -202,6 +227,28 @@
 		backdrop-filter: blur(10px);
 	}
 
+	/* Lock Icon Button */
+	.lock-icon-btn {
+		width: 50px;
+		height: 50px;
+		background: rgba(249, 215, 45, 0.1);
+		border: 1px solid rgba(249, 215, 45, 0.2);
+		border-radius: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #f9d72d;
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.3s ease;
+	}
+
+	.lock-icon-btn:hover {
+		background: rgba(249, 215, 45, 0.2);
+		transform: scale(1.05);
+		box-shadow: 0 4px 12px rgba(249, 215, 45, 0.3);
+	}
+
 	/* Mobile Menu Button */
 	.mobile-menu-btn {
 		width: 50px;
@@ -271,9 +318,10 @@
 	.mobile-nav {
 		overflow: hidden;
 		transition: all 0.3s ease;
-		background: rgba(0, 0, 0, 0.3);
+		background: rgba(22, 13, 37, 0.98);
 		backdrop-filter: blur(20px);
 		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 	}
 
 	.mobile-nav.collapsed {
@@ -290,7 +338,7 @@
 		padding: 1.5rem;
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.75rem;
 	}
 
 	.mobile-nav-link {
@@ -302,14 +350,17 @@
 		text-decoration: none;
 		font-weight: 500;
 		transition: all 0.3s ease;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: rgba(255, 255, 255, 0.08);
+		backdrop-filter: blur(10px);
 	}
 
 	.mobile-nav-link:hover {
-		background: rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.15);
 		color: white;
 		transform: translateX(5px);
+		border-color: rgba(255, 255, 255, 0.25);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	}
 
 	.mobile-nav-link.active {

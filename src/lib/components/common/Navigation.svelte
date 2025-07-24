@@ -27,7 +27,7 @@
 	// Navigation items
 	const navItems = [
 		{ href: '/', label: 'Home', icon: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z' },
-		// { href: '/locks', label: 'All Locks', icon: 'M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21M16,8H18V15H16V8M12,2H14V15H12V2M8,13H10V15H8V13M4,17H6V15H4V17Z' },
+		{ href: '/locks', label: 'All Locks', icon: 'M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z' },
 		{
 			href: '/my-locks',
 			label: 'My Locks',
@@ -93,12 +93,33 @@
 			<WalletButton />
 		</div>
 
-		<!-- Mobile Hamburger Menu -->
-		<button class="mobile-menu-btn" on:click={toggleMobileMenu} class:active={mobileMenuOpen}>
-			<span class="hamburger-line" />
-			<span class="hamburger-line" />
-			<span class="hamburger-line" />
-		</button>
+		<!-- Mobile Actions -->
+		<div class="mobile-actions-header">
+			{#if $connected_wallet_address}
+				<button class="mobile-lock-icon" on:click={openLockModal}>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+							fill="currentColor"
+						/>
+					</svg>
+				</button>
+			{/if}
+			<div class="mobile-wallet-header">
+				<WalletButton />
+			</div>
+			<button class="mobile-menu-btn" on:click={toggleMobileMenu} class:active={mobileMenuOpen}>
+				<span class="hamburger-line" />
+				<span class="hamburger-line" />
+				<span class="hamburger-line" />
+			</button>
+		</div>
 	</div>
 
 	<!-- Mobile Menu Overlay -->
@@ -130,30 +151,6 @@
 							{item.label}
 						</a>
 					{/each}
-				</div>
-
-				<!-- Mobile Actions -->
-				<div class="mobile-actions">
-					{#if $connected_wallet_address}
-						<button class="mobile-lock-btn" on:click={openLockModal}>
-							<svg
-								width="20"
-								height="20"
-								viewBox="0 0 24 24"
-								fill="none"
-								xmlns="http://www.w3.org/2000/svg"
-							>
-								<path
-									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
-									fill="currentColor"
-								/>
-							</svg>
-							Lock Your Assets
-						</button>
-					{/if}
-					<div class="mobile-wallet-button">
-						<WalletButton />
-					</div>
 				</div>
 			</div>
 		</div>
@@ -256,9 +253,39 @@
 		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 	}
 
+	/* Mobile Actions Header */
+	.mobile-actions-header {
+		display: none;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.mobile-lock-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		background: rgba(102, 126, 234, 0.1);
+		border: 1px solid rgba(102, 126, 234, 0.2);
+		border-radius: 8px;
+		color: #667eea;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.mobile-lock-icon:hover {
+		background: rgba(102, 126, 234, 0.2);
+		transform: scale(1.05);
+	}
+
+	.mobile-wallet-header {
+		min-width: 120px;
+	}
+
 	/* Mobile Menu Button */
 	.mobile-menu-btn {
-		display: none;
+		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
 		width: 30px;
@@ -300,42 +327,51 @@
 		bottom: 0;
 		background: rgba(0, 0, 0, 0.8);
 		z-index: 99;
-		display: flex;
-		justify-content: flex-end;
 	}
 
 	.mobile-menu {
-		background: rgba(15, 15, 35, 0.98);
-		width: 280px;
-		height: 100%;
-		padding: 5rem 2rem 2rem;
-		border-left: 1px solid rgba(255, 255, 255, 0.1);
-		backdrop-filter: blur(20px);
+		background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+		width: 100%;
+		max-width: 400px;
+		margin: 0 auto;
+		margin-top: 80px;
+		padding: 2rem;
+		border-radius: 16px;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.mobile-nav-links {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		margin-bottom: 3rem;
+		gap: 0.75rem;
+		background: rgba(255, 255, 255, 0.05);
+		padding: 1.5rem;
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.mobile-nav-link {
 		display: flex;
 		align-items: center;
 		gap: 1rem;
-		padding: 1rem;
+		padding: 1rem 1.25rem;
 		border-radius: 12px;
 		text-decoration: none;
-		color: rgba(255, 255, 255, 0.7);
+		color: rgba(255, 255, 255, 0.8);
 		font-weight: 500;
 		font-size: 1rem;
-		transition: all 0.2s;
+		transition: all 0.3s ease;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.mobile-nav-link:hover {
 		color: white;
-		background: rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.25);
+		transform: translateX(4px);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 	}
 
 	.mobile-nav-link.active {
@@ -344,38 +380,6 @@
 		border: 1px solid rgba(102, 126, 234, 0.2);
 	}
 
-	.mobile-actions {
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		padding-top: 2rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.mobile-lock-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		padding: 1rem;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		border: none;
-		border-radius: 12px;
-		color: white;
-		font-weight: 600;
-		font-size: 1rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.mobile-lock-btn:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-	}
-
-	.mobile-wallet-button {
-		width: 100%;
-	}
 
 	/* Responsive */
 	@media (max-width: 768px) {
@@ -388,8 +392,12 @@
 			display: none;
 		}
 
-		.mobile-menu-btn {
+		.mobile-actions-header {
 			display: flex;
+		}
+
+		.logo-text {
+			display: none;
 		}
 	}
 </style>

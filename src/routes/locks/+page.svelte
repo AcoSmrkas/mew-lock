@@ -1,13 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { connected_wallet_address, selected_wallet_ergo, fetchUtxos } from '$lib/store/store';
-	import { nFormatter, showCustomToast } from '$lib/utils/utils.js';
+	import { nFormatter } from '$lib/utils/utils.js';
+	import { fade, fly } from 'svelte/transition';
 	import { ErgoAddress } from '@fleet-sdk/core';
-	import { fetchBoxes, getBlockHeight } from '$lib/api-explorer/explorer.ts';
+	import { getBlockHeight } from '$lib/api-explorer/explorer.ts';
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
-	import MewLockCards from '$lib/components/common/MewLockCards.svelte';
-	import { createMewLockWithdrawalTx } from '$lib/contract/mewLockTx.ts';
-	import { get } from 'svelte/store';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 
 	// MewLock variables
@@ -19,23 +16,11 @@
 	let totalValueLocked = 0;
 	let totalUsers = 0;
 	let totalLocks = 0;
-	let unlockableBoxes = [];
-
-	// Advanced stats
-	let avgLockDuration = 0;
-	let totalTokensLocked = 0;
-	let uniqueTokenTypes = 0;
-	let avgLockValue = 0;
-	let longestLockDuration = 0;
-	let shortestLockDuration = 0;
-
-	// Sorting and view controls
-	let sortBy = 'height';
-	let sortOrder = 'desc';
-	let viewMode = 'all'; // 'all' for platform stats
-
-	// Leaderboard data
 	let leaderboard = [];
+
+	// View filters
+	let sortBy = 'height'; // 'height', 'amount', 'tokens'
+	let sortOrder = 'asc'; // 'asc', 'desc'
 
 	// MewLockV2 contract address
 	const MEWLOCK_CONTRACT_ADDRESS =
@@ -49,9 +34,13 @@
 	// Convert public key to address using ErgoAddress
 	function convertPkToAddress(pkRegister) {
 		try {
-			const publicKeyHex = pkRegister.renderedValue || pkRegister.serializedValue || pkRegister;
-			const publicKey = publicKeyHex.startsWith('07') ? publicKeyHex.substring(2) : publicKeyHex;
-			return ErgoAddress.fromPublicKey(publicKey).toString();
+			if (!pkRegister || !pkRegister.renderedValue) {
+				return 'Unknown Address';
+			}
+
+			// Use the same method as BuyWidget.svelte line 482
+			const address = ErgoAddress.fromPublicKey(pkRegister.renderedValue, 0);
+			return address.encode();
 		} catch (error) {
 			console.error('Address conversion error:', error, pkRegister);
 			return 'Invalid Address';
@@ -60,12 +49,10 @@
 
 	async function getCurrentBlockHeight() {
 		try {
-			const response = await fetch('https://api.ergoplatform.com/api/v1/info');
-			const data = await response.json();
-			currentHeight = data.fullHeight || 0;
+			const response = await getBlockHeight();
+			currentHeight = response;
 		} catch (error) {
 			console.error('Error fetching current height:', error);
-			currentHeight = 0;
 		}
 	}
 
@@ -73,7 +60,7 @@
 		loading = true;
 		try {
 			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}?limit=500`
 			);
 			const data = await response.json();
 
@@ -81,7 +68,6 @@
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
-				const isOwnBox = depositorAddress === $connected_wallet_address;
 
 				return {
 					boxId: box.boxId,
@@ -91,63 +77,24 @@
 					currentHeight,
 					canWithdraw,
 					depositorAddress,
-					isOwnBox,
 					ergoTree: box.ergoTree,
 					additionalRegisters: box.additionalRegisters,
 					blocksRemaining: Math.max(0, unlockHeight - currentHeight)
 				};
 			});
+			// NOTE: No filtering by personal address - show ALL locks
 
-			// Calculate basic stats
+			// Calculate stats for all locks
 			totalValueLocked = mewLockBoxes.reduce((sum, box) => sum + box.value / 1e9, 0);
-			totalUsers = new Set(
-				mewLockBoxes.map((box) => box.depositorAddress).filter((addr) => addr !== 'Unknown')
-			).size;
+			totalUsers = new Set(mewLockBoxes.map((box) => box.depositorAddress)).size;
 			totalLocks = mewLockBoxes.length;
-			unlockableBoxes = mewLockBoxes.filter((box) => box.canWithdraw);
 
-			// Calculate advanced stats
-			calculateAdvancedStats();
+			// Calculate leaderboard
+			calculateLeaderboard();
 		} catch (error) {
 			console.error('Error loading MewLock boxes:', error);
-			// Set default values on error
-			mewLockBoxes = [];
-			totalValueLocked = 0;
-			totalUsers = 0;
-			totalLocks = 0;
-			unlockableBoxes = [];
 		}
 		loading = false;
-	}
-
-	function calculateAdvancedStats() {
-		if (mewLockBoxes.length === 0) return;
-
-		// Average lock duration
-		const durations = mewLockBoxes.map(
-			(box) => box.blocksRemaining + (currentHeight - box.currentHeight)
-		);
-		avgLockDuration = durations.reduce((sum, duration) => sum + duration, 0) / durations.length;
-
-		// Longest and shortest lock duration
-		longestLockDuration = Math.max(...durations);
-		shortestLockDuration = Math.min(...durations);
-
-		// Total tokens locked
-		totalTokensLocked = mewLockBoxes.reduce((sum, box) => sum + (box.assets?.length || 0), 0);
-
-		// Unique token types
-		const uniqueTokenIds = new Set();
-		mewLockBoxes.forEach((box) => {
-			box.assets?.forEach((asset) => uniqueTokenIds.add(asset.tokenId));
-		});
-		uniqueTokenTypes = uniqueTokenIds.size;
-
-		// Average lock value
-		avgLockValue = totalValueLocked / totalLocks;
-
-		// Calculate leaderboard
-		calculateLeaderboard();
 	}
 
 	function calculateLeaderboard() {
@@ -160,32 +107,39 @@
 					address,
 					totalValueLocked: 0,
 					totalLocks: 0,
+					ergOnlyLocks: 0,
+					tokenLocks: 0,
 					uniqueTokenTypes: new Set(),
-					averageDuration: 0,
-					totalDuration: 0
+					averageLockDuration: 0,
+					totalLockDuration: 0
 				};
 			}
 
 			userStats[address].totalValueLocked += box.value / 1e9;
 			userStats[address].totalLocks += 1;
-			userStats[address].totalDuration += box.blocksRemaining + (currentHeight - box.currentHeight);
+			userStats[address].totalLockDuration += box.blocksRemaining;
 
-			box.assets?.forEach((asset) => {
-				userStats[address].uniqueTokenTypes.add(asset.tokenId);
-			});
+			// Count ERG-only vs token locks
+			if (!box.assets || box.assets.length === 0) {
+				userStats[address].ergOnlyLocks += 1;
+			} else {
+				userStats[address].tokenLocks += 1;
+				box.assets.forEach((asset) => {
+					userStats[address].uniqueTokenTypes.add(asset.tokenId);
+				});
+			}
 		});
 
-		// Convert to array and calculate averages
+		// Convert to array and calculate averages, sort by total value locked
 		leaderboard = Object.values(userStats)
 			.map((user) => ({
 				...user,
 				uniqueTokenTypes: user.uniqueTokenTypes.size,
-				averageDuration: user.totalDuration / user.totalLocks
+				averageLockDuration: user.totalLocks > 0 ? user.totalLockDuration / user.totalLocks : 0
 			}))
 			.sort((a, b) => b.totalValueLocked - a.totalValueLocked);
 	}
 
-	// Sorting functions
 	function toggleSort(newSortBy: string) {
 		if (sortBy === newSortBy) {
 			sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
@@ -195,47 +149,8 @@
 		}
 	}
 
-	// Withdraw function
-	async function handleWithdraw(event) {
-		const { boxId, box } = event.detail;
-
-		try {
-			let myAddress, height, utxos;
-
-			if (get(selected_wallet_ergo) !== 'ergopay') {
-				myAddress = await ergo.get_change_address();
-				utxos = await fetchBoxes(get(connected_wallet_address));
-				height = await ergo.get_current_height();
-			} else {
-				myAddress = get(connected_wallet_address);
-				utxos = await fetchBoxes(get(connected_wallet_address));
-				height = await getCurrentBlockHeight();
-			}
-
-			const withdrawTx = await createMewLockWithdrawalTx(myAddress, utxos, height, box);
-
-			if (get(selected_wallet_ergo) !== 'ergopay') {
-				const signed = await ergo.sign_tx(withdrawTx);
-				const transactionId = await ergo.submit_tx(signed);
-				showCustomToast(
-					`Withdrawal successful! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
-					10000,
-					'success'
-				);
-
-				// Refresh data after successful withdrawal
-				setTimeout(() => {
-					loadMewLockBoxes();
-				}, 2000);
-			}
-		} catch (error) {
-			console.error('Withdrawal error:', error);
-			showCustomToast(`Withdrawal failed: ${error.message}`, 5000, 'danger');
-		}
-	}
-
-	// Calculate token summaries for detailed stats
-	$: tokenSummaries = mewLockBoxes.reduce((summaries, box) => {
+	// Calculate global token summaries for all locks
+	$: globalTokenSummaries = mewLockBoxes.reduce((summaries, box) => {
 		// Add ERG amount
 		if (!summaries.ERG) {
 			summaries.ERG = { totalAmount: 0, tokenName: 'ERG', decimals: 9, tokenId: null };
@@ -261,63 +176,77 @@
 		return summaries;
 	}, {});
 
-	$: tokenSummaryList = Object.values(tokenSummaries).filter((summary) => summary.totalAmount > 0);
+	$: globalTokenList = Object.values(globalTokenSummaries).filter(
+		(summary) => summary.totalAmount > 0
+	);
+
+	// Separate ERG-only and ERG+token locks
 	$: ergOnlyLocks = mewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
-	$: tokenLocks = mewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
+	$: ergTokenLocks = mewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
 
-	// Sorting logic
-	$: sortedMewLockBoxes = [...mewLockBoxes].sort((a, b) => {
-		let aValue, bValue;
+	// Sorting function for both sections
+	function sortLocks(locks) {
+		return [...locks].sort((a, b) => {
+			let aValue, bValue;
 
-		switch (sortBy) {
-			case 'height':
-				aValue = a.unlockHeight;
-				bValue = b.unlockHeight;
-				break;
-			case 'amount':
-				aValue = a.value;
-				bValue = b.value;
-				break;
-			case 'tokens':
-				aValue = a.assets?.length || 0;
-				bValue = b.assets?.length || 0;
-				break;
-			default:
-				return 0;
-		}
+			switch (sortBy) {
+				case 'height':
+					aValue = a.unlockHeight;
+					bValue = b.unlockHeight;
+					break;
+				case 'amount':
+					aValue = a.value;
+					bValue = b.value;
+					break;
+				case 'tokens':
+					aValue = a.assets?.length || 0;
+					bValue = b.assets?.length || 0;
+					break;
+				default:
+					return 0;
+			}
 
-		const result = aValue - bValue;
-		return sortOrder === 'asc' ? result : -result;
-	});
+			const result = aValue - bValue;
+			return sortOrder === 'asc' ? result : -result;
+		});
+	}
 
-	// Platform-wide view (no personal filtering)
-	$: filteredSortedBoxes = sortedMewLockBoxes;
+	$: sortedErgOnlyLocks = sortLocks(ergOnlyLocks);
+	$: sortedErgTokenLocks = sortLocks(ergTokenLocks);
+	
+	// Force reactivity when sort parameters change
+	$: if (sortBy || sortOrder) {
+		sortedErgOnlyLocks = sortLocks(ergOnlyLocks);
+		sortedErgTokenLocks = sortLocks(ergTokenLocks);
+	}
 </script>
 
 <svelte:head>
-	<title>Mew Lock Statistics - Detailed Platform Analytics</title>
+	<title>All Locks - Mew Lock Explorer</title>
 </svelte:head>
 
 <!-- Navigation -->
 <Navigation />
 
-<div class="stats-container">
-	<main class="stats-main">
+<div class="locks-container">
+	<main class="locks-main">
 		{#if loading}
 			<div class="loading-state">
 				<div class="spinner" />
-				<p>Loading platform statistics...</p>
+				<p>Loading all locked assets...</p>
 			</div>
 		{:else}
-			<!-- Key Metrics -->
-			<section class="key-metrics">
-				<h2>Key Platform Metrics</h2>
-				<div class="metrics-grid">
-					<div class="metric-card primary">
-						<div class="metric-icon">
+			<!-- Global Stats -->
+			<section class="global-stats">
+				<h1>All Locked Assets</h1>
+				<p class="section-description">Explore all assets currently locked in the Mew Lock protocol</p>
+				
+				<div class="stats-grid">
+					<div class="stat-card primary">
+						<div class="stat-icon">
 							<svg
-								width="32"
-								height="32"
+								width="24"
+								height="24"
 								viewBox="0 0 24 24"
 								fill="none"
 								xmlns="http://www.w3.org/2000/svg"
@@ -328,62 +257,38 @@
 								/>
 							</svg>
 						</div>
-						<div class="metric-content">
-							<div class="metric-value">{nFormatter(totalValueLocked)}</div>
-							<div class="metric-label">Total ERG Locked</div>
-							<div class="metric-change">Platform's total locked value</div>
+						<div class="stat-content">
+							<div class="stat-value">{nFormatter(totalValueLocked)}</div>
+							<div class="stat-label">Total ERG Locked</div>
 						</div>
 					</div>
 
-					<div class="metric-card">
-						<div class="metric-icon">
+					<div class="stat-card">
+						<div class="stat-icon">
 							<svg
-								width="32"
-								height="32"
+								width="24"
+								height="24"
 								viewBox="0 0 24 24"
 								fill="none"
 								xmlns="http://www.w3.org/2000/svg"
 							>
 								<path
-									d="M12 4A4 4 0 0 1 16 8A4 4 0 0 1 12 12A4 4 0 0 1 8 8A4 4 0 0 1 12 4M12 6A2 2 0 0 0 10 8A2 2 0 0 0 12 10A2 2 0 0 0 14 8A2 2 0 0 0 12 6M12 13C14.67 13 20 14.33 20 17V20H4V17C4 14.33 9.33 13 12 13M12 14.9C9.03 14.9 5.9 16.36 5.9 17V18.1H18.1V17C18.1 16.36 14.97 14.9 12 14.9Z"
+									d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"
 									fill="currentColor"
 								/>
 							</svg>
 						</div>
-						<div class="metric-content">
-							<div class="metric-value">{totalUsers}</div>
-							<div class="metric-label">Active Users</div>
-							<div class="metric-change">Unique addresses using MewLock</div>
+						<div class="stat-content">
+							<div class="stat-value">{nFormatter(totalUsers)}</div>
+							<div class="stat-label">Unique Users</div>
 						</div>
 					</div>
 
-					<div class="metric-card">
-						<div class="metric-icon">
+					<div class="stat-card success">
+						<div class="stat-icon">
 							<svg
-								width="32"
-								height="32"
-								viewBox="0 0 24 24"
-								fill="none"
-								xmlns="http://www.w3.org/2000/svg"
-							>
-								<path
-									d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16M12,2A1,1 0 0,1 13,3V5.08C16.39,5.57 19,8.47 19,12C19,15.53 16.39,18.43 13,18.92V21A1,1 0 0,1 12,22A1,1 0 0,1 11,21V18.92C7.61,18.43 5,15.53 5,12C5,8.47 7.61,5.57 11,5.08V3A1,1 0 0,1 12,2Z"
-									fill="currentColor"
-								/>
-							</svg>
-						</div>
-						<div class="metric-content">
-							<div class="metric-value">{totalLocks}</div>
-							<div class="metric-label">Total Locks</div>
-							<div class="metric-change">Active lock contracts</div>
-						</div>
-					</div>
-
-					<div class="metric-card success">
-						<div class="metric-icon">
-							<svg
-								width="32"
-								height="32"
+								width="24"
+								height="24"
 								viewBox="0 0 24 24"
 								fill="none"
 								xmlns="http://www.w3.org/2000/svg"
@@ -394,81 +299,78 @@
 								/>
 							</svg>
 						</div>
-						<div class="metric-content">
-							<div class="metric-value">{unlockableBoxes.length}</div>
-							<div class="metric-label">Ready to Unlock</div>
-							<div class="metric-change">Available for withdrawal</div>
+						<div class="stat-content">
+							<div class="stat-value">{nFormatter(totalLocks)}</div>
+							<div class="stat-label">Total Locks</div>
+						</div>
+					</div>
+
+					<div class="stat-card">
+						<div class="stat-icon">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M5,6H23V18H5V6M14,9A3,3 0 0,1 17,12A3,3 0 0,1 14,15A3,3 0 0,1 11,12A3,3 0 0,1 14,9M9,8A2,2 0 0,1 7,10V14A2,2 0 0,1 9,16H19A2,2 0 0,1 21,14V10A2,2 0 0,1 19,8H9Z"
+									fill="currentColor"
+								/>
+							</svg>
+						</div>
+						<div class="stat-content">
+							<div class="stat-value">{globalTokenList.length}</div>
+							<div class="stat-label">Token Types</div>
 						</div>
 					</div>
 				</div>
 			</section>
 
-			<!-- Advanced Analytics -->
-			<section class="advanced-stats">
-				<h2>Advanced Analytics</h2>
-				<div class="advanced-grid">
-					<div class="advanced-card">
-						<h3>Lock Duration Analysis</h3>
-						<div class="stat-row">
-							<span class="stat-label">Average Duration:</span>
-							<span class="stat-value">{Math.round(avgLockDuration)} blocks</span>
+			<!-- Leaderboard -->
+			{#if leaderboard.length > 0}
+				<section class="leaderboard-section">
+					<h2>Top Users Leaderboard</h2>
+					<div class="leaderboard-table">
+						<div class="table-header">
+							<div class="header-cell rank">Rank</div>
+							<div class="header-cell address">Address</div>
+							<div class="header-cell value">Total ERG Locked</div>
+							<div class="header-cell locks">Total Locks</div>
+							<div class="header-cell erg-locks">ERG Only</div>
+							<div class="header-cell token-locks">ERG+Token</div>
+							<div class="header-cell duration">Avg Duration</div>
 						</div>
-						<div class="stat-row">
-							<span class="stat-label">Longest Lock:</span>
-							<span class="stat-value">{nFormatter(longestLockDuration)} blocks</span>
-						</div>
-						<div class="stat-row">
-							<span class="stat-label">Shortest Lock:</span>
-							<span class="stat-value">{nFormatter(shortestLockDuration)} blocks</span>
-						</div>
+						{#each leaderboard.slice(0, 20) as user, index}
+							<div class="table-row">
+								<div class="table-cell rank">
+									<div class="rank-badge" class:top3={index < 3}>
+										{#if index === 0}👑{:else if index === 1}🥈{:else if index === 2}🥉{:else}{index + 1}{/if}
+									</div>
+								</div>
+								<div class="table-cell address">
+									<span class="address-text">
+										{user.address.slice(0, 8)}...{user.address.slice(-6)}
+									</span>
+								</div>
+								<div class="table-cell value">{nFormatter(user.totalValueLocked)} ERG</div>
+								<div class="table-cell locks">{user.totalLocks}</div>
+								<div class="table-cell erg-locks">{user.ergOnlyLocks}</div>
+								<div class="table-cell token-locks">{user.tokenLocks}</div>
+								<div class="table-cell duration">{Math.round(user.averageLockDuration)} blocks</div>
+							</div>
+						{/each}
 					</div>
+				</section>
+			{/if}
 
-					<div class="advanced-card">
-						<h3>Token Analysis</h3>
-						<div class="stat-row">
-							<span class="stat-label">Total Tokens Locked:</span>
-							<span class="stat-value">{totalTokensLocked}</span>
-						</div>
-						<div class="stat-row">
-							<span class="stat-label">Unique Token Types:</span>
-							<span class="stat-value">{uniqueTokenTypes}</span>
-						</div>
-						<div class="stat-row">
-							<span class="stat-label">ERG-Only Locks:</span>
-							<span class="stat-value"
-								>{ergOnlyLocks.length} ({Math.round(
-									(ergOnlyLocks.length / totalLocks) * 100
-								)}%)</span
-							>
-						</div>
-					</div>
-
-					<div class="advanced-card">
-						<h3>Value Analysis</h3>
-						<div class="stat-row">
-							<span class="stat-label">Average Lock Value:</span>
-							<span class="stat-value">{nFormatter(avgLockValue)} ERG</span>
-						</div>
-						<div class="stat-row">
-							<span class="stat-label">Token Locks:</span>
-							<span class="stat-value"
-								>{tokenLocks.length} ({Math.round((tokenLocks.length / totalLocks) * 100)}%)</span
-							>
-						</div>
-						<div class="stat-row">
-							<span class="stat-label">Current Block:</span>
-							<span class="stat-value">{nFormatter(currentHeight)}</span>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<!-- Token Distribution -->
-			{#if tokenSummaryList.length > 0}
-				<section class="token-distribution">
-					<h2>Locked Token Distribution</h2>
-					<div class="token-summary-grid">
-						{#each tokenSummaryList as token (token.tokenId || 'ERG')}
+			<!-- Global Token Summary -->
+			{#if globalTokenList.length > 0}
+				<section class="global-tokens">
+					<h2>All Locked Tokens</h2>
+					<div class="tokens-grid">
+						{#each globalTokenList as token (token.tokenId || 'ERG')}
 							<TokenSummaryCard
 								tokenId={token.tokenId}
 								tokenName={token.tokenName}
@@ -482,202 +384,251 @@
 				</section>
 			{/if}
 
-			<!-- Leaderboard -->
-			{#if leaderboard.length > 0}
-				<section class="leaderboard-section">
-					<h2>Top Users Leaderboard</h2>
-					<div class="leaderboard-table">
-						<div class="table-header">
-							<div class="header-cell rank">Rank</div>
-							<div class="header-cell address">Address</div>
-							<div class="header-cell value">Total Locked</div>
-							<div class="header-cell locks">Locks</div>
-							<div class="header-cell tokens">Token Types</div>
-							<div class="header-cell duration">Avg Duration</div>
-						</div>
-						{#each leaderboard.slice(0, 10) as user, index}
-							<div class="table-row" class:own={user.address === $connected_wallet_address}>
-								<div class="table-cell rank">
-									<div class="rank-badge" class:top3={index < 3}>
-										{#if index === 0}👑{:else if index === 1}🥈{:else if index === 2}🥉{:else}{index +
-												1}{/if}
+			<!-- Sort Controls -->
+			<section class="controls-section">
+				<div class="section-header">
+					<h2>Browse All Locks</h2>
+					<div class="sort-controls">
+						<button
+							class="sort-btn"
+							class:active={sortBy === 'height'}
+							on:click={() => toggleSort('height')}
+						>
+							Height
+							{#if sortBy === 'height'}
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									{#if sortOrder === 'asc'}
+										<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+									{:else}
+										<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+									{/if}
+								</svg>
+							{/if}
+						</button>
+						<button
+							class="sort-btn"
+							class:active={sortBy === 'amount'}
+							on:click={() => toggleSort('amount')}
+						>
+							Amount
+							{#if sortBy === 'amount'}
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									{#if sortOrder === 'asc'}
+										<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+									{:else}
+										<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+									{/if}
+								</svg>
+							{/if}
+						</button>
+						<button
+							class="sort-btn"
+							class:active={sortBy === 'tokens'}
+							on:click={() => toggleSort('tokens')}
+						>
+							Tokens
+							{#if sortBy === 'tokens'}
+								<svg
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									{#if sortOrder === 'asc'}
+										<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+									{:else}
+										<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+									{/if}
+								</svg>
+							{/if}
+						</button>
+					</div>
+				</div>
+			</section>
+
+			<!-- ERG Only Locks Section -->
+			{#if sortedErgOnlyLocks.length > 0}
+				<section class="locks-section">
+					<h2 class="section-title">
+						<span class="section-icon">💰</span>
+						ERG Only Locks ({ergOnlyLocks.length})
+					</h2>
+					<div class="locks-grid">
+						{#each sortedErgOnlyLocks as lockBox (lockBox.boxId)}
+							<div
+								class="lock-card"
+								class:ready={lockBox.canWithdraw}
+								transition:fly={{ y: 20, duration: 300 }}
+							>
+								<div class="lock-header">
+									<div class="lock-status">
+										{#if lockBox.canWithdraw}
+											<span class="status-badge ready">Ready to Unlock</span>
+										{:else}
+											<span class="status-badge locked">Locked</span>
+										{/if}
+									</div>
+									<div class="lock-height">
+										Block {nFormatter(lockBox.unlockHeight, false, true)}
 									</div>
 								</div>
-								<div class="table-cell address">
-									<span class="address-text"
-										>{user.address.slice(0, 6)}...{user.address.slice(-6)}</span
-									>
-									{#if user.address === $connected_wallet_address}
-										<span class="you-badge">YOU</span>
-									{/if}
+
+								<div class="lock-content">
+									<div class="lock-amount">
+										<div class="amount-value">{nFormatter(lockBox.value / 1e9)} ERG</div>
+									</div>
+
+									<div class="lock-timing">
+										{#if lockBox.canWithdraw}
+											<span class="timing-text ready">Unlocked & Ready</span>
+										{:else}
+											<span class="timing-text">
+												{nFormatter(lockBox.blocksRemaining)} blocks remaining
+											</span>
+										{/if}
+									</div>
+
+									<div class="depositor-info">
+										<span class="depositor-label">Depositor:</span>
+										<span class="depositor-address">
+											{lockBox.depositorAddress.slice(0, 12)}...{lockBox.depositorAddress.slice(-8)}
+										</span>
+									</div>
 								</div>
-								<div class="table-cell value">{nFormatter(user.totalValueLocked)} ERG</div>
-								<div class="table-cell locks">{user.totalLocks}</div>
-								<div class="table-cell tokens">{user.uniqueTokenTypes}</div>
-								<div class="table-cell duration">{Math.round(user.averageDuration)} blocks</div>
 							</div>
 						{/each}
 					</div>
 				</section>
 			{/if}
 
-			<!-- Locked Assets Section -->
-			<section class="locked-assets-section">
-				<div class="section-header">
-					<h2>All Locked Assets</h2>
-					<div class="header-controls">
-						<!-- Sorting Controls -->
-						<div class="sort-controls">
-							<button
-								class="sort-btn"
-								class:active={sortBy === 'height'}
-								on:click={() => toggleSort('height')}
+			<!-- ERG + Token Locks Section -->
+			{#if sortedErgTokenLocks.length > 0}
+				<section class="locks-section">
+					<h2 class="section-title">
+						<span class="section-icon">🎯</span>
+						ERG + Token Locks ({ergTokenLocks.length})
+					</h2>
+					<div class="locks-grid">
+						{#each sortedErgTokenLocks as lockBox (lockBox.boxId)}
+							<div
+								class="lock-card"
+								class:ready={lockBox.canWithdraw}
+								transition:fly={{ y: 20, duration: 300 }}
 							>
-								Height
-								{#if sortBy === 'height'}
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+								<div class="lock-header">
+									<div class="lock-status">
+										{#if lockBox.canWithdraw}
+											<span class="status-badge ready">Ready to Unlock</span>
 										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+											<span class="status-badge locked">Locked</span>
 										{/if}
-									</svg>
-								{/if}
-							</button>
-							<button
-								class="sort-btn"
-								class:active={sortBy === 'amount'}
-								on:click={() => toggleSort('amount')}
-							>
-								Amount
-								{#if sortBy === 'amount'}
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
-										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
-										{/if}
-									</svg>
-								{/if}
-							</button>
-							<button
-								class="sort-btn"
-								class:active={sortBy === 'tokens'}
-								on:click={() => toggleSort('tokens')}
-							>
-								Tokens
-								{#if sortBy === 'tokens'}
-									<svg
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										{#if sortOrder === 'asc'}
-											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
-										{:else}
-											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
-										{/if}
-									</svg>
-								{/if}
-							</button>
-						</div>
+									</div>
+									<div class="lock-height">
+										Block {nFormatter(lockBox.unlockHeight, false, true)}
+									</div>
+								</div>
 
-						<!-- Platform Note -->
-						<div class="platform-note">
-							<span>Platform-wide Analytics</span>
-							<a href="/my-locks" class="manage-link"> Manage Your Locks → </a>
-						</div>
+								<div class="lock-content">
+									<div class="lock-amount">
+										<div class="amount-value">{nFormatter(lockBox.value / 1e9)} ERG</div>
+										{#if lockBox.assets && lockBox.assets.length > 0}
+											<div class="token-count">
+												+ {lockBox.assets.length} token{lockBox.assets.length === 1 ? '' : 's'}
+											</div>
+										{/if}
+									</div>
+
+									{#if lockBox.assets && lockBox.assets.length > 0}
+										<div class="token-list">
+											{#each lockBox.assets.slice(0, 3) as asset}
+												<div class="token-item">
+													{nFormatter(asset.amount / 10 ** (asset.decimals || 0))}
+													{asset.name || 'Token'}
+												</div>
+											{/each}
+											{#if lockBox.assets.length > 3}
+												<div class="token-item more">+{lockBox.assets.length - 3} more</div>
+											{/if}
+										</div>
+									{/if}
+
+									<div class="lock-timing">
+										{#if lockBox.canWithdraw}
+											<span class="timing-text ready">Unlocked & Ready</span>
+										{:else}
+											<span class="timing-text">
+												{nFormatter(lockBox.blocksRemaining)} blocks remaining
+											</span>
+										{/if}
+									</div>
+
+									<div class="depositor-info">
+										<span class="depositor-label">Depositor:</span>
+										<span class="depositor-address">
+											{lockBox.depositorAddress.slice(0, 12)}...{lockBox.depositorAddress.slice(-8)}
+										</span>
+									</div>
+								</div>
+							</div>
+						{/each}
 					</div>
+				</section>
+			{/if}
+
+			{#if mewLockBoxes.length === 0}
+				<div class="empty-state">
+					<div class="empty-icon">
+						<svg
+							width="48"
+							height="48"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
+								fill="currentColor"
+							/>
+						</svg>
+					</div>
+					<h3>No Locks Found</h3>
+					<p>There are currently no assets locked in the protocol.</p>
 				</div>
-
-				{#if filteredSortedBoxes.length > 0}
-					<MewLockCards
-						mewLockBoxes={filteredSortedBoxes}
-						{currentHeight}
-						on:withdraw={handleWithdraw}
-					/>
-				{:else}
-					<div class="empty-state">
-						<div class="empty-icon">
-							<svg
-								width="48"
-								height="48"
-								viewBox="0 0 24 24"
-								fill="none"
-								xmlns="http://www.w3.org/2000/svg"
-							>
-								<path
-									d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
-									fill="currentColor"
-								/>
-							</svg>
-						</div>
-						<h3>No Locked Assets Found</h3>
-						<p>No assets match the current filter criteria.</p>
-					</div>
-				{/if}
-			</section>
+			{/if}
 		{/if}
 	</main>
 </div>
 
 <style>
-	.stats-container {
+	/* Base Styles */
+	.locks-container {
 		min-height: 100vh;
 		background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
 		color: white;
 		font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 	}
 
-	.stats-header {
-		padding: 2rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		background: rgba(255, 255, 255, 0.02);
-	}
-
-	.header-content {
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	.stats-header h1 {
-		font-size: 3rem;
-		font-weight: 800;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
-		margin: 0 0 1rem 0;
-		line-height: 1;
-	}
-
-	.stats-description {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 1.1rem;
-		margin: 0;
-		max-width: 600px;
-	}
-
-	.stats-main {
+	/* Main Content */
+	.locks-main {
 		padding: 2rem;
 		max-width: 1400px;
 		margin: 0 auto;
 	}
 
+	/* Loading State */
 	.loading-state {
 		display: flex;
 		flex-direction: column;
@@ -706,168 +657,93 @@
 		}
 	}
 
-	/* Key Metrics */
-	.key-metrics {
+	/* Global Stats */
+	.global-stats {
 		margin-bottom: 3rem;
 	}
 
-	.key-metrics h2 {
-		font-size: 2rem;
-		font-weight: 700;
-		color: white;
-		margin: 0 0 2rem 0;
+	.global-stats h1 {
+		font-size: 3rem;
+		font-weight: 800;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+		margin: 0 0 0.5rem 0;
+		line-height: 1;
 	}
 
-	.metrics-grid {
+	.section-description {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 1.1rem;
+		margin: 0 0 2rem 0;
+		max-width: 600px;
+	}
+
+	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 		gap: 1.5rem;
 	}
 
-	.metric-card {
+	.stat-card {
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 16px;
-		padding: 2rem;
+		border-radius: 12px;
+		padding: 1.5rem;
 		display: flex;
-		align-items: flex-start;
-		gap: 1.5rem;
+		align-items: center;
+		gap: 1rem;
 		transition: all 0.3s ease;
 	}
 
-	.metric-card:hover {
-		transform: translateY(-4px);
-		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+	.stat-card:hover {
+		transform: translateY(-2px);
 		border-color: rgba(102, 126, 234, 0.3);
+		background: rgba(102, 126, 234, 0.05);
 	}
 
-	.metric-card.primary {
+	.stat-card.primary {
 		border-color: rgba(102, 126, 234, 0.5);
 		background: rgba(102, 126, 234, 0.05);
 	}
 
-	.metric-card.success {
+	.stat-card.success {
 		border-color: rgba(34, 197, 94, 0.5);
 		background: rgba(34, 197, 94, 0.05);
 	}
 
-	.metric-icon {
+	.stat-icon {
 		background: rgba(102, 126, 234, 0.1);
 		border: 1px solid rgba(102, 126, 234, 0.2);
-		border-radius: 12px;
-		padding: 1rem;
+		border-radius: 8px;
+		padding: 0.75rem;
 		color: #667eea;
 		flex-shrink: 0;
 	}
 
-	.metric-card.success .metric-icon {
+	.stat-card.success .stat-icon {
 		background: rgba(34, 197, 94, 0.1);
 		border-color: rgba(34, 197, 94, 0.2);
 		color: #22c55e;
 	}
 
-	.metric-content {
+	.stat-content {
 		flex: 1;
 	}
 
-	.metric-value {
-		font-size: 2.5rem;
+	.stat-value {
+		font-size: 1.75rem;
 		font-weight: 700;
 		color: white;
-		margin-bottom: 0.5rem;
-		line-height: 1;
-	}
-
-	.metric-label {
-		font-size: 1rem;
-		color: white;
-		font-weight: 600;
 		margin-bottom: 0.25rem;
-	}
-
-	.metric-change {
-		font-size: 0.875rem;
-		color: rgba(255, 255, 255, 0.6);
-	}
-
-	/* Advanced Stats */
-	.advanced-stats {
-		margin-bottom: 3rem;
-	}
-
-	.advanced-stats h2 {
-		font-size: 2rem;
-		font-weight: 700;
-		color: white;
-		margin: 0 0 2rem 0;
-	}
-
-	.advanced-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 1.5rem;
-	}
-
-	.advanced-card {
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 16px;
-		padding: 1.5rem;
-		transition: all 0.3s ease;
-	}
-
-	.advanced-card:hover {
-		border-color: rgba(102, 126, 234, 0.3);
-		background: rgba(102, 126, 234, 0.05);
-	}
-
-	.advanced-card h3 {
-		color: white;
-		font-size: 1.25rem;
-		font-weight: 600;
-		margin: 0 0 1.5rem 0;
-		padding-bottom: 0.75rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.stat-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.stat-row:last-child {
-		margin-bottom: 0;
+		line-height: 1;
 	}
 
 	.stat-label {
 		color: rgba(255, 255, 255, 0.7);
 		font-size: 0.875rem;
-	}
-
-	.stat-value {
-		color: #667eea;
-		font-weight: 600;
-		font-size: 0.875rem;
-	}
-
-	/* Token Distribution */
-	.token-distribution {
-		margin-bottom: 3rem;
-	}
-
-	.token-distribution h2 {
-		font-size: 2rem;
-		font-weight: 700;
-		color: white;
-		margin: 0 0 2rem 0;
-	}
-
-	.token-summary-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: 1rem;
+		font-weight: 500;
 	}
 
 	/* Leaderboard */
@@ -886,16 +762,18 @@
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 16px;
-		overflow: hidden;
+		overflow-x: auto;
+		overflow-y: hidden;
 	}
 
 	.table-header {
 		display: grid;
-		grid-template-columns: 80px 1fr 120px 80px 100px 120px;
+		grid-template-columns: 60px 1fr 120px 80px 80px 100px 120px;
 		gap: 1rem;
 		padding: 1rem 1.5rem;
 		background: rgba(255, 255, 255, 0.1);
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		min-width: 600px;
 	}
 
 	.header-cell {
@@ -908,20 +786,16 @@
 
 	.table-row {
 		display: grid;
-		grid-template-columns: 80px 1fr 120px 80px 100px 120px;
+		grid-template-columns: 60px 1fr 120px 80px 80px 100px 120px;
 		gap: 1rem;
 		padding: 1rem 1.5rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		transition: all 0.2s;
+		min-width: 600px;
 	}
 
 	.table-row:hover {
 		background: rgba(255, 255, 255, 0.05);
-	}
-
-	.table-row.own {
-		background: rgba(102, 126, 234, 0.1);
-		border-color: rgba(102, 126, 234, 0.2);
 	}
 
 	.table-row:last-child {
@@ -958,72 +832,51 @@
 		font-size: 0.8rem;
 	}
 
-	.you-badge {
-		background: #667eea;
-		color: white;
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.625rem;
-		font-weight: 600;
-		margin-left: 0.5rem;
-	}
-
-	/* Locked Assets Section */
-	.locked-assets-section {
+	/* Global Tokens */
+	.global-tokens {
 		margin-bottom: 3rem;
 	}
 
-	.locked-assets-section h2 {
+	.global-tokens h2 {
+		font-size: 2rem;
+		font-weight: 700;
+		color: white;
+		margin: 0 0 2rem 0;
+	}
+
+	.tokens-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 1rem;
+	}
+
+	/* Controls Section */
+	.controls-section {
+		margin-bottom: 3rem;
+	}
+
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 2rem;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.section-header h2 {
 		font-size: 2rem;
 		font-weight: 700;
 		color: white;
 		margin: 0;
 	}
 
-	.section-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 2rem;
-	}
-
-	.header-controls {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-	}
-
 	.sort-controls {
 		display: flex;
-		gap: 0.5rem;
-	}
-
-	.platform-note {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		background: rgba(102, 126, 234, 0.1);
-		border: 1px solid rgba(102, 126, 234, 0.2);
+		gap: 0.25rem;
+		background: rgba(255, 255, 255, 0.05);
 		border-radius: 8px;
-	}
-
-	.platform-note span {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 0.875rem;
-		font-weight: 500;
-	}
-
-	.manage-link {
-		color: #667eea;
-		text-decoration: none;
-		font-size: 0.875rem;
-		font-weight: 500;
-		transition: all 0.2s;
-	}
-
-	.manage-link:hover {
-		color: white;
+		padding: 0.25rem;
 	}
 
 	.sort-btn {
@@ -1031,9 +884,9 @@
 		align-items: center;
 		gap: 0.25rem;
 		padding: 0.5rem 0.75rem;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
+		background: transparent;
+		border: none;
+		border-radius: 6px;
 		color: rgba(255, 255, 255, 0.7);
 		font-size: 0.875rem;
 		cursor: pointer;
@@ -1047,16 +900,177 @@
 
 	.sort-btn.active {
 		background: rgba(102, 126, 234, 0.2);
-		border-color: rgba(102, 126, 234, 0.4);
 		color: #667eea;
 	}
 
+	/* Locks Sections */
+	.locks-section {
+		margin-bottom: 3rem;
+	}
+
+	.section-title {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: white;
+		margin: 0 0 2rem 0;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.section-icon {
+		font-size: 1.5rem;
+	}
+
+	/* Locks Grid */
+	.locks-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		gap: 1.5rem;
+	}
+
+	.lock-card {
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		padding: 1.5rem;
+		transition: all 0.3s ease;
+		position: relative;
+	}
+
+	.lock-card:hover {
+		transform: translateY(-2px);
+		border-color: rgba(102, 126, 234, 0.3);
+		background: rgba(102, 126, 234, 0.05);
+	}
+
+	.lock-card.ready {
+		border-color: rgba(34, 197, 94, 0.3);
+		background: rgba(34, 197, 94, 0.03);
+	}
+
+	.lock-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: 1rem;
+	}
+
+	.lock-status {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.status-badge {
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.status-badge.ready {
+		background: rgba(34, 197, 94, 0.2);
+		color: #22c55e;
+		border: 1px solid rgba(34, 197, 94, 0.3);
+	}
+
+	.status-badge.locked {
+		background: rgba(255, 193, 7, 0.2);
+		color: #ffc107;
+		border: 1px solid rgba(255, 193, 7, 0.3);
+	}
+
+	.lock-height {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.lock-content {
+		margin-bottom: 1rem;
+	}
+
+	.lock-amount {
+		margin-bottom: 1rem;
+	}
+
+	.amount-value {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: white;
+		margin-bottom: 0.25rem;
+	}
+
+	.token-count {
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.875rem;
+	}
+
+	.token-list {
+		margin-bottom: 1rem;
+	}
+
+	.token-item {
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		padding: 0.5rem 0.75rem;
+		margin-bottom: 0.5rem;
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.token-item.more {
+		color: rgba(255, 255, 255, 0.6);
+		font-style: italic;
+	}
+
+	.lock-timing {
+		padding-top: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		margin-bottom: 1rem;
+	}
+
+	.timing-text {
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.timing-text.ready {
+		color: #22c55e;
+		font-weight: 600;
+	}
+
+	.depositor-info {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.depositor-label {
+		color: rgba(255, 255, 255, 0.6);
+		font-weight: 500;
+	}
+
+	.depositor-address {
+		color: rgba(255, 255, 255, 0.8);
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.75rem;
+	}
+
+	/* Empty State */
 	.empty-state {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 4rem;
+		padding: 4rem 2rem;
 		text-align: center;
 		background: rgba(255, 255, 255, 0.02);
 		border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1065,71 +1079,53 @@
 
 	.empty-icon {
 		color: rgba(255, 255, 255, 0.3);
-		margin-bottom: 1rem;
+		margin-bottom: 1.5rem;
 	}
 
 	.empty-state h3 {
 		color: white;
 		font-size: 1.5rem;
 		font-weight: 600;
-		margin: 0 0 0.5rem 0;
+		margin: 0 0 1rem 0;
 	}
 
 	.empty-state p {
 		color: rgba(255, 255, 255, 0.6);
-		margin: 0;
+		margin: 0 0 2rem 0;
+		max-width: 400px;
 	}
 
 	/* Responsive */
 	@media (max-width: 768px) {
-		.stats-header,
-		.stats-main {
+		.locks-main {
 			padding: 1rem;
 		}
 
-		.stats-header h1 {
+		.global-stats h1 {
 			font-size: 2rem;
-		}
-
-		.metrics-grid,
-		.advanced-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.metric-card {
-			padding: 1.5rem;
-		}
-
-		.metric-value {
-			font-size: 2rem;
-		}
-
-		.token-summary-grid {
-			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-		}
-
-		.header-controls {
-			flex-direction: column;
-			gap: 0.5rem;
-		}
-
-		.table-header,
-		.table-row {
-			grid-template-columns: 60px 1fr 100px 60px;
-			font-size: 0.75rem;
-		}
-
-		.header-cell.tokens,
-		.header-cell.duration,
-		.table-cell.tokens,
-		.table-cell.duration {
-			display: none;
 		}
 
 		.section-header {
 			flex-direction: column;
-			gap: 1rem;
 			align-items: flex-start;
+		}
+
+		.sort-controls {
+			width: 100%;
+		}
+
+		.stats-grid,
+		.locks-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.tokens-grid {
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		}
+
+		.table-header,
+		.table-row {
+			font-size: 0.75rem;
 		}
 	}
 </style>

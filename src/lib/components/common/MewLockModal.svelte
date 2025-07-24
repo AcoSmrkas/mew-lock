@@ -452,6 +452,8 @@
 						<option value={21600}>1 month (21,600 blocks)</option>
 						<option value={129600}>6 months (129,600 blocks)</option>
 						<option value={262800}>1 year (262,800 blocks)</option>
+						<option value={1314000}>5 years (1,314,000 blocks)</option>
+						<option value={2628000}>10 years (2,628,000 blocks)</option>
 						<option value={-1}>Custom</option>
 					</select>
 					{#if lockDurationSelect === -1}
