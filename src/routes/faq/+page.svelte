@@ -66,21 +66,6 @@
 							</svg>
 							FAQ
 						</a>
-						<a href="/api" class="footer-link">
-							<svg
-								width="20"
-								height="20"
-								viewBox="0 0 24 24"
-								fill="none"
-								xmlns="http://www.w3.org/2000/svg"
-							>
-								<path
-									d="M8.5 8.5L11 11L8.5 13.5L9.5 14.5L12.5 11.5L9.5 8.5L8.5 8.5M15.5 13.5L13 11L15.5 8.5L14.5 7.5L11.5 10.5L14.5 13.5L15.5 13.5M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22S22 17.52 22 12S17.52 2 12 2Z"
-									fill="currentColor"
-								/>
-							</svg>
-							API
-						</a>
 					</div>
 				</div>
 
