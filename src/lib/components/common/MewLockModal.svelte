@@ -36,6 +36,10 @@
 	let lockDurationSelect = 720;
 	let selectedTokensToLock = [];
 	let currentHeight = 0;
+	
+	// Enhanced lock metadata (NEW)
+	let lockName = '';
+	let lockDescription = '';
 	let showErgopayModal = false;
 	let isAuth = false;
 	let unsignedTx = null;
@@ -196,6 +200,8 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		lockType = '';
 		selectedTokensToLock = [];
 		lockAmount = '';
+		lockName = '';
+		lockDescription = '';
 	}
 
 	function toggleTokenSelection(token) {
@@ -263,7 +269,9 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 				height,
 				BigInt(Math.round(parseFloat(lockAmount) * 1e9)), // ERG amount in nanoERG as bigint
 				tokensToLock,
-				unlockHeight
+				unlockHeight,
+				lockName.trim() || null, // R7: Lock name (optional)
+				lockDescription.trim() || null // R8: Lock description (optional)
 			);
 
 			if (get(selected_wallet_ergo) !== 'ergopay') {
@@ -451,6 +459,37 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 						<small>Minimum 0.1 ERG recommended for transaction fees</small>
 					</div>
 				{/if}
+				
+				<!-- Lock Name (NEW) -->
+				<!-- svelte-ignore a11y-label-has-associated-control -->
+				<div class="input-group">
+					<!-- svelte-ignore a11y-label-has-associated-control -->
+					<label>Lock Name <span class="optional">(optional)</span></label>
+					<input
+						type="text"
+						bind:value={lockName}
+						placeholder="e.g., Emergency Fund, House Deposit"
+						maxlength="30"
+						class="mewlock-input"
+					/>
+					<small>Give your lock a memorable name (max 30 characters)</small>
+				</div>
+				
+				<!-- Lock Description (NEW) -->
+				<!-- svelte-ignore a11y-label-has-associated-control -->
+				<div class="input-group">
+					<!-- svelte-ignore a11y-label-has-associated-control -->
+					<label>Description <span class="optional">(optional)</span></label>
+					<textarea
+						bind:value={lockDescription}
+						placeholder="e.g., Saving for family vacation in summer 2025"
+						maxlength="150"
+						rows="2"
+						class="mewlock-input"
+					></textarea>
+					<small>Describe the purpose of this lock (max 150 characters)</small>
+				</div>
+				
 				<!-- Lock Duration -->
 				<!-- svelte-ignore a11y-label-has-associated-control -->
 				<div class="input-group">
@@ -959,6 +998,20 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		outline: none;
 		border-color: #667eea;
 		box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+	}
+
+	.optional {
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.85em;
+		font-weight: normal;
+		font-style: italic;
+	}
+
+	textarea.mewlock-input {
+		resize: vertical;
+		min-height: 60px;
+		font-family: inherit;
+		line-height: 1.4;
 	}
 
 	/* Token sections */

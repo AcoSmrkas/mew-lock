@@ -7,10 +7,10 @@ import {
 	TransactionBuilder,
 	ErgoUnsignedInput
 } from '@fleet-sdk/core';
-import { SGroupElement, SInt, SSigmaProp, SByte } from '@fleet-sdk/serializer';
+import { SGroupElement, SInt, SSigmaProp, SByte, SColl, SByte as SByteType } from '@fleet-sdk/serializer';
 
 // MewLockV2 smart contract address
-const MEWLOCK_CONTRACT_ADDRESS =
+export const MEWLOCK_CONTRACT_ADDRESS =
 	'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
 
 // Dev fee configuration (matching smart contract)
@@ -26,7 +26,9 @@ export function createMewLockDepositTx(
 	height: number,
 	amountToLock: bigint,
 	tokensToLock: Array<any>,
-	unlockHeight: number
+	unlockHeight: number,
+	lockName?: string | null,
+	lockDescription?: string | null
 ): any {
 	const depositorAddress = ErgoAddress.fromBase58(depositorBase58PK);
 
@@ -41,13 +43,30 @@ export function createMewLockDepositTx(
 
 	// Create the MewLock contract box with remaining amounts after fees
 	const lockBoxValue = amountToLock;
+	
+	// Build registers object - R4 and R5 are required, R7 and R8 are optional
+	const registers: { [key: string]: string } = {
+		R4: SGroupElement(first(depositorAddress.getPublicKeys())).toHex(), // depositor public key as GroupElement
+		R5: SInt(unlockHeight).toHex(), // unlock height
+		R6: SInt(Math.floor(Date.now() / 1000)).toHex() // timestamp (existing)
+	};
+	
+	// Add optional lock name to R7 if provided
+	if (lockName) {
+		const nameBytes = new TextEncoder().encode(lockName);
+		registers.R7 = SColl(SByte, Array.from(nameBytes)).toHex();
+	}
+	
+	// Add optional lock description to R8 if provided  
+	if (lockDescription) {
+		const descBytes = new TextEncoder().encode(lockDescription);
+		registers.R8 = SColl(SByte, Array.from(descBytes)).toHex();
+	}
+	
 	const mewLockBox = new OutputBuilder(
 		lockBoxValue,
 		MEWLOCK_CONTRACT_ADDRESS
-	).setAdditionalRegisters({
-		R4: SGroupElement(first(depositorAddress.getPublicKeys())).toHex(), // depositor public key as GroupElement
-		R5: SInt(unlockHeight).toHex() // unlock height
-	});
+	).setAdditionalRegisters(registers);
 
 	// Add remaining tokens to lock box
 	const remainingTokens = tokenFees

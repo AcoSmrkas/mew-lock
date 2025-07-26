@@ -1,0 +1,69 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /mewlock
+
+spring:
+  application:
+    name: MewLock Mosaik Backend
+  
+  profiles:
+    active: development
+
+mosaik:
+  app:
+    name: "MewLock"
+    version: "1.0.0"
+    description: "Time-Locked Asset Storage on Ergo"
+    author: "MewFinance"
+    
+ergo:
+  network: mainnet
+  explorer:
+    url: "https://api.ergoplatform.com/api/v1"
+  node:
+    url: "https://213.239.193.208:9053"
+  mewlock:
+    contract-address: "QjvCfNTp9tLHWqvhfZL6rYtcC3TYkPm7GthjCPQh4uFBKHJXRU"
+    
+prices:
+  coingecko:
+    url: "https://api.coingecko.com/api/v3"
+  spectrum:
+    url: "https://api.spectrum.fi/v1"
+  cache-timeout: 300000 # 5 minutes
+
+logging:
+  level:
+    com.mewfinance.mewlock: DEBUG
+    org.ergoplatform.mosaik: INFO
+    org.springframework: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: development
+      
+server:
+  port: 8080
+  
+logging:
+  level:
+    com.mewfinance.mewlock: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+      
+server:
+  port: 8080
+  
+logging:
+  level:
+    com.mewfinance.mewlock: INFO
+    root: WARN
