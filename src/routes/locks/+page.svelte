@@ -7,6 +7,8 @@
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import { priceService } from '$lib/services/priceService';
+	import { pricePerformanceService } from '$lib/services/pricePerformanceService.js';
+	import { getImageUrl, setPlaceholderImage } from '$lib/utils/utils.js';
 
 	// MewLock variables
 	let mewLockBoxes = [];
@@ -145,6 +147,48 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		return 0;
 	}
 
+	async function calculateLockPerformance(lockBox) {
+		try {
+			console.log('🔍 Calculating performance for lock:', lockBox.boxId);
+			console.log('📦 Lock box data:', lockBox);
+			console.log('📅 R6 register (timestamp):', lockBox.additionalRegisters?.R6);
+			
+			const currentErgPrice = await priceService.getErgPrice();
+			const allPrices = await priceService.getAllPrices();
+			
+			console.log('💰 Current ERG price:', currentErgPrice);
+			
+			// Prepare current prices in the format expected by the service
+			const currentPrices = {
+				ergUsd: currentErgPrice,
+				tokens: {}
+			};
+			
+			// Add current token prices
+			allPrices.tokens.forEach((tokenPrice, tokenId) => {
+				currentPrices.tokens[tokenId] = tokenPrice;
+			});
+			
+			const result = await pricePerformanceService.calculateLockPerformance(lockBox, currentPrices);
+			console.log('📊 Performance result:', result);
+			
+			return result;
+		} catch (error) {
+			console.error('❌ Error calculating lock performance:', error);
+			return { error: 'Performance data unavailable' };
+		}
+	}
+
+	// Get token image URL using the same logic as other components
+	function getTokenImageUrl(asset) {
+		return getImageUrl(asset);
+	}
+
+	// Get ERG image (default Ergo logo)
+	function getErgImageUrl() {
+		return 'https://spectrum.fi/logos/ergo/0000000000000000000000000000000000000000000000000000000000000000.svg';
+	}
+
 	// Convert public key to address using ErgoAddress
 	function convertPkToAddress(pkRegister) {
 		try {
@@ -216,7 +260,8 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 					additionalRegisters: box.additionalRegisters,
 					blocksRemaining: Math.max(0, unlockHeight - currentHeight),
 					lockName, // NEW: Custom lock name
-					lockDescription // NEW: Custom lock description
+					lockDescription, // NEW: Custom lock description
+					creationHeight: box.creationHeight // NEW: For price performance tracking
 				};
 			});
 			// NOTE: No filtering by personal address - show ALL locks
@@ -896,55 +941,83 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 					<div class="locks-grid">
 						{#each sortedErgOnlyLocks as lockBox (lockBox.boxId)}
 							<div
-								class="lock-card"
+								class="compact-lock-card"
 								class:ready={lockBox.canWithdraw}
 								transition:fly={{ y: 20, duration: 300 }}
 							>
-								<div class="lock-header">
-									{#if lockBox.lockName}
-										<div class="lock-title">
-											<h4 class="lock-name">{lockBox.lockName}</h4>
-											{#if lockBox.lockDescription}
-												<p class="lock-description">{lockBox.lockDescription}</p>
-											{/if}
+								<!-- Card Header with Status -->
+								<div class="card-header">
+									<div class="left-section">
+										<div class="status-indicator" class:ready={lockBox.canWithdraw}></div>
+										{#if lockBox.lockName}
+											<div class="lock-title-improved">
+												<div class="lock-name-text">{lockBox.lockName}</div>
+												{#if lockBox.lockDescription}
+													<div class="lock-description-improved">{lockBox.lockDescription}</div>
+												{/if}
+											</div>
+										{/if}
+									</div>
+									<div class="unlock-height">#{nFormatter(lockBox.unlockHeight, false, true)}</div>
+								</div>
+
+								<!-- Main Content with Token Image -->
+								<div class="card-content">
+									<div class="token-section">
+										<div class="token-image-container">
+											<img
+												src={getErgImageUrl()}
+												alt="ERG"
+												class="token-image"
+												loading="lazy"
+											/>
 										</div>
-									{/if}
-									<div class="lock-status">
-										<div>
-											{#if lockBox.canWithdraw}
-												<span class="status-badge ready">Ready to Unlock</span>
-											{:else}
-												<span class="status-badge locked">Locked</span>
-											{/if}
-										</div>
-										<div class="lock-height">
-											Block {nFormatter(lockBox.unlockHeight, false, true)}
+										<div class="token-info">
+											<div class="token-amount-with-perf">
+												<span class="amount-text">{nFormatter(lockBox.value / 1e9)} ERG</span>
+												{#await calculateLockPerformance(lockBox) then performance}
+													{#if performance && !performance.error && performance.overallPerformance}
+														<div class="inline-performance">
+															{#if performance.overallPerformance.priceChangePercent >= 0}
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
+																	<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
+																</svg>
+															{:else}
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
+																	<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
+																</svg>
+															{/if}
+															<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
+																{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
+															</span>
+														</div>
+													{/if}
+												{/await}
+											</div>
+											{#await Promise.all([calculateBoxUsdValue(lockBox), calculateLockPerformance(lockBox)]) then [usdValue, performance]}
+												{#if usdValue > 0 && performance && !performance.error && performance.overallPerformance}
+													<div class="price-comparison">
+														L: ${performance.overallPerformance.historicalValue.toFixed(2)} | C: ${performance.overallPerformance.currentValue.toFixed(2)}
+													</div>
+												{:else if usdValue > 0}
+													<div class="token-usd">{priceService.formatUsd(usdValue)}</div>
+												{/if}
+											{/await}
 										</div>
 									</div>
 								</div>
 
-								<div class="lock-content">
-									<div class="lock-amount">
-										<div class="amount-value">{nFormatter(lockBox.value / 1e9)} ERG</div>
-										{#await calculateBoxUsdValue(lockBox) then usdValue}
-											{#if usdValue > 0}
-												<div class="usd-value">{priceService.formatUsd(usdValue)}</div>
-											{/if}
-										{/await}
-									</div>
-
-									<div class="lock-timing">
+								<!-- Footer with Timing and Address -->
+								<div class="card-footer">
+									<div class="timing-compact">
 										{#if !lockBox.canWithdraw}
-											<span class="timing-text">
-												{nFormatter(lockBox.blocksRemaining)} blocks remaining
-											</span>
+											<span class="blocks-remaining">{nFormatter(lockBox.blocksRemaining)} blocks</span>
 										{/if}
 									</div>
-
-									<div class="depositor-info">
+									<div class="depositor-info-compact">
 										<span class="depositor-label">Depositor:</span>
-										<span class="depositor-address">
-											{lockBox.depositorAddress.slice(0, 12)}...{lockBox.depositorAddress.slice(-8)}
+										<span class="depositor-compact">
+											{lockBox.depositorAddress.slice(0, 6)}...{lockBox.depositorAddress.slice(-4)}
 										</span>
 									</div>
 								</div>
@@ -964,74 +1037,114 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 					<div class="locks-grid">
 						{#each sortedErgTokenLocks as lockBox (lockBox.boxId)}
 							<div
-								class="lock-card"
+								class="compact-lock-card multi-token"
 								class:ready={lockBox.canWithdraw}
 								transition:fly={{ y: 20, duration: 300 }}
 							>
-								<div class="lock-header">
-									{#if lockBox.lockName}
-										<div class="lock-title">
-											<h4 class="lock-name">{lockBox.lockName}</h4>
-											{#if lockBox.lockDescription}
-												<p class="lock-description">{lockBox.lockDescription}</p>
-											{/if}
-										</div>
-									{/if}
-									<div class="lock-status">
-										<div>
-											{#if lockBox.canWithdraw}
-												<span class="status-badge ready">Ready to Unlock</span>
-											{:else}
-												<span class="status-badge locked">Locked</span>
-											{/if}
-										</div>
-										<div class="lock-height">
-											Block {nFormatter(lockBox.unlockHeight, false, true)}
-										</div>
-									</div>
-								</div>
-
-								<div class="lock-content">
-									<div class="lock-amount">
-										<div class="amount-value">{nFormatter(lockBox.value / 1e9)} ERG</div>
-										{#if lockBox.assets && lockBox.assets.length > 0}
-											<div class="token-count">
-												+ {lockBox.assets.length} token{lockBox.assets.length === 1 ? '' : 's'}
+								<!-- Card Header with Status -->
+								<div class="card-header">
+									<div class="left-section">
+										<div class="status-indicator" class:ready={lockBox.canWithdraw}></div>
+										{#if lockBox.lockName}
+											<div class="lock-title-improved">
+												<div class="lock-name-text">{lockBox.lockName}</div>
+												{#if lockBox.lockDescription}
+													<div class="lock-description-improved">{lockBox.lockDescription}</div>
+												{/if}
 											</div>
 										{/if}
-										{#await calculateBoxUsdValue(lockBox) then usdValue}
-											{#if usdValue > 0}
-												<div class="usd-value">{priceService.formatUsd(usdValue)}</div>
-											{/if}
-										{/await}
+									</div>
+									<div class="unlock-height">#{nFormatter(lockBox.unlockHeight, false, true)}</div>
+								</div>
+
+								<!-- Main Content with Multiple Token Images -->
+								<div class="card-content">
+									<!-- ERG Section -->
+									<div class="token-section primary">
+										<div class="token-image-container">
+											<img
+												src={getErgImageUrl()}
+												alt="ERG"
+												class="token-image"
+												loading="lazy"
+											/>
+										</div>
+										<div class="token-info">
+											<div class="token-amount-with-perf">
+												<span class="amount-text">{nFormatter(lockBox.value / 1e9)} ERG</span>
+												{#await calculateLockPerformance(lockBox) then performance}
+													{#if performance && !performance.error && performance.overallPerformance}
+														<div class="inline-performance">
+															{#if performance.overallPerformance.priceChangePercent >= 0}
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
+																	<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
+																</svg>
+															{:else}
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
+																	<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
+																</svg>
+															{/if}
+															<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
+																{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
+															</span>
+														</div>
+													{/if}
+												{/await}
+											</div>
+											
+											<!-- Total USD Value -->
+											{#await Promise.all([calculateBoxUsdValue(lockBox), calculateLockPerformance(lockBox)]) then [usdValue, performance]}
+												{#if usdValue > 0 && performance && !performance.error && performance.overallPerformance}
+													<div class="price-comparison">
+														L: ${performance.overallPerformance.historicalValue.toFixed(2)} | C: ${performance.overallPerformance.currentValue.toFixed(2)}
+													</div>
+												{:else if usdValue > 0}
+													<div class="token-usd">{priceService.formatUsd(usdValue)}</div>
+												{/if}
+											{/await}
+										</div>
 									</div>
 
+									<!-- Additional Tokens Section -->
 									{#if lockBox.assets && lockBox.assets.length > 0}
-										<div class="token-list">
-											{#each lockBox.assets.slice(0, 3) as asset}
-												<div class="token-item">
-													{nFormatter(asset.amount / 10 ** (asset.decimals || 0))}
-													{asset.name || 'Token'}
-												</div>
-											{/each}
-											{#if lockBox.assets.length > 3}
-												<div class="token-item more">+{lockBox.assets.length - 3} more</div>
-											{/if}
+										<div class="additional-tokens">
+											<div class="tokens-row">
+												{#each lockBox.assets.slice(0, 3) as asset, i}
+													<div class="mini-token">
+														<div class="mini-token-image">
+															<img
+																src={getTokenImageUrl(asset)}
+																alt={asset.name || 'Token'}
+																class="mini-image"
+																onerror={(event) => setPlaceholderImage(event, asset)}
+																loading="lazy"
+															/>
+														</div>
+														<div class="mini-token-info">
+															<div class="mini-amount">{nFormatter(asset.amount / 10 ** (asset.decimals || 0))}</div>
+															<div class="mini-name">{(asset.name || 'Token').slice(0, 8)}</div>
+														</div>
+													</div>
+												{/each}
+												{#if lockBox.assets.length > 3}
+													<div class="more-tokens">+{lockBox.assets.length - 3}</div>
+												{/if}
+											</div>
 										</div>
 									{/if}
+								</div>
 
-									<div class="lock-timing">
+								<!-- Footer with Timing and Address -->
+								<div class="card-footer">
+									<div class="timing-compact">
 										{#if !lockBox.canWithdraw}
-											<span class="timing-text">
-												{nFormatter(lockBox.blocksRemaining)} blocks remaining
-											</span>
+											<span class="blocks-remaining">{nFormatter(lockBox.blocksRemaining)} blocks</span>
 										{/if}
 									</div>
-
-									<div class="depositor-info">
+									<div class="depositor-info-compact">
 										<span class="depositor-label">Depositor:</span>
-										<span class="depositor-address">
-											{lockBox.depositorAddress.slice(0, 12)}...{lockBox.depositorAddress.slice(-8)}
+										<span class="depositor-compact">
+											{lockBox.depositorAddress.slice(0, 6)}...{lockBox.depositorAddress.slice(-4)}
 										</span>
 									</div>
 								</div>
@@ -1422,207 +1535,319 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		font-size: 1.5rem;
 	}
 
-	/* Locks Grid */
+	/* Compact Locks Grid */
 	.locks-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-		gap: 1.5rem;
+		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		gap: 1rem;
 	}
 
-	.lock-card {
+	.compact-lock-card {
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 12px;
-		padding: 1.5rem;
+		padding: 1rem;
 		transition: all 0.3s ease;
 		position: relative;
 		display: flex;
 		flex-direction: column;
-		min-height: 200px;
-		height: 100%;
+		height: 200px; /* Increased height to prevent chopping */
+		overflow: hidden;
 	}
 
-	.lock-card:hover {
+	.compact-lock-card:hover {
 		transform: translateY(-2px);
 		border-color: rgba(102, 126, 234, 0.3);
 		background: rgba(102, 126, 234, 0.05);
+		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
 	}
 
-	.lock-card.ready {
+	.compact-lock-card.ready {
 		border-color: rgba(34, 197, 94, 0.3);
 		background: rgba(34, 197, 94, 0.03);
 	}
 
-	.lock-header {
+	.compact-lock-card.multi-token {
+
+	}
+
+	/* Card Header */
+	.card-header {
 		display: flex;
-		flex-direction: column;
-		margin-bottom: 1rem;
-	}
-
-	.lock-title {
+		align-items: flex-start;
+		justify-content: space-between;
 		margin-bottom: 0.75rem;
+		min-height: 24px;
 	}
 
-	.lock-name {
-		font-size: 1.1rem;
+	.left-section {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.status-indicator {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: rgba(255, 193, 7, 0.8);
+		flex-shrink: 0;
+	}
+
+	.status-indicator.ready {
+		background: rgba(34, 197, 94, 0.8);
+		box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+	}
+
+	.lock-title-improved {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.lock-name-text {
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: #667eea;
-		margin: 0 0 0.25rem 0;
-		line-height: 1.3;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		max-width: 100%;
+		line-height: 1.3;
 	}
 
-	.lock-description {
-		font-size: 0.875rem;
-		color: rgba(255, 255, 255, 0.7);
-		margin: 0;
-		line-height: 1.4;
+	.lock-description-improved {
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.6);
 		font-style: italic;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		max-height: 2.8em;
+		white-space: nowrap;
+		margin-top: 2px;
+		line-height: 1.2;
 	}
 
-	.lock-header .lock-status {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		width: 100%;
+	.unlock-height {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.6);
+		flex-shrink: 0;
 	}
 
-	.lock-content {
+	/* Card Content */
+	.card-content {
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-between;
+		gap: 0.75rem;
 	}
 
-	.lock-status > div {
+	/* Token Section */
+	.token-section {
 		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
 	}
 
-	.status-badge {
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+	.token-section.primary {
+		padding-bottom: 0.5rem;
 	}
 
-	.status-badge.ready {
-		background: rgba(34, 197, 94, 0.2);
-		color: #22c55e;
-		border: 1px solid rgba(34, 197, 94, 0.3);
-	}
-
-	.status-badge.locked {
-		background: rgba(255, 193, 7, 0.2);
-		color: #ffc107;
-		border: 1px solid rgba(255, 193, 7, 0.3);
-	}
-
-	.lock-height {
-		font-family: 'JetBrains Mono', monospace;
-		font-size: 0.875rem;
-		color: rgba(255, 255, 255, 0.6);
-	}
-
-	.lock-content {
-		margin-bottom: 1rem;
-	}
-
-	.lock-amount {
-		margin-bottom: 1rem;
-	}
-
-	.amount-value {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: white;
-		margin-bottom: 0.25rem;
-	}
-
-	.usd-value {
-		font-size: 1rem;
-		font-weight: 500;
-		color: #4fd1c5;
-		margin-top: 0.25rem;
-	}
-
-	.stat-usd {
-		font-size: 0.875rem;
-		color: #4fd1c5;
-		font-weight: 500;
-		margin-top: 0.25rem;
-	}
-
-	.token-count {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.875rem;
-	}
-
-	.token-list {
-		margin-bottom: 1rem;
-	}
-
-	.token-item {
+	.token-image-container {
+		width: 40px;
+		height: 40px;
+		border-radius: 8px;
+		overflow: hidden;
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 6px;
-		padding: 0.5rem 0.75rem;
-		margin-bottom: 0.5rem;
+		flex-shrink: 0;
+	}
+
+	.token-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.token-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.token-amount-with-perf {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		line-height: 1.2;
+	}
+
+	.amount-text {
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: white;
+	}
+
+	.inline-performance {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.token-usd {
 		font-size: 0.875rem;
-		color: rgba(255, 255, 255, 0.8);
+		color: #4fd1c5;
+		font-weight: 500;
+		line-height: 1.2;
 	}
 
-	.token-item.more {
-		color: rgba(255, 255, 255, 0.6);
-		font-style: italic;
-	}
-
-	.lock-timing {
-		padding-top: 1rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		margin-bottom: 1rem;
-	}
-
-	.timing-text {
-		font-size: 0.875rem;
+	.price-comparison {
+		font-size: 0.75rem;
 		color: rgba(255, 255, 255, 0.7);
+		font-weight: 400;
+		line-height: 1.2;
+		font-family: 'JetBrains Mono', monospace;
 	}
 
-	.timing-text.ready {
-		color: #22c55e;
-		font-weight: 600;
+	/* Additional Tokens */
+	.additional-tokens {
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		padding-top: 0.5rem;
 	}
 
-	.depositor-info {
+	.tokens-row {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		font-size: 0.8rem;
-		padding-top: 1rem;
+		overflow-x: auto;
+		padding-bottom: 0.25rem;
+	}
+
+	.mini-token {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		min-width: 0;
+		flex-shrink: 0;
+	}
+
+	.mini-token-image {
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+		overflow: hidden;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.mini-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.mini-token-info {
+		min-width: 0;
+	}
+
+	.mini-amount {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: white;
+		line-height: 1.1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 60px;
+	}
+
+	.mini-name {
+		font-size: 0.625rem;
+		color: rgba(255, 255, 255, 0.6);
+		line-height: 1.1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 60px;
+	}
+
+	.more-tokens {
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 4px;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.7);
+		font-weight: 500;
+		flex-shrink: 0;
+	}
+
+	/* Total Value */
+	.total-value {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #4fd1c5;
+		text-align: center;
+		padding: 0.25rem 0;
+	}
+
+	.arrow-up, .arrow-down {
+		flex-shrink: 0;
+	}
+
+	.perf-percent {
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.perf-percent.positive {
+		color: #22c55e;
+	}
+
+	.perf-percent.negative {
+		color: #ef4444;
+	}
+
+	/* Card Footer */
+	.card-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: auto;
+		padding-top: 0.5rem;
 		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		min-height: 20px;
+	}
+
+	.timing-compact {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.ready-text {
+		color: #22c55e;
+		font-weight: 600;
+	}
+
+	.blocks-remaining {
+		font-family: 'JetBrains Mono', monospace;
+	}
+
+	.depositor-info-compact {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 	}
 
 	.depositor-label {
+		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.6);
 		font-weight: 500;
 	}
 
-	.depositor-address {
-		color: rgba(255, 255, 255, 0.8);
+	.depositor-compact {
 		font-family: 'JetBrains Mono', monospace;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.8);
 	}
 
 	/* Empty State */
@@ -1740,9 +1965,45 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			width: 100%;
 		}
 
-		.stats-grid,
-		.locks-grid {
+		.stats-grid {
 			grid-template-columns: 1fr;
+		}
+
+		.locks-grid {
+			grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+			gap: 0.75rem;
+		}
+
+		.compact-lock-card {
+			height: 180px;
+		}
+
+		.compact-lock-card.multi-token {
+			height: 140px;
+		}
+
+		.token-image-container {
+			width: 32px;
+			height: 32px;
+		}
+
+		.amount-text {
+			font-size: 1rem;
+		}
+
+		.mini-token-image {
+			width: 20px;
+			height: 20px;
+		}
+
+		.mini-amount {
+			font-size: 0.7rem;
+			max-width: 50px;
+		}
+
+		.mini-name {
+			font-size: 0.6rem;
+			max-width: 50px;
 		}
 
 		.tokens-grid {
@@ -1752,6 +2013,129 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		.table-header,
 		.table-row {
 			font-size: 0.75rem;
+		}
+
+		.perf-percent {
+			font-size: 0.8rem;
+		}
+
+		.card-footer {
+			font-size: 0.7rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.locks-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.compact-lock-card {
+			height: 170px;
+		}
+
+		.compact-lock-card.multi-token {
+			height: 260px;
+		}
+
+		.tokens-row {
+			gap: 0.375rem;
+		}
+
+		.mini-token {
+			gap: 0.25rem;
+		}
+	}
+
+	/* Price Performance Styles */
+	.price-performance {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		transition: all 0.2s ease;
+	}
+
+	.performance-icon {
+		font-size: 1rem;
+	}
+
+	.performance-text {
+		font-weight: 700;
+	}
+
+	.performance-details {
+		margin-left: auto;
+	}
+
+	.performance-details small {
+		font-size: 0.75rem;
+		opacity: 0.8;
+		font-weight: 400;
+	}
+
+	/* Performance Color Classes - Matching UI Theme */
+	.performance-diamond {
+		background: rgba(224, 164, 88, 0.15);
+		color: #e0a458;
+		border: 1px solid rgba(224, 164, 88, 0.3);
+	}
+
+	.performance-rocket {
+		background: rgba(102, 126, 234, 0.15);
+		color: #667eea;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+	}
+
+	.performance-great {
+		background: rgba(52, 211, 153, 0.15);
+		color: #34d399;
+		border: 1px solid rgba(52, 211, 153, 0.3);
+	}
+
+	.performance-good {
+		background: rgba(34, 197, 94, 0.15);
+		color: #22c55e;
+		border: 1px solid rgba(34, 197, 94, 0.3);
+	}
+
+	.performance-neutral {
+		background: rgba(234, 179, 8, 0.15);
+		color: #eab308;
+		border: 1px solid rgba(234, 179, 8, 0.3);
+	}
+
+	.performance-poor {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
+		border: 1px solid rgba(239, 68, 68, 0.3);
+	}
+
+	.performance-bad {
+		background: rgba(220, 38, 38, 0.15);
+		color: #dc2626;
+		border: 1px solid rgba(220, 38, 38, 0.3);
+	}
+
+	/* Hover Effects */
+	.price-performance:hover {
+		transform: translateY(-1px);
+		filter: brightness(1.05);
+	}
+
+	/* Mobile Responsive for Performance */
+	@media (max-width: 768px) {
+		.price-performance {
+			font-size: 0.8rem;
+			gap: 0.375rem;
+			padding: 0.375rem 0.5rem;
+		}
+		
+		.performance-details {
+			display: none; /* Hide price details on mobile for space */
 		}
 	}
 </style>
