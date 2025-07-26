@@ -14,9 +14,7 @@
 	let mewLockBoxes = [];
 	let currentHeight = 0;
 
-	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS =
-		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
+import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await loadPlatformStats();
@@ -30,19 +28,18 @@
 			const heightData = await heightResponse.json();
 			currentHeight = heightData.fullHeight || 0;
 
-			// Then get the boxes
+			// Then get the boxes (API limit is 500 max)
 			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}?limit=500`
 			);
 			const data = await response.json();
 
 			const boxes = data.items || [];
 			mewLockBoxes = boxes;
 
-			// Calculate platform stats with proper data parsing
+			// Calculate platform stats (consistent with locks page calculation)
 			totalValueLocked = boxes.reduce((sum, box) => {
-				const value = box.value ? parseInt(box.value) / 1e9 : 0;
-				return sum + value;
+				return sum + (box.value ? parseInt(box.value) / 1e9 : 0);
 			}, 0);
 
 			totalUsers = new Set(

@@ -23,16 +23,26 @@
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
 	
+	// Search functionality
+	let searchQuery = '';
+	let filteredMewLockBoxes = [];
+	
 	// Leaderboard sorting
 	let leaderboardSortBy = 'totalValueLocked'; // 'totalValueLocked', 'usdValue', 'locks', 'duration'
 	let leaderboardSortOrder = 'desc'; // 'asc', 'desc'
+	
+	// Leaderboard pagination
+	let leaderboardLimit = 15;
+	let showAllLeaderboard = false;
+	
+	// Global tokens sorting
+	let globalTokensSortBy = 'totalAmount'; // 'totalAmount', 'usdValue', 'name'
+	let globalTokensSortOrder = 'desc'; // 'asc', 'desc'
 
 	// Price data
 	let totalUsdValue = 0;
 
-	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS =
-		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
+import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
@@ -118,6 +128,23 @@
 		return totalUsdValue;
 	}
 
+	async function calculateTokenUsdValue(token) {
+		if (token.tokenId === null) {
+			// ERG token
+			const ergAmount = token.totalAmount / 1e9;
+			return priceService.calculateUsdValue(ergAmount);
+		} else {
+			// Other tokens
+			const tokenPrice = await priceService.getTokenPrice(token.tokenId);
+			if (tokenPrice) {
+				const decimals = token.decimals || 0;
+				const tokenAmount = token.totalAmount / Math.pow(10, decimals);
+				return tokenAmount * tokenPrice.usdPrice;
+			}
+		}
+		return 0;
+	}
+
 	// Convert public key to address using ErgoAddress
 	function convertPkToAddress(pkRegister) {
 		try {
@@ -131,6 +158,23 @@
 		} catch (error) {
 			console.error('Address conversion error:', error, pkRegister);
 			return 'Invalid Address';
+		}
+	}
+
+	// Helper function to decode string from register byte array
+	function decodeStringFromRegister(register) {
+		if (!register || !register.serializedValue) return null;
+		try {
+			// Remove the first 4 characters (type prefix) and decode hex to string
+			const hexString = register.serializedValue.substring(4);
+			const bytes = [];
+			for (let i = 0; i < hexString.length; i += 2) {
+				bytes.push(parseInt(hexString.substr(i, 2), 16));
+			}
+			return new TextDecoder().decode(new Uint8Array(bytes));
+		} catch (error) {
+			console.warn('Failed to decode register:', error);
+			return null;
 		}
 	}
 
@@ -155,6 +199,10 @@
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
+				
+				// Extract lock name and description from R7 and R8 (NEW)
+				const lockName = decodeStringFromRegister(box.additionalRegisters.R7);
+				const lockDescription = decodeStringFromRegister(box.additionalRegisters.R8);
 
 				return {
 					boxId: box.boxId,
@@ -166,7 +214,9 @@
 					depositorAddress,
 					ergoTree: box.ergoTree,
 					additionalRegisters: box.additionalRegisters,
-					blocksRemaining: Math.max(0, unlockHeight - currentHeight)
+					blocksRemaining: Math.max(0, unlockHeight - currentHeight),
+					lockName, // NEW: Custom lock name
+					lockDescription // NEW: Custom lock description
 				};
 			});
 			// NOTE: No filtering by personal address - show ALL locks
@@ -246,6 +296,38 @@
 		sortLeaderboard();
 	}
 
+	function toggleGlobalTokensSort(newSortBy: string) {
+		if (globalTokensSortBy === newSortBy) {
+			globalTokensSortOrder = globalTokensSortOrder === 'asc' ? 'desc' : 'asc';
+		} else {
+			globalTokensSortBy = newSortBy;
+			globalTokensSortOrder = 'desc';
+		}
+		
+		// If USD sorting is selected, recalculate the sorted list
+		if (newSortBy === 'usdValue') {
+			sortGlobalTokensByUsd();
+		}
+	}
+
+	let usdSortedGlobalTokenList = [];
+
+	async function sortGlobalTokensByUsd() {
+		const tokensWithUsd = await Promise.all(
+			globalTokenList.map(async (token) => ({
+				...token,
+				usdValue: await calculateTokenUsdValue(token)
+			}))
+		);
+		
+		tokensWithUsd.sort((a, b) => {
+			const result = a.usdValue - b.usdValue;
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		});
+		
+		usdSortedGlobalTokenList = tokensWithUsd;
+	}
+
 	async function sortLeaderboard() {
 		const sortedLeaderboard = [...leaderboard];
 		
@@ -293,6 +375,32 @@
 		}
 	}
 
+	function loadMoreLeaderboard() {
+		if (leaderboardLimit < leaderboard.length) {
+			leaderboardLimit = Math.min(leaderboardLimit + 15, leaderboard.length);
+		}
+		if (leaderboardLimit >= leaderboard.length) {
+			showAllLeaderboard = true;
+		}
+	}
+
+	function showTopLeaderboard() {
+		leaderboardLimit = 15;
+		showAllLeaderboard = false;
+	}
+
+	$: displayedLeaderboard = leaderboard.slice(0, leaderboardLimit);
+
+	// Filter locks based on search query
+	$: filteredMewLockBoxes = searchQuery.trim() 
+		? mewLockBoxes.filter(box => 
+			(box.lockName && box.lockName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(box.lockDescription && box.lockDescription.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			box.depositorAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			box.boxId.toLowerCase().includes(searchQuery.toLowerCase())
+		)
+		: mewLockBoxes;
+
 	// Calculate global token summaries for all locks
 	$: globalTokenSummaries = mewLockBoxes.reduce((summaries, box) => {
 		// Add ERG amount
@@ -324,9 +432,41 @@
 		(summary) => summary.totalAmount > 0
 	);
 
-	// Separate ERG-only and ERG+token locks
-	$: ergOnlyLocks = mewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
-	$: ergTokenLocks = mewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
+	// Sorted global token list
+	$: sortedGlobalTokenList = [...globalTokenList].sort((a, b) => {
+		let aValue, bValue;
+		
+		switch (globalTokensSortBy) {
+			case 'totalAmount':
+				// Normalize amounts for comparison (convert to base units)
+				aValue = a.tokenId === null ? a.totalAmount / 1e9 : a.totalAmount / Math.pow(10, a.decimals);
+				bValue = b.tokenId === null ? b.totalAmount / 1e9 : b.totalAmount / Math.pow(10, b.decimals);
+				break;
+			case 'name':
+				aValue = a.tokenName.toLowerCase();
+				bValue = b.tokenName.toLowerCase();
+				break;
+			case 'usdValue':
+				// This will be handled separately due to async nature
+				aValue = 0;
+				bValue = 0;
+				break;
+			default:
+				return 0;
+		}
+		
+		if (globalTokensSortBy === 'name') {
+			const result = aValue.localeCompare(bValue);
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		} else {
+			const result = aValue - bValue;
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		}
+	});
+
+	// Separate ERG-only and ERG+token locks (using filtered data)
+	$: ergOnlyLocks = filteredMewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
+	$: ergTokenLocks = filteredMewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
 
 	// Sorting function for both sections
 	function sortLocks(locks) {
@@ -478,7 +618,10 @@
 			<!-- Leaderboard -->
 			{#if leaderboard.length > 0}
 				<section class="leaderboard-section">
-					<h2>Top Users Leaderboard</h2>
+					<div class="section-header">
+						<h2>Top Users Leaderboard</h2>
+						<p class="section-subtitle">Showing top {displayedLeaderboard.length} of {leaderboard.length} users</p>
+					</div>
 					<div class="leaderboard-table">
 						<div class="table-header">
 							<div class="header-cell rank">Rank</div>
@@ -534,7 +677,7 @@
 								{/if}
 							</div>
 						</div>
-						{#each leaderboard.slice(0, 20) as user, index}
+						{#each displayedLeaderboard as user, index}
 							<div class="table-row">
 								<div class="table-cell rank">
 									<div class="rank-badge" class:top3={index < 3}>
@@ -559,15 +702,82 @@
 							</div>
 						{/each}
 					</div>
+					
+					<!-- Load More Controls -->
+					{#if leaderboard.length > 15}
+						<div class="leaderboard-controls">
+							{#if !showAllLeaderboard}
+								<button class="load-more-btn" on:click={loadMoreLeaderboard}>
+									Load More ({leaderboard.length - leaderboardLimit} remaining)
+								</button>
+							{:else}
+								<button class="load-more-btn secondary" on:click={showTopLeaderboard}>
+									Show Top 15 Only
+								</button>
+							{/if}
+						</div>
+					{/if}
 				</section>
 			{/if}
 
 			<!-- Global Token Summary -->
 			{#if globalTokenList.length > 0}
 				<section class="global-tokens">
-					<h2>All Locked Tokens</h2>
+					<div class="section-header">
+						<h2>All Locked Tokens</h2>
+						<div class="sort-controls">
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'totalAmount'}
+								on:click={() => toggleGlobalTokensSort('totalAmount')}
+							>
+								Amount
+								{#if globalTokensSortBy === 'totalAmount'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'usdValue'}
+								on:click={() => toggleGlobalTokensSort('usdValue')}
+							>
+								USD Value
+								{#if globalTokensSortBy === 'usdValue'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'name'}
+								on:click={() => toggleGlobalTokensSort('name')}
+							>
+								Name
+								{#if globalTokensSortBy === 'name'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+						</div>
+					</div>
 					<div class="tokens-grid">
-						{#each globalTokenList as token (token.tokenId || 'ERG')}
+						{#each globalTokensSortBy === 'usdValue' ? usdSortedGlobalTokenList : sortedGlobalTokenList as token (token.tokenId || 'ERG')}
 							<TokenSummaryCard
 								tokenId={token.tokenId}
 								tokenName={token.tokenName}
@@ -585,7 +795,26 @@
 			<section class="controls-section">
 				<div class="section-header">
 					<h2>Browse All Locks</h2>
-					<div class="sort-controls">
+					<div class="search-and-sort">
+						<!-- Search Box -->
+						<div class="search-box">
+							<input
+								type="text"
+								placeholder="Search by name, description, address, or box ID..."
+								bind:value={searchQuery}
+								class="search-input"
+							/>
+							{#if searchQuery}
+								<button class="clear-search" on:click={() => searchQuery = ''}>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+									</svg>
+								</button>
+							{/if}
+						</div>
+						
+						<!-- Sort Controls -->
+						<div class="sort-controls">
 						<button
 							class="sort-btn"
 							class:active={sortBy === 'height'}
@@ -652,6 +881,7 @@
 								</svg>
 							{/if}
 						</button>
+						</div>
 					</div>
 				</div>
 			</section>
@@ -671,15 +901,25 @@
 								transition:fly={{ y: 20, duration: 300 }}
 							>
 								<div class="lock-header">
+									{#if lockBox.lockName}
+										<div class="lock-title">
+											<h4 class="lock-name">{lockBox.lockName}</h4>
+											{#if lockBox.lockDescription}
+												<p class="lock-description">{lockBox.lockDescription}</p>
+											{/if}
+										</div>
+									{/if}
 									<div class="lock-status">
-										{#if lockBox.canWithdraw}
-											<span class="status-badge ready">Ready to Unlock</span>
-										{:else}
-											<span class="status-badge locked">Locked</span>
-										{/if}
-									</div>
-									<div class="lock-height">
-										Block {nFormatter(lockBox.unlockHeight, false, true)}
+										<div>
+											{#if lockBox.canWithdraw}
+												<span class="status-badge ready">Ready to Unlock</span>
+											{:else}
+												<span class="status-badge locked">Locked</span>
+											{/if}
+										</div>
+										<div class="lock-height">
+											Block {nFormatter(lockBox.unlockHeight, false, true)}
+										</div>
 									</div>
 								</div>
 
@@ -694,9 +934,7 @@
 									</div>
 
 									<div class="lock-timing">
-										{#if lockBox.canWithdraw}
-											<span class="timing-text ready">Unlocked & Ready</span>
-										{:else}
+										{#if !lockBox.canWithdraw}
 											<span class="timing-text">
 												{nFormatter(lockBox.blocksRemaining)} blocks remaining
 											</span>
@@ -731,15 +969,25 @@
 								transition:fly={{ y: 20, duration: 300 }}
 							>
 								<div class="lock-header">
+									{#if lockBox.lockName}
+										<div class="lock-title">
+											<h4 class="lock-name">{lockBox.lockName}</h4>
+											{#if lockBox.lockDescription}
+												<p class="lock-description">{lockBox.lockDescription}</p>
+											{/if}
+										</div>
+									{/if}
 									<div class="lock-status">
-										{#if lockBox.canWithdraw}
-											<span class="status-badge ready">Ready to Unlock</span>
-										{:else}
-											<span class="status-badge locked">Locked</span>
-										{/if}
-									</div>
-									<div class="lock-height">
-										Block {nFormatter(lockBox.unlockHeight, false, true)}
+										<div>
+											{#if lockBox.canWithdraw}
+												<span class="status-badge ready">Ready to Unlock</span>
+											{:else}
+												<span class="status-badge locked">Locked</span>
+											{/if}
+										</div>
+										<div class="lock-height">
+											Block {nFormatter(lockBox.unlockHeight, false, true)}
+										</div>
 									</div>
 								</div>
 
@@ -773,9 +1021,7 @@
 									{/if}
 
 									<div class="lock-timing">
-										{#if lockBox.canWithdraw}
-											<span class="timing-text ready">Unlocked & Ready</span>
-										{:else}
+										{#if !lockBox.canWithdraw}
 											<span class="timing-text">
 												{nFormatter(lockBox.blocksRemaining)} blocks remaining
 											</span>
@@ -973,6 +1219,37 @@
 		overflow-y: hidden;
 	}
 
+	.leaderboard-controls {
+		padding: 1.5rem;
+		text-align: center;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.load-more-btn {
+		background: #667eea;
+		color: white;
+		border: none;
+		padding: 0.75rem 1.5rem;
+		border-radius: 8px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.load-more-btn:hover {
+		background: #5a67d8;
+		transform: translateY(-1px);
+	}
+
+	.load-more-btn.secondary {
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.load-more-btn.secondary:hover {
+		background: rgba(255, 255, 255, 0.2);
+	}
+
 	.table-header {
 		display: grid;
 		grid-template-columns: 60px 1fr 120px 100px 80px 80px 100px 120px;
@@ -1159,6 +1436,10 @@
 		padding: 1.5rem;
 		transition: all 0.3s ease;
 		position: relative;
+		display: flex;
+		flex-direction: column;
+		min-height: 200px;
+		height: 100%;
 	}
 
 	.lock-card:hover {
@@ -1174,12 +1455,55 @@
 
 	.lock-header {
 		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
+		flex-direction: column;
 		margin-bottom: 1rem;
 	}
 
-	.lock-status {
+	.lock-title {
+		margin-bottom: 0.75rem;
+	}
+
+	.lock-name {
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: #667eea;
+		margin: 0 0 0.25rem 0;
+		line-height: 1.3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
+	}
+
+	.lock-description {
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.7);
+		margin: 0;
+		line-height: 1.4;
+		font-style: italic;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-height: 2.8em;
+	}
+
+	.lock-header .lock-status {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		width: 100%;
+	}
+
+	.lock-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+	}
+
+	.lock-status > div {
 		display: flex;
 		gap: 0.5rem;
 		flex-wrap: wrap;
@@ -1332,6 +1656,66 @@
 		max-width: 400px;
 	}
 
+	/* Search and Sort Container */
+	.search-and-sort {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 300px;
+	}
+
+	/* Search Box Styles */
+	.search-box {
+		position: relative;
+		width: 100%;
+	}
+
+	.search-input {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		padding-right: 2.5rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		color: white;
+		font-size: 0.875rem;
+		transition: all 0.2s;
+		box-sizing: border-box;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: #667eea;
+		background: rgba(102, 126, 234, 0.05);
+		box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+	}
+
+	.search-input::placeholder {
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.clear-search {
+		position: absolute;
+		right: 0.75rem;
+		top: 50%;
+		transform: translateY(-50%);
+		background: none;
+		border: none;
+		color: rgba(255, 255, 255, 0.5);
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: 4px;
+		transition: all 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.clear-search:hover {
+		color: white;
+		background: rgba(255, 255, 255, 0.1);
+	}
+
 	/* Responsive */
 	@media (max-width: 768px) {
 		.locks-main {
@@ -1345,6 +1729,11 @@
 		.section-header {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.search-and-sort {
+			width: 100%;
+			min-width: unset;
 		}
 
 		.sort-controls {

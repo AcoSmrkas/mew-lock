@@ -29,9 +29,7 @@
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
 
-	// MewLockV2 contract address
-	const MEWLOCK_CONTRACT_ADDRESS =
-		'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU';
+import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		console.log('My-locks page mounted with connected address:', $connected_wallet_address);
@@ -52,6 +50,23 @@
 		} catch (error) {
 			console.error('Address conversion error:', error, pkRegister);
 			return 'Invalid Address';
+		}
+	}
+
+	// Helper function to decode string from register byte array
+	function decodeStringFromRegister(register) {
+		if (!register || !register.serializedValue) return null;
+		try {
+			// Remove the first 4 characters (type prefix) and decode hex to string
+			const hexString = register.serializedValue.substring(4);
+			const bytes = [];
+			for (let i = 0; i < hexString.length; i += 2) {
+				bytes.push(parseInt(hexString.substr(i, 2), 16));
+			}
+			return new TextDecoder().decode(new Uint8Array(bytes));
+		} catch (error) {
+			console.warn('Failed to decode register:', error);
+			return null;
 		}
 	}
 
@@ -77,6 +92,10 @@
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
 				const isOwnBox = depositorAddress === $connected_wallet_address;
+				
+				// Extract lock name and description from R7 and R8 (NEW)
+				const lockName = decodeStringFromRegister(box.additionalRegisters.R7);
+				const lockDescription = decodeStringFromRegister(box.additionalRegisters.R8);
 
 				return {
 					boxId: box.boxId,
@@ -89,7 +108,9 @@
 					isOwnBox,
 					ergoTree: box.ergoTree,
 					additionalRegisters: box.additionalRegisters,
-					blocksRemaining: Math.max(0, unlockHeight - currentHeight)
+					blocksRemaining: Math.max(0, unlockHeight - currentHeight),
+					lockName, // NEW: Custom lock name
+					lockDescription // NEW: Custom lock description
 				};
 			});
 
@@ -513,15 +534,25 @@
 								transition:fly={{ y: 20, duration: 300 }}
 							>
 								<div class="lock-header">
+									{#if lockBox.lockName}
+										<div class="lock-title">
+											<h4 class="lock-name">{lockBox.lockName}</h4>
+											{#if lockBox.lockDescription}
+												<p class="lock-description">{lockBox.lockDescription}</p>
+											{/if}
+										</div>
+									{/if}
 									<div class="lock-status">
-										{#if lockBox.canWithdraw}
-											<span class="status-badge ready">Ready to Unlock</span>
-										{:else}
-											<span class="status-badge locked">Locked</span>
-										{/if}
-									</div>
-									<div class="lock-height">
-										Block {nFormatter(lockBox.unlockHeight, false, true)}
+										<div>
+											{#if lockBox.canWithdraw}
+												<span class="status-badge ready">Ready to Unlock</span>
+											{:else}
+												<span class="status-badge locked">Locked</span>
+											{/if}
+										</div>
+										<div class="lock-height">
+											Block {nFormatter(lockBox.unlockHeight, false, true)}
+										</div>
 									</div>
 								</div>
 
@@ -550,9 +581,7 @@
 									{/if}
 
 									<div class="lock-timing">
-										{#if lockBox.canWithdraw}
-											<span class="timing-text ready">Unlocked & Ready</span>
-										{:else}
+										{#if !lockBox.canWithdraw}
 											<span class="timing-text">
 												{nFormatter(lockBox.blocksRemaining)} blocks remaining
 											</span>
@@ -908,6 +937,10 @@
 		padding: 1.5rem;
 		transition: all 0.3s ease;
 		position: relative;
+		display: flex;
+		flex-direction: column;
+		min-height: 200px;
+		height: 100%;
 	}
 
 	.lock-card:hover {
@@ -928,12 +961,55 @@
 
 	.lock-header {
 		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
+		flex-direction: column;
 		margin-bottom: 1rem;
 	}
 
-	.lock-status {
+	.lock-title {
+		margin-bottom: 0.75rem;
+	}
+
+	.lock-name {
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: #667eea;
+		margin: 0 0 0.25rem 0;
+		line-height: 1.3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
+	}
+
+	.lock-description {
+		font-size: 0.875rem;
+		color: rgba(255, 255, 255, 0.7);
+		margin: 0;
+		line-height: 1.4;
+		font-style: italic;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-height: 2.8em;
+	}
+
+	.lock-header .lock-status {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		width: 100%;
+	}
+
+	.lock-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+	}
+
+	.lock-status > div {
 		display: flex;
 		gap: 0.5rem;
 		flex-wrap: wrap;
