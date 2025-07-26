@@ -23,9 +23,21 @@
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
 	
+	// Search functionality
+	let searchQuery = '';
+	let filteredMewLockBoxes = [];
+	
 	// Leaderboard sorting
 	let leaderboardSortBy = 'totalValueLocked'; // 'totalValueLocked', 'usdValue', 'locks', 'duration'
 	let leaderboardSortOrder = 'desc'; // 'asc', 'desc'
+	
+	// Leaderboard pagination
+	let leaderboardLimit = 15;
+	let showAllLeaderboard = false;
+	
+	// Global tokens sorting
+	let globalTokensSortBy = 'totalAmount'; // 'totalAmount', 'usdValue', 'name'
+	let globalTokensSortOrder = 'desc'; // 'asc', 'desc'
 
 	// Price data
 	let totalUsdValue = 0;
@@ -114,6 +126,23 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		}
 		
 		return totalUsdValue;
+	}
+
+	async function calculateTokenUsdValue(token) {
+		if (token.tokenId === null) {
+			// ERG token
+			const ergAmount = token.totalAmount / 1e9;
+			return priceService.calculateUsdValue(ergAmount);
+		} else {
+			// Other tokens
+			const tokenPrice = await priceService.getTokenPrice(token.tokenId);
+			if (tokenPrice) {
+				const decimals = token.decimals || 0;
+				const tokenAmount = token.totalAmount / Math.pow(10, decimals);
+				return tokenAmount * tokenPrice.usdPrice;
+			}
+		}
+		return 0;
 	}
 
 	// Convert public key to address using ErgoAddress
@@ -267,6 +296,38 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		sortLeaderboard();
 	}
 
+	function toggleGlobalTokensSort(newSortBy: string) {
+		if (globalTokensSortBy === newSortBy) {
+			globalTokensSortOrder = globalTokensSortOrder === 'asc' ? 'desc' : 'asc';
+		} else {
+			globalTokensSortBy = newSortBy;
+			globalTokensSortOrder = 'desc';
+		}
+		
+		// If USD sorting is selected, recalculate the sorted list
+		if (newSortBy === 'usdValue') {
+			sortGlobalTokensByUsd();
+		}
+	}
+
+	let usdSortedGlobalTokenList = [];
+
+	async function sortGlobalTokensByUsd() {
+		const tokensWithUsd = await Promise.all(
+			globalTokenList.map(async (token) => ({
+				...token,
+				usdValue: await calculateTokenUsdValue(token)
+			}))
+		);
+		
+		tokensWithUsd.sort((a, b) => {
+			const result = a.usdValue - b.usdValue;
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		});
+		
+		usdSortedGlobalTokenList = tokensWithUsd;
+	}
+
 	async function sortLeaderboard() {
 		const sortedLeaderboard = [...leaderboard];
 		
@@ -314,6 +375,32 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		}
 	}
 
+	function loadMoreLeaderboard() {
+		if (leaderboardLimit < leaderboard.length) {
+			leaderboardLimit = Math.min(leaderboardLimit + 15, leaderboard.length);
+		}
+		if (leaderboardLimit >= leaderboard.length) {
+			showAllLeaderboard = true;
+		}
+	}
+
+	function showTopLeaderboard() {
+		leaderboardLimit = 15;
+		showAllLeaderboard = false;
+	}
+
+	$: displayedLeaderboard = leaderboard.slice(0, leaderboardLimit);
+
+	// Filter locks based on search query
+	$: filteredMewLockBoxes = searchQuery.trim() 
+		? mewLockBoxes.filter(box => 
+			(box.lockName && box.lockName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			(box.lockDescription && box.lockDescription.toLowerCase().includes(searchQuery.toLowerCase())) ||
+			box.depositorAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			box.boxId.toLowerCase().includes(searchQuery.toLowerCase())
+		)
+		: mewLockBoxes;
+
 	// Calculate global token summaries for all locks
 	$: globalTokenSummaries = mewLockBoxes.reduce((summaries, box) => {
 		// Add ERG amount
@@ -345,9 +432,41 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		(summary) => summary.totalAmount > 0
 	);
 
-	// Separate ERG-only and ERG+token locks
-	$: ergOnlyLocks = mewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
-	$: ergTokenLocks = mewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
+	// Sorted global token list
+	$: sortedGlobalTokenList = [...globalTokenList].sort((a, b) => {
+		let aValue, bValue;
+		
+		switch (globalTokensSortBy) {
+			case 'totalAmount':
+				// Normalize amounts for comparison (convert to base units)
+				aValue = a.tokenId === null ? a.totalAmount / 1e9 : a.totalAmount / Math.pow(10, a.decimals);
+				bValue = b.tokenId === null ? b.totalAmount / 1e9 : b.totalAmount / Math.pow(10, b.decimals);
+				break;
+			case 'name':
+				aValue = a.tokenName.toLowerCase();
+				bValue = b.tokenName.toLowerCase();
+				break;
+			case 'usdValue':
+				// This will be handled separately due to async nature
+				aValue = 0;
+				bValue = 0;
+				break;
+			default:
+				return 0;
+		}
+		
+		if (globalTokensSortBy === 'name') {
+			const result = aValue.localeCompare(bValue);
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		} else {
+			const result = aValue - bValue;
+			return globalTokensSortOrder === 'asc' ? result : -result;
+		}
+	});
+
+	// Separate ERG-only and ERG+token locks (using filtered data)
+	$: ergOnlyLocks = filteredMewLockBoxes.filter((box) => !box.assets || box.assets.length === 0);
+	$: ergTokenLocks = filteredMewLockBoxes.filter((box) => box.assets && box.assets.length > 0);
 
 	// Sorting function for both sections
 	function sortLocks(locks) {
@@ -499,7 +618,10 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			<!-- Leaderboard -->
 			{#if leaderboard.length > 0}
 				<section class="leaderboard-section">
-					<h2>Top Users Leaderboard</h2>
+					<div class="section-header">
+						<h2>Top Users Leaderboard</h2>
+						<p class="section-subtitle">Showing top {displayedLeaderboard.length} of {leaderboard.length} users</p>
+					</div>
 					<div class="leaderboard-table">
 						<div class="table-header">
 							<div class="header-cell rank">Rank</div>
@@ -555,7 +677,7 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 								{/if}
 							</div>
 						</div>
-						{#each leaderboard.slice(0, 20) as user, index}
+						{#each displayedLeaderboard as user, index}
 							<div class="table-row">
 								<div class="table-cell rank">
 									<div class="rank-badge" class:top3={index < 3}>
@@ -580,15 +702,82 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 							</div>
 						{/each}
 					</div>
+					
+					<!-- Load More Controls -->
+					{#if leaderboard.length > 15}
+						<div class="leaderboard-controls">
+							{#if !showAllLeaderboard}
+								<button class="load-more-btn" on:click={loadMoreLeaderboard}>
+									Load More ({leaderboard.length - leaderboardLimit} remaining)
+								</button>
+							{:else}
+								<button class="load-more-btn secondary" on:click={showTopLeaderboard}>
+									Show Top 15 Only
+								</button>
+							{/if}
+						</div>
+					{/if}
 				</section>
 			{/if}
 
 			<!-- Global Token Summary -->
 			{#if globalTokenList.length > 0}
 				<section class="global-tokens">
-					<h2>All Locked Tokens</h2>
+					<div class="section-header">
+						<h2>All Locked Tokens</h2>
+						<div class="sort-controls">
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'totalAmount'}
+								on:click={() => toggleGlobalTokensSort('totalAmount')}
+							>
+								Amount
+								{#if globalTokensSortBy === 'totalAmount'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'usdValue'}
+								on:click={() => toggleGlobalTokensSort('usdValue')}
+							>
+								USD Value
+								{#if globalTokensSortBy === 'usdValue'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+							<button
+								class="sort-btn"
+								class:active={globalTokensSortBy === 'name'}
+								on:click={() => toggleGlobalTokensSort('name')}
+							>
+								Name
+								{#if globalTokensSortBy === 'name'}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										{#if globalTokensSortOrder === 'asc'}
+											<path d="M7 14L12 9L17 14H7Z" fill="currentColor" />
+										{:else}
+											<path d="M7 10L12 15L17 10H7Z" fill="currentColor" />
+										{/if}
+									</svg>
+								{/if}
+							</button>
+						</div>
+					</div>
 					<div class="tokens-grid">
-						{#each globalTokenList as token (token.tokenId || 'ERG')}
+						{#each globalTokensSortBy === 'usdValue' ? usdSortedGlobalTokenList : sortedGlobalTokenList as token (token.tokenId || 'ERG')}
 							<TokenSummaryCard
 								tokenId={token.tokenId}
 								tokenName={token.tokenName}
@@ -606,7 +795,26 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			<section class="controls-section">
 				<div class="section-header">
 					<h2>Browse All Locks</h2>
-					<div class="sort-controls">
+					<div class="search-and-sort">
+						<!-- Search Box -->
+						<div class="search-box">
+							<input
+								type="text"
+								placeholder="Search by name, description, address, or box ID..."
+								bind:value={searchQuery}
+								class="search-input"
+							/>
+							{#if searchQuery}
+								<button class="clear-search" on:click={() => searchQuery = ''}>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+									</svg>
+								</button>
+							{/if}
+						</div>
+						
+						<!-- Sort Controls -->
+						<div class="sort-controls">
 						<button
 							class="sort-btn"
 							class:active={sortBy === 'height'}
@@ -673,6 +881,7 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 								</svg>
 							{/if}
 						</button>
+						</div>
 					</div>
 				</div>
 			</section>
@@ -1008,6 +1217,37 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		border-radius: 16px;
 		overflow-x: auto;
 		overflow-y: hidden;
+	}
+
+	.leaderboard-controls {
+		padding: 1.5rem;
+		text-align: center;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.load-more-btn {
+		background: #667eea;
+		color: white;
+		border: none;
+		padding: 0.75rem 1.5rem;
+		border-radius: 8px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.load-more-btn:hover {
+		background: #5a67d8;
+		transform: translateY(-1px);
+	}
+
+	.load-more-btn.secondary {
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.load-more-btn.secondary:hover {
+		background: rgba(255, 255, 255, 0.2);
 	}
 
 	.table-header {
@@ -1416,6 +1656,66 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		max-width: 400px;
 	}
 
+	/* Search and Sort Container */
+	.search-and-sort {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 300px;
+	}
+
+	/* Search Box Styles */
+	.search-box {
+		position: relative;
+		width: 100%;
+	}
+
+	.search-input {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		padding-right: 2.5rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		color: white;
+		font-size: 0.875rem;
+		transition: all 0.2s;
+		box-sizing: border-box;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: #667eea;
+		background: rgba(102, 126, 234, 0.05);
+		box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+	}
+
+	.search-input::placeholder {
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.clear-search {
+		position: absolute;
+		right: 0.75rem;
+		top: 50%;
+		transform: translateY(-50%);
+		background: none;
+		border: none;
+		color: rgba(255, 255, 255, 0.5);
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: 4px;
+		transition: all 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.clear-search:hover {
+		color: white;
+		background: rgba(255, 255, 255, 0.1);
+	}
+
 	/* Responsive */
 	@media (max-width: 768px) {
 		.locks-main {
@@ -1429,6 +1729,11 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		.section-header {
 			flex-direction: column;
 			align-items: flex-start;
+		}
+
+		.search-and-sort {
+			width: 100%;
+			min-width: unset;
 		}
 
 		.sort-controls {
