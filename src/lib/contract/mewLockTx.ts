@@ -28,9 +28,16 @@ export function createMewLockDepositTx(
 	tokensToLock: Array<any>,
 	unlockHeight: number,
 	lockName?: string | null,
-	lockDescription?: string | null
+	lockDescription?: string | null,
+	recipientBase58PK?: string | null
 ): any {
 	const depositorAddress = ErgoAddress.fromBase58(depositorBase58PK);
+
+	// If recipientBase58PK is provided, use recipient's key in R4 for lock-for functionality
+	// Otherwise use depositor's key (normal lock)
+	const r4Address = recipientBase58PK
+		? ErgoAddress.fromBase58(recipientBase58PK)
+		: depositorAddress;
 
 	// Calculate token fees (3% if >= 34 tokens each) - matching smart contract logic
 	const tokenFees = tokensToLock.map((token) => {
@@ -43,10 +50,11 @@ export function createMewLockDepositTx(
 
 	// Create the MewLock contract box with remaining amounts after fees
 	const lockBoxValue = amountToLock;
-	
+
 	// Build registers object - R4 and R5 are required, R7 and R8 are optional
+	// R4 will be recipient's key if recipientBase58PK provided, otherwise depositor's key
 	const registers: { [key: string]: string } = {
-		R4: SGroupElement(first(depositorAddress.getPublicKeys())).toHex(), // depositor public key as GroupElement
+		R4: SGroupElement(first(r4Address.getPublicKeys())).toHex(), // recipient (lock-for) or depositor public key as GroupElement
 		R5: SInt(unlockHeight).toHex(), // unlock height
 		R6: SInt(Math.floor(Date.now() / 1000)).toHex() // timestamp (existing)
 	};

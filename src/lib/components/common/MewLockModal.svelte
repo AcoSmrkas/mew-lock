@@ -44,6 +44,10 @@
 	let isAuth = false;
 	let unsignedTx = null;
 	let ergAmount = 1;
+
+	// Lock-for feature
+	let lockForEnabled = false;
+	let recipientAddress = '';
 	// Available tokens
 	let availableTokens = [];
 	let search = '';
@@ -188,10 +192,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 
 	function selectLockType(type: string) {
 		lockType = type;
-		// Set default ERG amount for tokens mode (0.1 ERG for fees)
-		if (type === 'tokens') {
-			lockAmount = '1';
-		}
+		// No need to set lockAmount here - ergAmount is used for tokens mode
 		step = 2;
 	}
 
@@ -202,6 +203,8 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		lockAmount = '';
 		lockName = '';
 		lockDescription = '';
+		lockForEnabled = false;
+		recipientAddress = '';
 	}
 
 	function toggleTokenSelection(token) {
@@ -232,10 +235,11 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 	$: canSubmit =
 		lockType === 'erg'
 			? lockAmount && parseFloat(lockAmount) > 0
-			: selectedTokensToLock.length > 0 &&
+			: ergAmount && parseFloat(ergAmount) > 0 &&
+			  selectedTokensToLock.length > 0 &&
 			  selectedTokensToLock.every(
 					(token) => token.amountToLock && parseFloat(token.amountToLock) > 0
-			  ); // ERG amount auto-set for tokens
+			  );
 
 	async function handleLockSubmit() {
 		if (!canSubmit || processing) return;
@@ -263,15 +267,19 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					  }))
 					: [];
 
+			// Use ergAmount for tokens mode, lockAmount for ERG-only mode
+			const ergAmountToLock = lockType === 'tokens' ? ergAmount : lockAmount;
+
 			const lockTx = createMewLockDepositTx(
 				myAddress,
 				utxos,
 				height,
-				BigInt(Math.round(parseFloat(lockAmount) * 1e9)), // ERG amount in nanoERG as bigint
+				BigInt(Math.round(parseFloat(ergAmountToLock) * 1e9)), // ERG amount in nanoERG as bigint
 				tokensToLock,
 				unlockHeight,
 				lockName.trim() || null, // R7: Lock name (optional)
-				lockDescription.trim() || null // R8: Lock description (optional)
+				lockDescription.trim() || null, // R8: Lock description (optional)
+				lockForEnabled && recipientAddress ? recipientAddress : null // Lock-for recipient (optional)
 			);
 
 			if (get(selected_wallet_ergo) !== 'ergopay') {
@@ -489,7 +497,32 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					></textarea>
 					<small>Describe the purpose of this lock (max 150 characters)</small>
 				</div>
-				
+
+				<!-- Lock-For Feature -->
+				<div class="input-group">
+					<label class="checkbox-label">
+						<input
+							type="checkbox"
+							bind:checked={lockForEnabled}
+							class="lock-for-checkbox"
+						/>
+						<span>Lock for specific address</span>
+					</label>
+					<small>When enabled, only the specified address can unlock these assets</small>
+
+					{#if lockForEnabled}
+						<div class="recipient-input-wrapper">
+							<input
+								type="text"
+								bind:value={recipientAddress}
+								placeholder="Enter recipient's Ergo address (9...)"
+								class="mewlock-input recipient-input"
+							/>
+							<small>The recipient address will be able to unlock these assets, not you</small>
+						</div>
+					{/if}
+				</div>
+
 				<!-- Lock Duration -->
 				<!-- svelte-ignore a11y-label-has-associated-control -->
 				<div class="input-group">
@@ -1012,6 +1045,39 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		min-height: 60px;
 		font-family: inherit;
 		line-height: 1.4;
+	}
+
+	/* Lock-for checkbox */
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		cursor: pointer;
+		margin-bottom: 0.5rem;
+	}
+
+	.checkbox-label span {
+		color: white;
+		font-weight: 600;
+	}
+
+	.lock-for-checkbox {
+		width: 20px;
+		height: 20px;
+		cursor: pointer;
+		accent-color: #667eea;
+	}
+
+	.recipient-input-wrapper {
+		margin-top: 1rem;
+		padding: 1rem;
+		background: rgba(102, 126, 234, 0.05);
+		border: 1px solid rgba(102, 126, 234, 0.2);
+		border-radius: 8px;
+	}
+
+	.recipient-input {
+		margin-bottom: 0.5rem;
 	}
 
 	/* Token sections */
