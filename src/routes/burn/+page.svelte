@@ -3,6 +3,7 @@
 	import {
 		fetchAllBurnTransactions,
 		fetchUserBurnTransactions,
+		clearBurnCache,
 		type BurnTransaction,
 		type BurnStats
 	} from '$lib/api-explorer/burnTracker';
@@ -15,6 +16,7 @@
 	let userBurns: BurnTransaction[] = [];
 	let activeTab: 'leaderboard' | 'recent' | 'my-burns' = 'leaderboard';
 	let error = '';
+	let refreshing = false;
 
 	onMount(async () => {
 		await loadData();
@@ -146,6 +148,17 @@
 		}
 		return nFormatter(amount / Math.pow(10, decimals));
 	}
+
+	async function refreshData() {
+		if (refreshing) return;
+		refreshing = true;
+		try {
+			clearBurnCache();
+			await loadData();
+		} finally {
+			refreshing = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -155,8 +168,16 @@
 <div class="burn-tracker-page">
 	<!-- Header -->
 	<div class="page-header">
-		<h1>🔥 Burn Tracker</h1>
-		<p class="subtitle">Track token burns, leaderboards, and burning statistics</p>
+		<div class="header-content">
+			<div>
+				<h1>🔥 Burn Tracker</h1>
+				<p class="subtitle">Track token burns, leaderboards, and burning statistics</p>
+			</div>
+			<button class="refresh-btn" on:click={refreshData} disabled={refreshing}>
+				<i class="fas fa-sync-alt" class:spinning={refreshing}></i>
+				{refreshing ? 'Refreshing...' : 'Refresh Data'}
+			</button>
+		</div>
 	</div>
 
 	{#if loading}
@@ -364,8 +385,14 @@
 	}
 
 	.page-header {
-		text-align: center;
 		margin-bottom: 3rem;
+	}
+
+	.header-content {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 2rem;
 	}
 
 	.page-header h1 {
@@ -375,11 +402,53 @@
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		margin: 0 0 0.5rem 0;
+		text-align: left;
 	}
 
 	.subtitle {
 		color: rgba(255, 255, 255, 0.7);
 		font-size: 1.1rem;
+		text-align: left;
+	}
+
+	.refresh-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1.5rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		color: white;
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.2s;
+		white-space: nowrap;
+	}
+
+	.refresh-btn:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(255, 107, 107, 0.4);
+		color: #ff6b6b;
+	}
+
+	.refresh-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.loading-container {

@@ -11,6 +11,18 @@ export const BURN_ADDRESS = '9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmusY
  */
 const BURN_R4_HEX = '6275726e';
 
+/**
+ * Cache configuration
+ */
+const CACHE_KEY = 'burn_transactions_cache';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+interface CachedBurnData {
+	items: BurnTransaction[];
+	total: number;
+	timestamp: number;
+}
+
 export interface BurnTransaction {
 	txId: string;
 	timestamp: number;
@@ -54,9 +66,72 @@ function isBurnOutput(output: any): boolean {
 }
 
 /**
- * Fetch ALL burn transactions from the burn address (with pagination)
+ * Get cached burn data if valid
  */
-export async function fetchAllBurnTransactions(): Promise<{ items: BurnTransaction[]; total: number }> {
+function getCachedBurnData(): CachedBurnData | null {
+	if (typeof window === 'undefined') return null;
+
+	try {
+		const cached = localStorage.getItem(CACHE_KEY);
+		if (!cached) return null;
+
+		const data: CachedBurnData = JSON.parse(cached);
+		const now = Date.now();
+
+		// Check if cache is still valid
+		if (now - data.timestamp < CACHE_DURATION) {
+			console.log(`Using cached burn data (${data.items.length} burns, cached ${Math.round((now - data.timestamp) / 1000)}s ago)`);
+			return data;
+		} else {
+			console.log('Cache expired, will fetch fresh data');
+			return null;
+		}
+	} catch (error) {
+		console.error('Error reading cache:', error);
+		return null;
+	}
+}
+
+/**
+ * Save burn data to cache
+ */
+function saveBurnDataToCache(data: { items: BurnTransaction[]; total: number }): void {
+	if (typeof window === 'undefined') return;
+
+	try {
+		const cacheData: CachedBurnData = {
+			...data,
+			timestamp: Date.now()
+		};
+		localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+		console.log(`Cached ${data.items.length} burn transactions`);
+	} catch (error) {
+		console.error('Error saving to cache:', error);
+	}
+}
+
+/**
+ * Clear burn data cache (useful for manual refresh)
+ */
+export function clearBurnCache(): void {
+	if (typeof window === 'undefined') return;
+	localStorage.removeItem(CACHE_KEY);
+	console.log('Burn cache cleared');
+}
+
+/**
+ * Fetch ALL burn transactions from the burn address (with pagination and caching)
+ */
+export async function fetchAllBurnTransactions(forceRefresh: boolean = false): Promise<{ items: BurnTransaction[]; total: number }> {
+	// Check cache first unless force refresh
+	if (!forceRefresh) {
+		const cached = getCachedBurnData();
+		if (cached) {
+			return { items: cached.items, total: cached.total };
+		}
+	}
+
+	console.log('Fetching fresh burn data from API...');
 	const allBurns: BurnTransaction[] = [];
 	let offset = 0;
 	const limit = 100; // Fetch in batches of 100
@@ -96,8 +171,13 @@ export async function fetchAllBurnTransactions(): Promise<{ items: BurnTransacti
 			}
 		}
 
+		const result = { items: allBurns, total: allBurns.length };
 		console.log(`Finished fetching all burns: ${allBurns.length} valid burn transactions from ${totalTxCount} total transactions`);
-		return { items: allBurns, total: allBurns.length };
+
+		// Save to cache
+		saveBurnDataToCache(result);
+
+		return result;
 	} catch (error) {
 		console.error('Error fetching all burn transactions:', error);
 		throw error;

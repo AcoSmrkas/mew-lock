@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { nFormatter } from '$lib/utils/utils.js';
 	import WalletButton from '$lib/components/nav/WalletButton.svelte';
-	import { calculateBurnStats, fetchAllBurnTransactions, type BurnStats, type BurnTransaction } from '$lib/api-explorer/burnTracker';
+	import { fetchAllBurnTransactions, clearBurnCache, type BurnStats, type BurnTransaction } from '$lib/api-explorer/burnTracker';
 	import { getActiveCampaigns } from '$lib/api-explorer/burnCampaigns';
 
 	let loading = true;
@@ -11,6 +11,7 @@
 	let activeCampaigns = [];
 	let selectedBurn: BurnTransaction | null = null;
 	let showBurnModal = false;
+	let refreshing = false;
 
 	onMount(async () => {
 		await loadBurnData();
@@ -134,6 +135,17 @@
 			minute: '2-digit'
 		});
 	}
+
+	async function refreshData() {
+		if (refreshing) return;
+		refreshing = true;
+		try {
+			clearBurnCache();
+			await loadBurnData();
+		} finally {
+			refreshing = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -172,6 +184,10 @@
 						<i class="fas fa-flag-checkered"></i>
 						Campaigns
 					</a>
+					<button class="nav-btn refresh-btn" on:click={refreshData} disabled={refreshing}>
+						<i class="fas fa-sync-alt" class:spinning={refreshing}></i>
+						{refreshing ? 'Refreshing...' : 'Refresh'}
+					</button>
 				</div>
 
 				<div class="wallet-section">
@@ -502,6 +518,28 @@
 		background: rgba(255, 255, 255, 0.1);
 		border-color: rgba(255, 107, 107, 0.4);
 		color: #ff6b6b;
+	}
+
+	.refresh-btn {
+		cursor: pointer;
+	}
+
+	.refresh-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.wallet-section {
