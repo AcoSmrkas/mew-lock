@@ -19,6 +19,12 @@
 	} from '$lib/utils/utils.js';
 	import { fetchBoxes, getBlockHeight } from '$lib/api-explorer/explorer.ts';
 	import { createMewLockDepositTx } from '$lib/contract/mewLockTx.ts';
+	import {
+		createBulkMewLockTx,
+		parseBulkLockCSV,
+		generateCSVTemplate,
+		type BulkLockRecipient
+	} from '$lib/contract/bulkMewLock.ts';
 	import { get } from 'svelte/store';
 	import JSONbig from 'json-bigint-native';
 	import ErgopayModal from './ErgopayModal.svelte';
@@ -27,7 +33,7 @@
 
 	// Modal state
 	let step = 1; // 1: Choose type, 2: Configure lock
-	let lockType = ''; // 'erg' or 'tokens'
+	let lockType = ''; // 'erg', 'tokens', or 'bulk'
 	let processing = false;
 
 	// Lock configuration
@@ -48,6 +54,12 @@
 	// Lock-for feature
 	let lockForEnabled = false;
 	let recipientAddress = '';
+
+	// Bulk lock feature
+	let csvText = '';
+	let recipients: BulkLockRecipient[] = [];
+	let parseError = '';
+
 	// Available tokens
 	let availableTokens = [];
 	let search = '';
@@ -67,6 +79,8 @@
 			await fetchUtxos($connected_wallet_address);
 		}
 		loadAvailableTokens();
+		// Load CSV template for bulk lock
+		csvText = generateCSVTemplate();
 	});
 
 	// Reactive statement to reload tokens when store updates
@@ -74,6 +88,11 @@
 		loadAvailableTokens();
 	}
 $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust based on actual lockDuration units
+
+	// Bulk lock reactive variables
+	$: totalERG = recipients.reduce((sum, r) => sum + r.ergAmount, 0);
+	$: totalTokenTypes = recipients.reduce((sum, r) => sum + (r.tokens?.length || 0), 0);
+	$: canSubmitBulk = recipients.length > 0 && !processing;
 
 	function calculateApprox(lockDuration) {
 		// Constants
@@ -205,6 +224,92 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		lockDescription = '';
 		lockForEnabled = false;
 		recipientAddress = '';
+		recipients = [];
+		parseError = '';
+	}
+
+	async function parseCSV() {
+		parseError = '';
+		try {
+			recipients = parseBulkLockCSV(csvText, currentHeight);
+			console.log('Parsed recipients:', recipients);
+
+			if (recipients.length === 0) {
+				parseError = 'No valid recipients found in CSV';
+				return;
+			}
+
+			// Fetch token info for all unique token IDs
+			await enrichTokenInfo();
+			console.log('Enriched recipients:', recipients);
+		} catch (error) {
+			parseError = error.message;
+			recipients = [];
+		}
+	}
+
+	async function enrichTokenInfo() {
+		// Collect all unique token IDs from recipients
+		const tokenIds = new Set<string>();
+		for (const recipient of recipients) {
+			if (recipient.tokens) {
+				for (const token of recipient.tokens) {
+					tokenIds.add(token.tokenId);
+				}
+			}
+		}
+
+		if (tokenIds.size === 0) return;
+
+		try {
+			// Fetch token info from ergexplorer
+			const response = await fetch(`https://api.ergexplorer.com/tokens/byId`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ ids: Array.from(tokenIds) })
+			});
+
+			const data = await response.json();
+			const tokenInfoMap = new Map();
+
+			for (const tokenInfo of data.items) {
+				tokenInfoMap.set(tokenInfo.id, tokenInfo);
+			}
+
+			// Enrich recipients with token names
+			recipients = recipients.map(recipient => {
+				if (recipient.tokens) {
+					const enrichedTokens = recipient.tokens.map(token => {
+						const info = tokenInfoMap.get(token.tokenId);
+						return {
+							...token,
+							name: info?.name || 'Unknown Token',
+							decimals: info?.decimals || 0
+						};
+					});
+					return {
+						...recipient,
+						tokens: enrichedTokens
+					};
+				}
+				return recipient;
+			});
+		} catch (error) {
+			console.error('Error fetching token info:', error);
+			// Don't fail the whole parse if token info fetch fails
+		}
+	}
+
+	function downloadTemplate() {
+		const blob = new Blob([generateCSVTemplate()], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'mewlock-bulk-template.csv';
+		a.click();
+		URL.revokeObjectURL(url);
 	}
 
 	function toggleTokenSelection(token) {
@@ -304,6 +409,47 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		}
 	}
 
+	async function handleBulkLock() {
+		if (!canSubmitBulk) return;
+
+		processing = true;
+		try {
+			let myAddress, height, utxos;
+
+			if (get(selected_wallet_ergo) !== 'ergopay') {
+				myAddress = await ergo.get_change_address();
+				utxos = await fetchBoxes(get(connected_wallet_address));
+				height = await ergo.get_current_height();
+			} else {
+				myAddress = get(connected_wallet_address);
+				utxos = await fetchBoxes(get(connected_wallet_address));
+				height = await getBlockHeight();
+			}
+
+			const bulkLockTx = createBulkMewLockTx(myAddress, utxos, height, recipients);
+
+			if (get(selected_wallet_ergo) !== 'ergopay') {
+				const signed = await ergo.sign_tx(bulkLockTx);
+				const transactionId = await ergo.submit_tx(signed);
+				showCustomToast(
+					`Bulk lock successful! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
+					10000,
+					'success'
+				);
+				closeModal();
+			} else {
+				unsignedTx = bulkLockTx;
+				isAuth = false;
+				showErgopayModal = true;
+			}
+		} catch (error) {
+			console.error('Bulk lock error:', error);
+			showCustomToast(`Bulk lock failed: ${error.message}`, 5000, 'danger');
+		} finally {
+			processing = false;
+		}
+	}
+
 	function closeModal() {
 		dispatch('close');
 	}
@@ -394,6 +540,28 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 							{availableTokens?.length || 0} tokens available
 						</div>
 					</button>
+
+					<button class="lock-type-card" on:click={() => selectLockType('bulk')}>
+						<div class="lock-type-icon">
+							<svg
+								width="48"
+								height="48"
+								viewBox="0 0 24 24"
+								fill="none"
+								xmlns="http://www.w3.org/2000/svg"
+							>
+								<path
+									d="M9 4C8.45 4 8 4.45 8 5V6H5C3.9 6 3 6.9 3 8V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V8C21 6.9 20.1 6 19 6H16V5C16 4.45 15.55 4 15 4H9M5 8H19V19H5V8M7 10V12H9V10H7M11 10V12H17V10H11M7 14V16H9V14H7M11 14V16H17V14H11Z"
+									fill="currentColor"
+								/>
+							</svg>
+						</div>
+						<h3>Bulk Lock</h3>
+						<p>Lock assets for multiple recipients (vesting/airdrop)</p>
+						<div class="balance-info">
+							CSV-based bulk operations
+						</div>
+					</button>
 				</div>
 			</div>
 		{:else}
@@ -433,6 +601,111 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 			</div>
 
 			<div class="modal-body">
+				<!-- Bulk Lock UI -->
+				{#if lockType === 'bulk'}
+					<div class="info-box">
+						<strong>Bulk Lock</strong> - Lock assets for multiple recipients in a single transaction. Perfect for team vesting or airdrops!
+						<br /><br />
+						<strong>CSV Format:</strong> address, ergAmount, unlockDuration, lockName, lockDescription, tokens
+						<br />
+						<strong>Tokens Format:</strong> tokenId1:amount1;tokenId2:amount2 (optional, leave empty for ERG-only)
+						<br />
+						<button class="template-btn" on:click={downloadTemplate}>Download CSV Template</button>
+					</div>
+
+					<div class="input-group">
+						<label>CSV Data</label>
+						<textarea
+							bind:value={csvText}
+							placeholder="Paste your CSV here..."
+							rows="10"
+							class="csv-input"
+							on:blur={parseCSV}
+						></textarea>
+						<small>Current blockchain height: {currentHeight.toLocaleString()}</small>
+					</div>
+
+					<button class="parse-btn" on:click={parseCSV} disabled={!csvText}>
+						Parse CSV ({recipients.length} recipients found)
+					</button>
+
+					{#if parseError}
+						<div class="error-box">{parseError}</div>
+					{/if}
+
+					{#if recipients.length > 0}
+						<div class="recipients-preview">
+							<h3>Recipients Preview</h3>
+							<div class="summary">
+								<div class="summary-item">
+									<strong>{recipients.length}</strong>
+									<span>Recipients</span>
+								</div>
+								<div class="summary-item">
+									<strong>{totalERG.toFixed(4)} ERG</strong>
+									<span>Total Locked</span>
+								</div>
+								{#if totalTokenTypes > 0}
+									<div class="summary-item">
+										<strong>{totalTokenTypes}</strong>
+										<span>Token Type{totalTokenTypes > 1 ? 's' : ''}</span>
+									</div>
+								{/if}
+							</div>
+
+							<div class="recipients-list">
+								{#each recipients.slice(0, 5) as recipient, i}
+									<div class="recipient-row">
+										<div class="recipient-address">
+											{recipient.address.substring(0, 10)}...{recipient.address.substring(recipient.address.length - 6)}
+										</div>
+										<div class="recipient-amount">{recipient.ergAmount} ERG</div>
+										<div class="recipient-unlock">
+											{recipient.unlockHeight - currentHeight} blocks
+										</div>
+										{#if recipient.lockName}
+											<div class="recipient-name">{recipient.lockName}</div>
+										{/if}
+										{#if recipient.tokens && recipient.tokens.length > 0}
+											<div class="recipient-tokens">
+												{#each recipient.tokens as token, idx}
+													<span class="token-pill">
+														{token.name || token.tokenId.substring(0, 8)}
+														{#if token.decimals !== undefined}
+															({(token.amount / Math.pow(10, token.decimals)).toLocaleString()})
+														{:else}
+															({token.amount})
+														{/if}
+													</span>
+													{#if idx < recipient.tokens.length - 1}
+														<span class="token-separator">•</span>
+													{/if}
+												{/each}
+											</div>
+										{/if}
+									</div>
+								{/each}
+								{#if recipients.length > 5}
+									<div class="more-recipients">... and {recipients.length - 5} more</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<button
+						class="mewlock-btn submit-btn"
+						class:disabled={!canSubmitBulk}
+						disabled={!canSubmitBulk}
+						on:click={handleBulkLock}
+					>
+						{#if processing}
+							Processing...
+						{:else}
+							Create Bulk Lock ({recipients.length} recipients)
+						{/if}
+					</button>
+				{:else}
+
 				<!-- ERG Amount -->
 				{#if lockType === 'erg'}
 					<!-- svelte-ignore a11y-label-has-associated-control -->
@@ -754,19 +1027,20 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					</div>
 				{/if}
 
-				<!-- Submit Button -->
-				<button
-					class="mewlock-btn submit-btn"
-					class:disabled={!canSubmit || processing}
-					disabled={!canSubmit || processing}
-					on:click={handleLockSubmit}
-				>
-					{#if processing}
-						Processing...
-					{:else}
-						Lock {lockType === 'erg' ? 'ERG' : 'Assets'}
-					{/if}
-				</button>
+					<!-- Submit Button for ERG/Tokens -->
+					<button
+						class="mewlock-btn submit-btn"
+						class:disabled={!canSubmit || processing}
+						disabled={!canSubmit || processing}
+						on:click={handleLockSubmit}
+					>
+						{#if processing}
+							Processing...
+						{:else}
+							Lock {lockType === 'erg' ? 'ERG' : 'Assets'}
+						{/if}
+					</button>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -867,8 +1141,8 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 
 	.lock-type-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-		gap: 1.5rem;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
 		margin-bottom: 2rem;
 	}
 
@@ -1392,6 +1666,194 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		opacity: 0.5;
 		cursor: not-allowed;
 		transform: none;
+	}
+
+	/* Bulk Lock Styles */
+	.info-box {
+		background: rgba(102, 126, 234, 0.1);
+		border: 1px solid rgba(102, 126, 234, 0.2);
+		border-radius: 8px;
+		padding: 1rem;
+		color: rgba(255, 255, 255, 0.9);
+		margin-bottom: 1.5rem;
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+
+	.template-btn {
+		background: #667eea;
+		color: white;
+		border: none;
+		padding: 0.5rem 1rem;
+		border-radius: 6px;
+		cursor: pointer;
+		margin-top: 0.5rem;
+		font-weight: 500;
+		transition: all 0.2s;
+	}
+
+	.template-btn:hover {
+		background: #5a67d8;
+		transform: translateY(-1px);
+	}
+
+	.csv-input {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		padding: 0.75rem;
+		color: white;
+		font-size: 0.9rem;
+		font-family: monospace;
+		resize: vertical;
+		transition: all 0.2s;
+	}
+
+	.csv-input:focus {
+		outline: none;
+		border-color: #667eea;
+		box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+	}
+
+	.parse-btn {
+		width: 100%;
+		background: rgba(102, 126, 234, 0.2);
+		border: 1px solid #667eea;
+		color: #667eea;
+		padding: 0.75rem;
+		border-radius: 8px;
+		cursor: pointer;
+		font-weight: 600;
+		margin-bottom: 1rem;
+		transition: all 0.2s;
+	}
+
+	.parse-btn:hover:not(:disabled) {
+		background: rgba(102, 126, 234, 0.3);
+	}
+
+	.parse-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.error-box {
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		color: #ef4444;
+		padding: 1rem;
+		border-radius: 8px;
+		margin-bottom: 1rem;
+	}
+
+	.recipients-preview {
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		padding: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.recipients-preview h3 {
+		color: white;
+		margin: 0 0 1rem 0;
+		font-size: 1.1rem;
+	}
+
+	.summary {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.summary-item {
+		background: rgba(102, 126, 234, 0.1);
+		padding: 1rem;
+		border-radius: 8px;
+		text-align: center;
+	}
+
+	.summary-item strong {
+		display: block;
+		color: #667eea;
+		font-size: 1.5rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.summary-item span {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.875rem;
+	}
+
+	.recipients-list {
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.recipient-row {
+		display: grid;
+		grid-template-columns: 2fr 1fr 1fr;
+		gap: 0.5rem;
+		padding: 0.75rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+		font-size: 0.875rem;
+	}
+
+	.recipient-address {
+		color: rgba(255, 255, 255, 0.8);
+		font-family: monospace;
+	}
+
+	.recipient-amount {
+		color: #667eea;
+		font-weight: 600;
+	}
+
+	.recipient-unlock {
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.recipient-name {
+		grid-column: 1 / -1;
+		color: rgba(255, 255, 255, 0.5);
+		font-style: italic;
+		font-size: 0.8rem;
+	}
+
+	.recipient-tokens {
+		grid-column: 1 / -1;
+		color: rgba(102, 126, 234, 0.9);
+		font-size: 0.8rem;
+		margin-top: 0.5rem;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.token-pill {
+		background: rgba(102, 126, 234, 0.15);
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		padding: 0.25rem 0.5rem;
+		border-radius: 12px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: #667eea;
+		white-space: nowrap;
+	}
+
+	.token-separator {
+		color: rgba(102, 126, 234, 0.5);
+		font-weight: bold;
+	}
+
+	.more-recipients {
+		padding: 1rem;
+		text-align: center;
+		color: rgba(255, 255, 255, 0.5);
+		font-style: italic;
 	}
 
 	/* Responsive */
