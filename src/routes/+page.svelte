@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { nFormatter } from '$lib/utils/utils.js';
-	import Navigation from '$lib/components/common/Navigation.svelte';
+	import WalletButton from '$lib/components/nav/WalletButton.svelte';
 	import { calculateBurnStats, fetchBurnTransactions, type BurnStats, type BurnTransaction } from '$lib/api-explorer/burnTracker';
 	import { getActiveCampaigns } from '$lib/api-explorer/burnCampaigns';
 
@@ -53,8 +53,6 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </svelte:head>
 
-<Navigation />
-
 <div class="page-container">
 	{#if loading}
 		<div class="loading">
@@ -66,11 +64,14 @@
 			<!-- Title Section -->
 			<div class="title-section">
 				<div class="fire-bg"></div>
-				<h1 class="title">
-					<i class="fas fa-fire-flame-curved"></i>
-					Burn Tracker
-				</h1>
-				<p class="subtitle">Track burns, compete, climb leaderboards</p>
+
+				<div class="header-left">
+					<h1 class="title">
+						<i class="fas fa-fire-flame-curved"></i>
+						Burn Tracker
+					</h1>
+					<p class="subtitle">Track burns, compete, climb leaderboards</p>
+				</div>
 
 				<div class="stats-row">
 					<div class="stat">
@@ -90,15 +91,20 @@
 					</div>
 				</div>
 
-				<div class="actions">
-					<a href="/burn" class="btn primary">
-						<i class="fas fa-trophy"></i>
-						Leaderboards
-					</a>
-					<a href="/burn/campaigns" class="btn secondary">
-						<i class="fas fa-flag-checkered"></i>
-						Campaigns
-					</a>
+				<div class="header-right">
+					<div class="nav-links">
+						<a href="/burn" class="nav-btn">
+							<i class="fas fa-trophy"></i>
+							Leaderboards
+						</a>
+						<a href="/burn/campaigns" class="nav-btn">
+							<i class="fas fa-flag-checkered"></i>
+							Campaigns
+						</a>
+					</div>
+					<div class="wallet-section">
+						<WalletButton />
+					</div>
 				</div>
 			</div>
 
@@ -176,7 +182,7 @@
 	}
 
 	.page-container {
-		height: calc(100vh - 80px);
+		height: 100vh;
 		padding: 0.75rem;
 		width: 100%;
 		display: flex;
@@ -232,6 +238,48 @@
 	.title-section > * {
 		position: relative;
 		z-index: 1;
+	}
+
+	.header-left {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.header-right {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+	}
+
+	.nav-links {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.nav-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.7rem 1rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		color: white;
+		text-decoration: none;
+		font-weight: 500;
+		font-size: 0.9rem;
+		transition: all 0.2s;
+	}
+
+	.nav-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(255, 107, 107, 0.4);
+		color: #ff6b6b;
+	}
+
+	.wallet-section {
+		min-width: 150px;
 	}
 
 	.fire-bg {
@@ -311,45 +359,6 @@
 		letter-spacing: 0.5px;
 	}
 
-	.actions {
-		display: flex;
-		gap: 0.75rem;
-	}
-
-	.btn {
-		flex: 1;
-		padding: 0.85rem 1.25rem;
-		border-radius: 10px;
-		text-decoration: none;
-		font-weight: 600;
-		text-align: center;
-		transition: all 0.2s;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		font-size: 0.9rem;
-	}
-
-	.btn.primary {
-		background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-		color: white;
-	}
-
-	.btn.primary:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 8px 20px rgba(255, 107, 107, 0.3);
-	}
-
-	.btn.secondary {
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		color: white;
-	}
-
-	.btn.secondary:hover {
-		background: rgba(255, 255, 255, 0.08);
-	}
 
 	.card {
 		background: rgba(255, 255, 255, 0.03);
@@ -540,8 +549,9 @@
 			width: 100%;
 		}
 
-		.actions {
+		.header-right {
 			width: 100%;
+			justify-content: center;
 		}
 
 		.activity {
@@ -552,7 +562,6 @@
 	@media (max-width: 768px) {
 		.page-container {
 			padding: 0.5rem;
-			height: calc(100vh - 70px);
 		}
 
 		.content-grid {
@@ -578,8 +587,22 @@
 			gap: 0.5rem;
 		}
 
-		.actions {
-			gap: 0.5rem;
+		.header-right {
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		.nav-links {
+			width: 100%;
+		}
+
+		.nav-btn {
+			flex: 1;
+			justify-content: center;
+		}
+
+		.wallet-section {
+			width: 100%;
 		}
 
 		.activity {
