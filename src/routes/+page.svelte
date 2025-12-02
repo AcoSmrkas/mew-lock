@@ -61,50 +61,48 @@
 	{:else if stats}
 		<!-- Main Content Grid -->
 		<div class="content-grid">
-			<!-- Title Section -->
-			<div class="title-section">
-				<div class="fire-bg"></div>
-
-				<div class="header-left">
-					<h1 class="title">
-						<i class="fas fa-fire-flame-curved"></i>
-						Burn Tracker
-					</h1>
-					<p class="subtitle">Track burns, compete, climb leaderboards</p>
-				</div>
-
-				<div class="stats-row">
-					<div class="stat">
-						<i class="fas fa-burn"></i>
-						<div class="stat-value">{stats.totalBurns.toLocaleString()}</div>
-						<div class="stat-label">Burns</div>
-					</div>
-					<div class="stat">
-						<i class="fas fa-users"></i>
-						<div class="stat-value">{stats.uniqueBurners.toLocaleString()}</div>
-						<div class="stat-label">Burners</div>
-					</div>
-					<div class="stat">
-						<i class="fas fa-coins"></i>
-						<div class="stat-value">{stats.topBurnedTokens.length}</div>
-						<div class="stat-label">Tokens</div>
+			<!-- Header Row -->
+			<div class="header-row">
+				<div class="logo-section">
+					<i class="fas fa-fire-flame-curved"></i>
+					<div class="logo-text">
+						<div class="logo-title">Burn Tracker</div>
+						<div class="logo-subtitle">Track burns, compete, climb</div>
 					</div>
 				</div>
 
-				<div class="header-right">
-					<div class="nav-links">
-						<a href="/burn" class="nav-btn">
-							<i class="fas fa-trophy"></i>
-							Leaderboards
-						</a>
-						<a href="/burn/campaigns" class="nav-btn">
-							<i class="fas fa-flag-checkered"></i>
-							Campaigns
-						</a>
-					</div>
-					<div class="wallet-section">
-						<WalletButton />
-					</div>
+				<div class="nav-links">
+					<a href="/burn" class="nav-btn">
+						<i class="fas fa-trophy"></i>
+						Leaderboards
+					</a>
+					<a href="/burn/campaigns" class="nav-btn">
+						<i class="fas fa-flag-checkered"></i>
+						Campaigns
+					</a>
+				</div>
+
+				<div class="wallet-section">
+					<WalletButton />
+				</div>
+			</div>
+
+			<!-- Stats Row -->
+			<div class="stats-row">
+				<div class="stat">
+					<i class="fas fa-burn"></i>
+					<div class="stat-value">{stats.totalBurns.toLocaleString()}</div>
+					<div class="stat-label">Total Burns</div>
+				</div>
+				<div class="stat">
+					<i class="fas fa-users"></i>
+					<div class="stat-value">{stats.uniqueBurners.toLocaleString()}</div>
+					<div class="stat-label">Burners</div>
+				</div>
+				<div class="stat">
+					<i class="fas fa-coins"></i>
+					<div class="stat-value">{stats.topBurnedTokens.length}</div>
+					<div class="stat-label">Token Types</div>
 				</div>
 			</div>
 
@@ -168,6 +166,41 @@
 					{/each}
 				</div>
 			</div>
+
+			<!-- Active Campaigns -->
+			<div class="card campaign-card">
+				<div class="card-header">
+					<h3><i class="fas fa-trophy"></i> Active Campaigns</h3>
+					<a href="/burn/campaigns" class="link"><i class="fas fa-arrow-right"></i></a>
+				</div>
+				<div class="campaigns-list">
+					{#if activeCampaigns.length > 0}
+						{#each activeCampaigns.slice(0, 3) as campaign}
+							<div class="campaign-preview" on:click={() => window.open('/burn/campaigns', '_blank')} on:keypress={() => {}}>
+								<div class="campaign-badge">LIVE</div>
+								<div class="campaign-info">
+									<div class="campaign-name">{campaign.name}</div>
+									<div class="campaign-meta">
+										{#if campaign.participants}
+											<span><i class="fas fa-users"></i> {campaign.participants}</span>
+										{/if}
+										{#if campaign.prizes && campaign.prizes.length > 0}
+											<span><i class="fas fa-gift"></i> {campaign.prizes.length} prizes</span>
+										{/if}
+									</div>
+								</div>
+								<i class="fas fa-chevron-right campaign-arrow"></i>
+							</div>
+						{/each}
+					{:else}
+						<div class="no-campaigns">
+							<i class="fas fa-calendar-times"></i>
+							<p>No active campaigns</p>
+							<a href="/burn/campaigns" class="view-all-link">View All Campaigns</a>
+						</div>
+					{/if}
+				</div>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -214,42 +247,54 @@
 	.content-grid {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		grid-template-rows: auto 1fr;
+		grid-template-rows: auto auto 1fr;
 		gap: 0.75rem;
 		width: 100%;
 		height: 100%;
 	}
 
-	.title-section {
+	/* Header Row */
+	.header-row {
 		grid-column: 1 / -1;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 107, 107, 0.2);
-		border-radius: 16px;
-		padding: 1.5rem;
-		position: relative;
-		overflow: hidden;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 2rem;
-		min-height: 0;
+		padding: 0.75rem 1.25rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 107, 107, 0.2);
+		border-radius: 12px;
 	}
 
-	.title-section > * {
-		position: relative;
-		z-index: 1;
-	}
-
-	.header-left {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.header-right {
+	.logo-section {
 		display: flex;
 		align-items: center;
-		gap: 1.5rem;
+		gap: 0.75rem;
+	}
+
+	.logo-section i {
+		font-size: 2rem;
+		color: #ff6b6b;
+		filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.6));
+	}
+
+	.logo-text {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.logo-title {
+		font-size: 1.25rem;
+		font-weight: 700;
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		line-height: 1.2;
+	}
+
+	.logo-subtitle {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		line-height: 1;
 	}
 
 	.nav-links {
@@ -261,14 +306,14 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.7rem 1rem;
+		padding: 0.6rem 1rem;
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.2);
 		border-radius: 8px;
 		color: white;
 		text-decoration: none;
 		font-weight: 500;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		transition: all 0.2s;
 	}
 
@@ -282,74 +327,40 @@
 		min-width: 150px;
 	}
 
-	.fire-bg {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		width: 400px;
-		height: 400px;
-		background: radial-gradient(circle, rgba(255, 107, 107, 0.3) 0%, transparent 70%);
-		filter: blur(60px);
-		animation: pulse 3s ease-in-out infinite;
-		pointer-events: none;
-	}
-
-	@keyframes pulse {
-		0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
-		50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.2); }
-	}
-
-	.title {
-		font-size: 2rem;
-		font-weight: 700;
-		margin: 0;
-		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		white-space: nowrap;
-	}
-
-	.title i {
-		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-	}
-
-	.subtitle {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.9rem;
-		margin: 0;
-		white-space: nowrap;
-	}
-
+	/* Stats Row */
 	.stats-row {
-		display: flex;
-		gap: 1rem;
-		flex: 1;
-		justify-content: center;
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
 	}
 
 	.stat {
-		flex: 1;
 		text-align: center;
-		padding: 0.75rem;
+		padding: 1rem;
 		background: rgba(255, 255, 255, 0.03);
 		border-radius: 12px;
 		border: 1px solid rgba(255, 255, 255, 0.1);
+		transition: all 0.2s;
+	}
+
+	.stat:hover {
+		background: rgba(255, 255, 255, 0.05);
+		border-color: rgba(255, 107, 107, 0.3);
 	}
 
 	.stat i {
 		color: #ff6b6b;
-		font-size: 1.2rem;
-		margin-bottom: 0.4rem;
+		font-size: 1.5rem;
+		margin-bottom: 0.5rem;
+		filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.4));
 	}
 
 	.stat-value {
-		font-size: 1.5rem;
+		font-size: 1.8rem;
 		font-weight: 700;
 		color: #ff6b6b;
-		margin-bottom: 0.2rem;
+		margin-bottom: 0.25rem;
 	}
 
 	.stat-label {
@@ -525,33 +536,137 @@
 		white-space: nowrap;
 	}
 
+	/* Campaign Card */
+	.campaigns-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		flex: 1;
+		overflow-y: auto;
+		min-height: 0;
+	}
+
+	.campaign-preview {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem;
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.campaign-preview:hover {
+		background: rgba(255, 107, 107, 0.05);
+		border-color: rgba(255, 107, 107, 0.3);
+		transform: translateX(2px);
+	}
+
+	.campaign-badge {
+		padding: 0.25rem 0.5rem;
+		background: rgba(34, 197, 94, 0.2);
+		border: 1px solid rgba(34, 197, 94, 0.3);
+		border-radius: 4px;
+		color: #22c55e;
+		font-size: 0.65rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		flex-shrink: 0;
+	}
+
+	.campaign-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.campaign-name {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: white;
+		margin-bottom: 0.25rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.campaign-meta {
+		display: flex;
+		gap: 0.75rem;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.campaign-meta span {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.campaign-arrow {
+		color: rgba(255, 255, 255, 0.3);
+		font-size: 0.8rem;
+		flex-shrink: 0;
+	}
+
+	.no-campaigns {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 2rem 1rem;
+		text-align: center;
+		flex: 1;
+	}
+
+	.no-campaigns i {
+		font-size: 2rem;
+		color: rgba(255, 255, 255, 0.2);
+		margin-bottom: 0.75rem;
+	}
+
+	.no-campaigns p {
+		color: rgba(255, 255, 255, 0.5);
+		margin: 0 0 1rem 0;
+		font-size: 0.9rem;
+	}
+
+	.view-all-link {
+		color: #ff6b6b;
+		text-decoration: none;
+		font-size: 0.85rem;
+		font-weight: 600;
+		transition: all 0.2s;
+	}
+
+	.view-all-link:hover {
+		color: #ffaa00;
+	}
+
 	@media (max-width: 1200px) {
 		.content-grid {
 			grid-template-columns: 1fr 1fr;
+			grid-template-rows: auto auto 1fr 1fr;
 		}
 
-		.title-section {
+		.header-row {
 			flex-wrap: wrap;
+			gap: 1rem;
 			justify-content: center;
-			text-align: center;
 		}
 
-		.title, .subtitle {
-			width: 100%;
-			text-align: center;
-		}
-
-		.title {
-			font-size: 1.75rem;
-		}
-
-		.stats-row {
-			width: 100%;
-		}
-
-		.header-right {
+		.logo-section {
 			width: 100%;
 			justify-content: center;
+		}
+
+		.nav-links {
+			order: 3;
+		}
+
+		.wallet-section {
+			order: 2;
 		}
 
 		.activity {
@@ -567,29 +682,20 @@
 		.content-grid {
 			grid-template-columns: 1fr;
 			gap: 0.5rem;
-			grid-template-rows: auto 1fr 1fr 1fr 1fr;
+			grid-template-rows: auto auto repeat(4, 1fr);
 		}
 
-		.title-section {
-			grid-column: 1;
-			padding: 1rem;
+		.header-row {
+			padding: 0.75rem;
 		}
 
-		.title {
-			font-size: 1.5rem;
-		}
-
-		.subtitle {
-			font-size: 0.85rem;
+		.logo-title {
+			font-size: 1.1rem;
 		}
 
 		.stats-row {
+			grid-template-columns: 1fr;
 			gap: 0.5rem;
-		}
-
-		.header-right {
-			flex-direction: column;
-			gap: 1rem;
 		}
 
 		.nav-links {
