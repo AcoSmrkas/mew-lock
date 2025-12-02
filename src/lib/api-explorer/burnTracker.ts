@@ -93,8 +93,9 @@ export async function fetchBurnTransactions(
 
 				for (const asset of input.assets || []) {
 					const existing = inputTokens.get(asset.tokenId) || { amount: 0 };
+					const assetAmount = typeof asset.amount === 'bigint' ? Number(asset.amount) : asset.amount;
 					inputTokens.set(asset.tokenId, {
-						amount: existing.amount + asset.amount,
+						amount: existing.amount + assetAmount,
 						name: asset.name,
 						decimals: asset.decimals
 					});
@@ -105,7 +106,8 @@ export async function fetchBurnTransactions(
 			for (const output of tx.outputs) {
 				for (const asset of output.assets || []) {
 					const existing = outputTokens.get(asset.tokenId) || 0;
-					outputTokens.set(asset.tokenId, existing + asset.amount);
+					const assetAmount = typeof asset.amount === 'bigint' ? Number(asset.amount) : asset.amount;
+					outputTokens.set(asset.tokenId, existing + assetAmount);
 				}
 			}
 
@@ -194,8 +196,9 @@ export async function fetchUserBurnTransactions(
 
 				for (const asset of input.assets || []) {
 					const existing = inputTokens.get(asset.tokenId) || { amount: 0 };
+					const assetAmount = typeof asset.amount === 'bigint' ? Number(asset.amount) : asset.amount;
 					inputTokens.set(asset.tokenId, {
-						amount: existing.amount + asset.amount,
+						amount: existing.amount + assetAmount,
 						name: asset.name,
 						decimals: asset.decimals
 					});
@@ -205,7 +208,8 @@ export async function fetchUserBurnTransactions(
 			for (const output of tx.outputs) {
 				for (const asset of output.assets || []) {
 					const existing = outputTokens.get(asset.tokenId) || 0;
-					outputTokens.set(asset.tokenId, existing + asset.amount);
+					const assetAmount = typeof asset.amount === 'bigint' ? Number(asset.amount) : asset.amount;
+					outputTokens.set(asset.tokenId, existing + assetAmount);
 				}
 			}
 
