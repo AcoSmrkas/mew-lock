@@ -63,8 +63,8 @@
 	{:else if stats}
 		<!-- Main Content Grid -->
 		<div class="content-grid">
-			<!-- Hero Section -->
-			<div class="hero-card">
+			<!-- Title Section -->
+			<div class="title-section">
 				<div class="fire-bg"></div>
 				<h1 class="title">
 					<i class="fas fa-fire-flame-curved"></i>
@@ -141,7 +141,7 @@
 			</div>
 
 			<!-- Recent Activity -->
-			<div class="card recent">
+			<div class="card">
 				<div class="card-header">
 					<h3><i class="fas fa-clock"></i> Recent Burns</h3>
 					<a href="/burn" class="link"><i class="fas fa-arrow-right"></i></a>
@@ -207,16 +207,15 @@
 
 	.content-grid {
 		display: grid;
-		grid-template-columns: 2fr 1fr 1fr;
-		grid-template-rows: 1fr 1fr;
+		grid-template-columns: repeat(4, 1fr);
+		grid-template-rows: auto 1fr;
 		gap: 0.75rem;
 		width: 100%;
 		height: 100%;
 	}
 
-	.hero-card {
-		grid-column: 1;
-		grid-row: 1 / 3;
+	.title-section {
+		grid-column: 1 / -1;
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 107, 107, 0.2);
 		border-radius: 16px;
@@ -224,18 +223,24 @@
 		position: relative;
 		overflow: hidden;
 		display: flex;
-		flex-direction: column;
-		justify-content: center;
+		align-items: center;
+		justify-content: space-between;
+		gap: 2rem;
 		min-height: 0;
+	}
+
+	.title-section > * {
+		position: relative;
+		z-index: 1;
 	}
 
 	.fire-bg {
 		position: absolute;
-		bottom: -50%;
+		top: 50%;
 		left: 50%;
-		transform: translateX(-50%);
-		width: 300px;
-		height: 300px;
+		transform: translate(-50%, -50%);
+		width: 400px;
+		height: 400px;
 		background: radial-gradient(circle, rgba(255, 107, 107, 0.3) 0%, transparent 70%);
 		filter: blur(60px);
 		animation: pulse 3s ease-in-out infinite;
@@ -243,19 +248,18 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
-		50% { opacity: 0.8; transform: translateX(-50%) scale(1.2); }
+		0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+		50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.2); }
 	}
 
 	.title {
-		font-size: 2.5rem;
+		font-size: 2rem;
 		font-weight: 700;
-		margin: 0 0 0.5rem 0;
+		margin: 0;
 		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		position: relative;
-		z-index: 1;
+		white-space: nowrap;
 	}
 
 	.title i {
@@ -266,18 +270,16 @@
 
 	.subtitle {
 		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.95rem;
-		margin: 0 0 1.5rem 0;
-		position: relative;
-		z-index: 1;
+		font-size: 0.9rem;
+		margin: 0;
+		white-space: nowrap;
 	}
 
 	.stats-row {
 		display: flex;
 		gap: 1rem;
-		margin-bottom: 1.5rem;
-		position: relative;
-		z-index: 1;
+		flex: 1;
+		justify-content: center;
 	}
 
 	.stat {
@@ -311,9 +313,7 @@
 
 	.actions {
 		display: flex;
-		gap: 1rem;
-		position: relative;
-		z-index: 1;
+		gap: 0.75rem;
 	}
 
 	.btn {
@@ -362,9 +362,6 @@
 		overflow: hidden;
 	}
 
-	.card.recent {
-		grid-column: 2 / 4;
-	}
 
 	.card-header {
 		display: flex;
@@ -524,13 +521,27 @@
 			grid-template-columns: 1fr 1fr;
 		}
 
-		.hero-card {
-			grid-column: 1 / 3;
-			grid-row: 1;
+		.title-section {
+			flex-wrap: wrap;
+			justify-content: center;
+			text-align: center;
 		}
 
-		.card.recent {
-			grid-column: 1 / 3;
+		.title, .subtitle {
+			width: 100%;
+			text-align: center;
+		}
+
+		.title {
+			font-size: 1.75rem;
+		}
+
+		.stats-row {
+			width: 100%;
+		}
+
+		.actions {
+			width: 100%;
 		}
 
 		.activity {
@@ -547,17 +558,20 @@
 		.content-grid {
 			grid-template-columns: 1fr;
 			gap: 0.5rem;
-			grid-template-rows: auto auto auto auto;
+			grid-template-rows: auto 1fr 1fr 1fr 1fr;
 		}
 
-		.hero-card {
+		.title-section {
 			grid-column: 1;
-			grid-row: auto;
 			padding: 1rem;
 		}
 
 		.title {
-			font-size: 1.75rem;
+			font-size: 1.5rem;
+		}
+
+		.subtitle {
+			font-size: 0.85rem;
 		}
 
 		.stats-row {
@@ -566,10 +580,6 @@
 
 		.actions {
 			gap: 0.5rem;
-		}
-
-		.card.recent {
-			grid-column: 1;
 		}
 
 		.activity {
