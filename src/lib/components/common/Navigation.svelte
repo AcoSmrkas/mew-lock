@@ -254,7 +254,7 @@
 	.logo-text {
 		font-size: 1.5rem;
 		font-weight: 800;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
@@ -285,9 +285,9 @@
 	}
 
 	.nav-link.active {
-		color: #667eea;
-		background: rgba(102, 126, 234, 0.1);
-		border: 1px solid rgba(102, 126, 234, 0.2);
+		color: #ff6b6b;
+		background: rgba(255, 107, 107, 0.1);
+		border: 1px solid rgba(255, 107, 107, 0.2);
 	}
 
 
@@ -303,7 +303,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.75rem 1rem;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
 		border: none;
 		border-radius: 8px;
 		color: white;
@@ -315,7 +315,7 @@
 
 	.lock-btn:hover {
 		transform: translateY(-2px);
-		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+		box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
 	}
 
 	/* Mobile Actions Header */
@@ -331,16 +331,16 @@
 		justify-content: center;
 		width: 40px;
 		height: 40px;
-		background: rgba(102, 126, 234, 0.1);
-		border: 1px solid rgba(102, 126, 234, 0.2);
+		background: rgba(255, 107, 107, 0.1);
+		border: 1px solid rgba(255, 107, 107, 0.2);
 		border-radius: 8px;
-		color: #667eea;
+		color: #ff6b6b;
 		cursor: pointer;
 		transition: all 0.2s;
 	}
 
 	.mobile-lock-icon:hover {
-		background: rgba(102, 126, 234, 0.2);
+		background: rgba(255, 107, 107, 0.2);
 		transform: scale(1.05);
 	}
 
@@ -440,9 +440,9 @@
 	}
 
 	.mobile-nav-link.active {
-		color: #667eea;
-		background: rgba(102, 126, 234, 0.1);
-		border: 1px solid rgba(102, 126, 234, 0.2);
+		color: #ff6b6b;
+		background: rgba(255, 107, 107, 0.1);
+		border: 1px solid rgba(255, 107, 107, 0.2);
 	}
 
 
