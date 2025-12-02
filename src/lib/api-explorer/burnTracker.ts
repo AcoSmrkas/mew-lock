@@ -289,7 +289,8 @@ export async function calculateBurnStats(limit: number = 500): Promise<BurnStats
 				decimals: token.decimals
 			};
 
-			tokenStat.totalBurned += token.amount;
+			const tokenAmount = typeof token.amount === 'bigint' ? Number(token.amount) : token.amount;
+			tokenStat.totalBurned += tokenAmount;
 			tokenStat.burnCount++;
 			tokenStats.set(token.tokenId, tokenStat);
 		}
