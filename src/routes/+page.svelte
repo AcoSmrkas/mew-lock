@@ -176,12 +176,13 @@
 	}
 
 	.page-container {
-		min-height: 100vh;
-		padding: 1rem;
+		height: calc(100vh - 80px);
+		padding: 0.75rem;
 		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		overflow: hidden;
 	}
 
 	.loading {
@@ -207,9 +208,10 @@
 	.content-grid {
 		display: grid;
 		grid-template-columns: 2fr 1fr 1fr;
-		grid-template-rows: auto auto;
-		gap: 1rem;
+		grid-template-rows: 1fr 1fr;
+		gap: 0.75rem;
 		width: 100%;
+		height: 100%;
 	}
 
 	.hero-card {
@@ -218,12 +220,13 @@
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 107, 107, 0.2);
 		border-radius: 16px;
-		padding: 2rem;
+		padding: 1.5rem;
 		position: relative;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		min-height: 0;
 	}
 
 	.fire-bg {
@@ -245,7 +248,7 @@
 	}
 
 	.title {
-		font-size: 3rem;
+		font-size: 2.5rem;
 		font-weight: 700;
 		margin: 0 0 0.5rem 0;
 		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
@@ -263,16 +266,16 @@
 
 	.subtitle {
 		color: rgba(255, 255, 255, 0.6);
-		font-size: 1rem;
-		margin: 0 0 2rem 0;
+		font-size: 0.95rem;
+		margin: 0 0 1.5rem 0;
 		position: relative;
 		z-index: 1;
 	}
 
 	.stats-row {
 		display: flex;
-		gap: 1.5rem;
-		margin-bottom: 2rem;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
 		position: relative;
 		z-index: 1;
 	}
@@ -280,7 +283,7 @@
 	.stat {
 		flex: 1;
 		text-align: center;
-		padding: 1rem;
+		padding: 0.75rem;
 		background: rgba(255, 255, 255, 0.03);
 		border-radius: 12px;
 		border: 1px solid rgba(255, 255, 255, 0.1);
@@ -288,15 +291,15 @@
 
 	.stat i {
 		color: #ff6b6b;
-		font-size: 1.5rem;
-		margin-bottom: 0.5rem;
+		font-size: 1.2rem;
+		margin-bottom: 0.4rem;
 	}
 
 	.stat-value {
-		font-size: 1.8rem;
+		font-size: 1.5rem;
 		font-weight: 700;
 		color: #ff6b6b;
-		margin-bottom: 0.25rem;
+		margin-bottom: 0.2rem;
 	}
 
 	.stat-label {
@@ -315,7 +318,7 @@
 
 	.btn {
 		flex: 1;
-		padding: 1rem 1.5rem;
+		padding: 0.85rem 1.25rem;
 		border-radius: 10px;
 		text-decoration: none;
 		font-weight: 600;
@@ -325,6 +328,7 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.5rem;
+		font-size: 0.9rem;
 	}
 
 	.btn.primary {
@@ -351,7 +355,11 @@
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 16px;
-		padding: 1.5rem;
+		padding: 1rem;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 	}
 
 	.card.recent {
@@ -362,14 +370,15 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 1rem;
-		padding-bottom: 1rem;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.75rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		flex-shrink: 0;
 	}
 
 	.card-header h3 {
 		margin: 0;
-		font-size: 1rem;
+		font-size: 0.95rem;
 		font-weight: 600;
 		color: white;
 		display: flex;
@@ -394,17 +403,21 @@
 	.list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.6rem;
+		flex: 1;
+		overflow-y: auto;
+		min-height: 0;
 	}
 
 	.list-item {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 0.75rem;
+		gap: 0.6rem;
+		padding: 0.6rem;
 		background: rgba(255, 255, 255, 0.02);
 		border-radius: 8px;
 		transition: all 0.2s;
+		flex-shrink: 0;
 	}
 
 	.list-item:hover {
@@ -412,16 +425,17 @@
 	}
 
 	.rank {
-		min-width: 32px;
-		height: 32px;
+		min-width: 28px;
+		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: rgba(255, 255, 255, 0.05);
 		border-radius: 6px;
-		font-size: 0.85rem;
+		font-size: 0.8rem;
 		font-weight: 700;
 		color: rgba(255, 255, 255, 0.6);
+		flex-shrink: 0;
 	}
 
 	.rank.top {
@@ -436,7 +450,7 @@
 	}
 
 	.name {
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		font-weight: 600;
 		color: white;
 		white-space: nowrap;
@@ -445,28 +459,33 @@
 	}
 
 	.meta {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.5);
 	}
 
 	.activity {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.75rem;
+		gap: 0.6rem;
+		flex: 1;
+		overflow-y: auto;
+		min-height: 0;
 	}
 
 	.activity-item {
 		display: flex;
-		gap: 0.75rem;
-		padding: 0.75rem;
+		gap: 0.6rem;
+		padding: 0.6rem;
 		background: rgba(255, 255, 255, 0.02);
 		border-radius: 8px;
 		align-items: center;
+		height: fit-content;
 	}
 
 	.activity-item i {
 		color: #ff6b6b;
-		font-size: 1.25rem;
+		font-size: 1.1rem;
+		flex-shrink: 0;
 	}
 
 	.activity-info {
@@ -475,10 +494,10 @@
 	}
 
 	.activity-user {
-		font-size: 0.85rem;
+		font-size: 0.8rem;
 		font-weight: 600;
 		color: white;
-		margin-bottom: 0.25rem;
+		margin-bottom: 0.2rem;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -522,30 +541,31 @@
 	@media (max-width: 768px) {
 		.page-container {
 			padding: 0.5rem;
+			height: calc(100vh - 70px);
 		}
 
 		.content-grid {
 			grid-template-columns: 1fr;
-			gap: 0.75rem;
+			gap: 0.5rem;
+			grid-template-rows: auto auto auto auto;
 		}
 
 		.hero-card {
 			grid-column: 1;
 			grid-row: auto;
-			padding: 1.5rem;
+			padding: 1rem;
 		}
 
 		.title {
-			font-size: 2rem;
+			font-size: 1.75rem;
 		}
 
 		.stats-row {
-			flex-direction: column;
-			gap: 0.75rem;
+			gap: 0.5rem;
 		}
 
 		.actions {
-			flex-direction: column;
+			gap: 0.5rem;
 		}
 
 		.card.recent {
