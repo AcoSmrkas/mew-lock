@@ -25,21 +25,33 @@
 		error = '';
 		try {
 			// Fetch all burns
+			console.log('Burn page: Starting to fetch all burn transactions...');
 			const allBurns = await fetchAllBurnTransactions();
+			console.log(`Burn page: Fetched ${allBurns.items.length} total burns`);
 
 			// Get recent burns for display
 			recentBurns = allBurns.items.slice(0, 50);
+			console.log(`Burn page: Showing ${recentBurns.length} recent burns`);
 
 			// Calculate stats from all burns
 			stats = calculateBurnStatsFromBurns(allBurns.items);
+			console.log('Burn page: Calculated stats:', stats);
 
 			// Load user burns if wallet connected
 			if ($connected_wallet_address) {
 				userBurns = await fetchUserBurnTransactions($connected_wallet_address, 100);
+				console.log(`Burn page: User burns: ${userBurns.length}`);
 			}
 		} catch (err) {
 			console.error('Error loading burn data:', err);
 			error = 'Failed to load burn data. Please try again later.';
+			// Set empty stats on error
+			stats = {
+				totalBurns: 0,
+				uniqueBurners: 0,
+				topBurners: [],
+				topBurnedTokens: []
+			};
 		} finally {
 			loading = false;
 		}

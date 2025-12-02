@@ -60,28 +60,44 @@ export async function fetchAllBurnTransactions(): Promise<{ items: BurnTransacti
 	const allBurns: BurnTransaction[] = [];
 	let offset = 0;
 	const limit = 100; // Fetch in batches of 100
-	let totalCount = 0;
+	let totalTxCount = 0;
+	let fetchedTxCount = 0;
 
 	try {
 		while (true) {
-			console.log(`Fetching burn transactions: offset=${offset}, limit=${limit}`);
+			console.log(`Fetching transactions from burn address: offset=${offset}, limit=${limit}`);
 			const response = await fetchBurnTransactions(offset, limit);
 
+			// Add valid burn transactions
 			allBurns.push(...response.items);
-			totalCount = response.total;
+			totalTxCount = response.total;
+			fetchedTxCount += limit;
 
-			console.log(`Fetched ${response.items.length} burns, total so far: ${allBurns.length}/${totalCount}`);
+			console.log(`Found ${response.items.length} burn txs in this batch. Total burn txs so far: ${allBurns.length}. Processed ${Math.min(fetchedTxCount, totalTxCount)}/${totalTxCount} total transactions.`);
 
-			// Stop if we've fetched all transactions or got no results
-			if (allBurns.length >= totalCount || response.items.length === 0) {
+			// Stop if we've processed all transactions from the address
+			if (fetchedTxCount >= totalTxCount) {
+				console.log('Reached end of transactions');
+				break;
+			}
+
+			// Safety check: if API returns nothing, stop
+			if (response.total === 0) {
+				console.log('API returned 0 total transactions, stopping');
 				break;
 			}
 
 			offset += limit;
+
+			// Safety limit to prevent infinite loops
+			if (offset > 10000) {
+				console.warn('Safety limit reached (10000 transactions), stopping');
+				break;
+			}
 		}
 
-		console.log(`Finished fetching all burns: ${allBurns.length} total`);
-		return { items: allBurns, total: totalCount };
+		console.log(`Finished fetching all burns: ${allBurns.length} valid burn transactions from ${totalTxCount} total transactions`);
+		return { items: allBurns, total: allBurns.length };
 	} catch (error) {
 		console.error('Error fetching all burn transactions:', error);
 		throw error;

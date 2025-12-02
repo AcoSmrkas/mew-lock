@@ -20,18 +20,30 @@
 		loading = true;
 		try {
 			// Fetch all burns first
+			console.log('Starting to fetch all burn transactions...');
 			const allBurns = await fetchAllBurnTransactions();
+			console.log(`Fetched ${allBurns.items.length} total burns`);
 
 			// Get recent 10 burns for display
 			recentBurns = allBurns.items.slice(0, 10);
+			console.log(`Recent burns: ${recentBurns.length}`);
 
 			// Calculate stats from all burns
 			stats = calculateBurnStatsFromBurns(allBurns.items);
+			console.log('Calculated stats:', stats);
 
 			// Get active campaigns
 			activeCampaigns = getActiveCampaigns();
+			console.log(`Active campaigns: ${activeCampaigns.length}`);
 		} catch (error) {
 			console.error('Error loading burn data:', error);
+			// Set empty stats on error to prevent UI from breaking
+			stats = {
+				totalBurns: 0,
+				uniqueBurners: 0,
+				topBurners: [],
+				topBurnedTokens: []
+			};
 		} finally {
 			loading = false;
 		}
