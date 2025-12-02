@@ -168,10 +168,7 @@
 
 <style>
 	:global(body) {
-		background:
-			radial-gradient(circle at 20% 50%, rgba(255, 0, 100, 0.1) 0%, transparent 50%),
-			radial-gradient(circle at 80% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
-			linear-gradient(135deg, #0a0a0a 0%, #1a0515 50%, #0a0a0a 100%);
+		background: linear-gradient(135deg, #1a0a0a 0%, #2d1010 50%, #1a0a0a 100%);
 		color: white;
 		margin: 0;
 		padding: 0;
@@ -181,7 +178,8 @@
 	.page-container {
 		min-height: 100vh;
 		padding: 1rem;
-		width: 100%;
+		max-width: 1400px;
+		margin: 0 auto;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -197,12 +195,10 @@
 	.spinner {
 		width: 40px;
 		height: 40px;
-		border: 3px solid rgba(0, 255, 255, 0.2);
-		border-top-color: #00ffff;
-		border-right-color: #ff0066;
+		border: 3px solid rgba(255, 107, 107, 0.2);
+		border-top-color: #ff6b6b;
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
-		box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
 	}
 
 	@keyframes spin {
@@ -220,8 +216,8 @@
 	.hero-card {
 		grid-column: 1;
 		grid-row: 1 / 3;
-		background: rgba(10, 10, 10, 0.8);
-		border: 1px solid rgba(255, 0, 100, 0.5);
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 107, 107, 0.2);
 		border-radius: 16px;
 		padding: 2rem;
 		position: relative;
@@ -229,9 +225,6 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		box-shadow:
-			0 0 20px rgba(255, 0, 100, 0.3),
-			inset 0 0 60px rgba(255, 0, 100, 0.05);
 	}
 
 	.fire-bg {
@@ -239,56 +232,34 @@
 		bottom: -50%;
 		left: 50%;
 		transform: translateX(-50%);
-		width: 400px;
-		height: 400px;
-		background:
-			radial-gradient(circle, rgba(255, 0, 100, 0.4) 0%, transparent 50%),
-			radial-gradient(circle, rgba(0, 255, 255, 0.2) 20%, transparent 60%);
-		filter: blur(80px);
-		animation: pulse 4s ease-in-out infinite;
+		width: 300px;
+		height: 300px;
+		background: radial-gradient(circle, rgba(255, 107, 107, 0.3) 0%, transparent 70%);
+		filter: blur(60px);
+		animation: pulse 3s ease-in-out infinite;
 		pointer-events: none;
 	}
 
 	@keyframes pulse {
-		0%, 100% {
-			opacity: 0.6;
-			transform: translateX(-50%) scale(1);
-			filter: blur(80px) hue-rotate(0deg);
-		}
-		50% {
-			opacity: 0.9;
-			transform: translateX(-50%) scale(1.3);
-			filter: blur(100px) hue-rotate(30deg);
-		}
+		0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+		50% { opacity: 0.8; transform: translateX(-50%) scale(1.2); }
 	}
 
 	.title {
 		font-size: 3rem;
 		font-weight: 700;
 		margin: 0 0 0.5rem 0;
-		background: linear-gradient(135deg, #ff0066 0%, #00ffff 50%, #ff0066 100%);
-		background-size: 200% 200%;
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		position: relative;
 		z-index: 1;
-		animation: neonGradient 3s ease infinite;
-		text-shadow:
-			0 0 10px rgba(255, 0, 100, 0.8),
-			0 0 20px rgba(255, 0, 100, 0.6),
-			0 0 30px rgba(255, 0, 100, 0.4);
-		filter: drop-shadow(0 0 10px rgba(255, 0, 100, 0.8));
 	}
 
 	.title i {
-		background: linear-gradient(135deg, #ff0066 0%, #00ffff 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-	}
-
-	@keyframes neonGradient {
-		0%, 100% { background-position: 0% 50%; }
-		50% { background-position: 100% 50%; }
 	}
 
 	.subtitle {
@@ -311,36 +282,22 @@
 		flex: 1;
 		text-align: center;
 		padding: 1rem;
-		background: rgba(10, 10, 10, 0.6);
+		background: rgba(255, 255, 255, 0.03);
 		border-radius: 12px;
-		border: 1px solid rgba(0, 255, 255, 0.3);
-		box-shadow:
-			0 0 15px rgba(0, 255, 255, 0.2),
-			inset 0 0 20px rgba(0, 255, 255, 0.05);
-		transition: all 0.3s;
-	}
-
-	.stat:hover {
-		border-color: rgba(255, 0, 100, 0.6);
-		box-shadow:
-			0 0 20px rgba(255, 0, 100, 0.4),
-			inset 0 0 30px rgba(255, 0, 100, 0.1);
-		transform: translateY(-2px);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.stat i {
-		color: #00ffff;
+		color: #ff6b6b;
 		font-size: 1.5rem;
 		margin-bottom: 0.5rem;
-		filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.8));
 	}
 
 	.stat-value {
 		font-size: 1.8rem;
 		font-weight: 700;
-		color: #ff0066;
+		color: #ff6b6b;
 		margin-bottom: 0.25rem;
-		text-shadow: 0 0 10px rgba(255, 0, 100, 0.8);
 	}
 
 	.stat-label {
@@ -372,56 +329,30 @@
 	}
 
 	.btn.primary {
-		background: linear-gradient(135deg, #ff0066 0%, #ff0066 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
 		color: white;
-		border: 1px solid rgba(255, 0, 100, 0.5);
-		box-shadow:
-			0 0 20px rgba(255, 0, 100, 0.4),
-			inset 0 0 20px rgba(255, 0, 100, 0.1);
-		text-shadow: 0 0 10px rgba(255, 0, 100, 0.8);
 	}
 
 	.btn.primary:hover {
 		transform: translateY(-2px);
-		box-shadow:
-			0 0 30px rgba(255, 0, 100, 0.6),
-			0 8px 20px rgba(255, 0, 100, 0.4),
-			inset 0 0 30px rgba(255, 0, 100, 0.2);
+		box-shadow: 0 8px 20px rgba(255, 107, 107, 0.3);
 	}
 
 	.btn.secondary {
-		background: rgba(10, 10, 10, 0.6);
-		border: 1px solid rgba(0, 255, 255, 0.4);
-		color: #00ffff;
-		box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-		text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		color: white;
 	}
 
 	.btn.secondary:hover {
-		background: rgba(0, 255, 255, 0.1);
-		box-shadow: 0 0 25px rgba(0, 255, 255, 0.4);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.card {
-		background: rgba(10, 10, 10, 0.8);
-		border: 1px solid rgba(0, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 16px;
 		padding: 1.5rem;
-		box-shadow:
-			0 0 15px rgba(0, 255, 255, 0.2),
-			inset 0 0 40px rgba(0, 255, 255, 0.03);
-		position: relative;
-	}
-
-	.card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 2px;
-		background: linear-gradient(90deg, transparent, #00ffff, transparent);
-		opacity: 0.5;
 	}
 
 	.card.recent {
@@ -448,8 +379,7 @@
 	}
 
 	.card-header i {
-		color: #00ffff;
-		filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.8));
+		color: #ff6b6b;
 	}
 
 	.link {
@@ -459,8 +389,7 @@
 	}
 
 	.link:hover {
-		color: #ff0066;
-		filter: drop-shadow(0 0 8px rgba(255, 0, 100, 0.8));
+		color: #ff6b6b;
 	}
 
 	.list {
@@ -474,16 +403,13 @@
 		align-items: center;
 		gap: 0.75rem;
 		padding: 0.75rem;
-		background: rgba(0, 255, 255, 0.02);
+		background: rgba(255, 255, 255, 0.02);
 		border-radius: 8px;
-		border: 1px solid rgba(0, 255, 255, 0.1);
 		transition: all 0.2s;
 	}
 
 	.list-item:hover {
-		background: rgba(0, 255, 255, 0.05);
-		border-color: rgba(255, 0, 100, 0.3);
-		box-shadow: 0 0 10px rgba(255, 0, 100, 0.2);
+		background: rgba(255, 255, 255, 0.05);
 	}
 
 	.rank {
@@ -492,28 +418,17 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(0, 255, 255, 0.1);
-		border: 1px solid rgba(0, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.05);
 		border-radius: 6px;
 		font-size: 0.85rem;
 		font-weight: 700;
-		color: #00ffff;
-		box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+		color: rgba(255, 255, 255, 0.6);
 	}
 
 	.rank.top {
-		background: rgba(255, 0, 100, 0.2);
-		color: #ff0066;
-		border: 1px solid rgba(255, 0, 100, 0.5);
-		box-shadow:
-			0 0 15px rgba(255, 0, 100, 0.4),
-			inset 0 0 10px rgba(255, 0, 100, 0.2);
-		animation: rankGlow 2s ease-in-out infinite;
-	}
-
-	@keyframes rankGlow {
-		0%, 100% { box-shadow: 0 0 15px rgba(255, 0, 100, 0.4), inset 0 0 10px rgba(255, 0, 100, 0.2); }
-		50% { box-shadow: 0 0 25px rgba(255, 0, 100, 0.6), inset 0 0 15px rgba(255, 0, 100, 0.3); }
+		background: rgba(255, 107, 107, 0.2);
+		color: #ff6b6b;
+		border: 1px solid rgba(255, 107, 107, 0.3);
 	}
 
 	.info {
@@ -545,22 +460,14 @@
 		display: flex;
 		gap: 0.75rem;
 		padding: 0.75rem;
-		background: rgba(0, 255, 255, 0.02);
-		border: 1px solid rgba(0, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.02);
 		border-radius: 8px;
 		align-items: center;
-		transition: all 0.2s;
-	}
-
-	.activity-item:hover {
-		border-color: rgba(255, 0, 100, 0.3);
-		box-shadow: 0 0 10px rgba(255, 0, 100, 0.2);
 	}
 
 	.activity-item i {
-		color: #ff0066;
+		color: #ff6b6b;
 		font-size: 1.25rem;
-		filter: drop-shadow(0 0 8px rgba(255, 0, 100, 0.6));
 	}
 
 	.activity-info {
@@ -587,12 +494,11 @@
 	.badge {
 		font-size: 0.7rem;
 		padding: 0.2rem 0.5rem;
-		background: rgba(0, 255, 255, 0.1);
-		border: 1px solid rgba(0, 255, 255, 0.3);
+		background: rgba(255, 107, 107, 0.1);
+		border: 1px solid rgba(255, 107, 107, 0.2);
 		border-radius: 4px;
-		color: #00ffff;
+		color: #ff6b6b;
 		white-space: nowrap;
-		box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
 	}
 
 	@media (max-width: 1200px) {
