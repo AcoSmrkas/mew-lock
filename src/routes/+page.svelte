@@ -178,8 +178,7 @@
 	.page-container {
 		min-height: 100vh;
 		padding: 1rem;
-		max-width: 1400px;
-		margin: 0 auto;
+		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
