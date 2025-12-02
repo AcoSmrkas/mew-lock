@@ -54,11 +54,46 @@ function isBurnOutput(output: any): boolean {
 }
 
 /**
- * Fetch all transactions for the burn address
+ * Fetch ALL burn transactions from the burn address (with pagination)
+ */
+export async function fetchAllBurnTransactions(): Promise<{ items: BurnTransaction[]; total: number }> {
+	const allBurns: BurnTransaction[] = [];
+	let offset = 0;
+	const limit = 100; // Fetch in batches of 100
+	let totalCount = 0;
+
+	try {
+		while (true) {
+			console.log(`Fetching burn transactions: offset=${offset}, limit=${limit}`);
+			const response = await fetchBurnTransactions(offset, limit);
+
+			allBurns.push(...response.items);
+			totalCount = response.total;
+
+			console.log(`Fetched ${response.items.length} burns, total so far: ${allBurns.length}/${totalCount}`);
+
+			// Stop if we've fetched all transactions or got no results
+			if (allBurns.length >= totalCount || response.items.length === 0) {
+				break;
+			}
+
+			offset += limit;
+		}
+
+		console.log(`Finished fetching all burns: ${allBurns.length} total`);
+		return { items: allBurns, total: totalCount };
+	} catch (error) {
+		console.error('Error fetching all burn transactions:', error);
+		throw error;
+	}
+}
+
+/**
+ * Fetch transactions for the burn address (single page)
  */
 export async function fetchBurnTransactions(
 	offset: number = 0,
-	limit: number = 50
+	limit: number = 100
 ): Promise<{ items: BurnTransaction[]; total: number }> {
 	try {
 		const response = await axios.get(
@@ -249,8 +284,8 @@ export async function fetchUserBurnTransactions(
 /**
  * Calculate burn statistics and leaderboards
  */
-export async function calculateBurnStats(limit: number = 500): Promise<BurnStats> {
-	const { items: burns } = await fetchBurnTransactions(0, limit);
+export async function calculateBurnStats(): Promise<BurnStats> {
+	const { items: burns } = await fetchAllBurnTransactions();
 
 	const burnerStats = new Map<
 		string,

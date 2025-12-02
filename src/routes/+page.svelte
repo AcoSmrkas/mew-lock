@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { nFormatter } from '$lib/utils/utils.js';
 	import WalletButton from '$lib/components/nav/WalletButton.svelte';
-	import { calculateBurnStats, fetchBurnTransactions, type BurnStats, type BurnTransaction } from '$lib/api-explorer/burnTracker';
+	import { calculateBurnStats, fetchAllBurnTransactions, type BurnStats, type BurnTransaction } from '$lib/api-explorer/burnTracker';
 	import { getActiveCampaigns } from '$lib/api-explorer/burnCampaigns';
 
 	let loading = true;
@@ -19,19 +19,77 @@
 	async function loadBurnData() {
 		loading = true;
 		try {
-			const [burnStats, burnTxs] = await Promise.all([
-				calculateBurnStats(500),
-				fetchBurnTransactions(0, 6)
-			]);
+			// Fetch all burns first
+			const allBurns = await fetchAllBurnTransactions();
 
-			stats = burnStats;
-			recentBurns = burnTxs.items;
+			// Get recent 10 burns for display
+			recentBurns = allBurns.items.slice(0, 10);
+
+			// Calculate stats from all burns
+			stats = calculateBurnStatsFromBurns(allBurns.items);
+
+			// Get active campaigns
 			activeCampaigns = getActiveCampaigns();
 		} catch (error) {
 			console.error('Error loading burn data:', error);
 		} finally {
 			loading = false;
 		}
+	}
+
+	function calculateBurnStatsFromBurns(burns: BurnTransaction[]): BurnStats {
+		const burnerStats = new Map<string, { burnCount: number; totalValueBurned: number }>();
+		const tokenStats = new Map<string, { name: string; totalBurned: number; burnCount: number; decimals?: number }>();
+
+		// Aggregate stats
+		for (const burn of burns) {
+			// Burner stats
+			const burnerStat = burnerStats.get(burn.burnerAddress) || {
+				burnCount: 0,
+				totalValueBurned: 0
+			};
+			burnerStat.burnCount++;
+			burnerStats.set(burn.burnerAddress, burnerStat);
+
+			// Token stats
+			for (const token of burn.burnedTokens) {
+				const tokenStat = tokenStats.get(token.tokenId) || {
+					name: token.name || 'Unknown Token',
+					totalBurned: 0,
+					burnCount: 0,
+					decimals: token.decimals
+				};
+
+				const tokenAmount = typeof token.amount === 'bigint' ? Number(token.amount) : token.amount;
+				tokenStat.totalBurned += tokenAmount;
+				tokenStat.burnCount++;
+				tokenStats.set(token.tokenId, tokenStat);
+			}
+		}
+
+		// Convert to arrays and sort
+		const topBurners = Array.from(burnerStats.entries())
+			.map(([address, stats]) => ({
+				address,
+				...stats
+			}))
+			.sort((a, b) => b.burnCount - a.burnCount)
+			.slice(0, 10);
+
+		const topBurnedTokens = Array.from(tokenStats.entries())
+			.map(([tokenId, stats]) => ({
+				tokenId,
+				...stats
+			}))
+			.sort((a, b) => b.totalBurned - a.totalBurned)
+			.slice(0, 10);
+
+		return {
+			totalBurns: burns.length,
+			uniqueBurners: burnerStats.size,
+			topBurners,
+			topBurnedTokens
+		};
 	}
 
 	function formatAddress(address: string): string {
