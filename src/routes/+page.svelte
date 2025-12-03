@@ -20,9 +20,9 @@
 	async function loadBurnData() {
 		loading = true;
 		try {
-			// Fetch all burns first
-			console.log('Starting to fetch all burn transactions...');
-			const allBurns = await fetchAllBurnTransactions();
+			// Fetch burns (limited to last 500 transactions for faster load)
+			console.log('Starting to fetch burn transactions...');
+			const allBurns = await fetchAllBurnTransactions(false, 500);
 			console.log(`Fetched ${allBurns.items.length} total burns`);
 
 			// Get recent 10 burns for display

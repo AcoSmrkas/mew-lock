@@ -120,9 +120,71 @@ export function clearBurnCache(): void {
 }
 
 /**
- * Fetch ALL burn transactions from the burn address (with pagination and caching)
+ * Enrich burn transactions with token metadata
  */
-export async function fetchAllBurnTransactions(forceRefresh: boolean = false): Promise<{ items: BurnTransaction[]; total: number }> {
+async function enrichBurnTransactionsWithTokenData(burns: BurnTransaction[]): Promise<BurnTransaction[]> {
+	// Collect all unique token IDs that need enrichment
+	const tokenIds = new Set<string>();
+	for (const burn of burns) {
+		for (const token of burn.burnedTokens) {
+			if (!token.name || token.name === 'Unknown Token') {
+				tokenIds.add(token.tokenId);
+			}
+		}
+	}
+
+	if (tokenIds.size === 0) {
+		return burns; // All tokens already have names
+	}
+
+	console.log(`Enriching ${tokenIds.size} tokens with metadata...`);
+
+	try {
+		// Fetch token metadata from Ergo Explorer
+		const response = await axios.post(
+			'https://api.ergexplorer.com/tokens/byId',
+			Array.from(tokenIds),
+			{
+				headers: { 'Content-Type': 'application/json' }
+			}
+		);
+
+		const tokenDataMap = new Map();
+		for (const tokenData of response.data) {
+			tokenDataMap.set(tokenData.id, {
+				name: tokenData.name,
+				decimals: tokenData.decimals
+			});
+		}
+
+		// Enrich the burn transactions
+		for (const burn of burns) {
+			for (const token of burn.burnedTokens) {
+				const metadata = tokenDataMap.get(token.tokenId);
+				if (metadata) {
+					token.name = metadata.name || token.name;
+					token.decimals = metadata.decimals !== undefined ? metadata.decimals : token.decimals;
+				}
+			}
+		}
+
+		console.log(`Enriched ${tokenIds.size} tokens with metadata`);
+	} catch (error) {
+		console.error('Error enriching token metadata:', error);
+		// Continue without metadata - don't fail the whole operation
+	}
+
+	return burns;
+}
+
+/**
+ * Fetch ALL burn transactions from the burn address (with pagination and caching)
+ * Set maxTransactions to limit how many transactions to process (for faster initial load)
+ */
+export async function fetchAllBurnTransactions(
+	forceRefresh: boolean = false,
+	maxTransactions: number = 1000
+): Promise<{ items: BurnTransaction[]; total: number }> {
 	// Check cache first unless force refresh
 	if (!forceRefresh) {
 		const cached = getCachedBurnData();
@@ -131,7 +193,7 @@ export async function fetchAllBurnTransactions(forceRefresh: boolean = false): P
 		}
 	}
 
-	console.log('Fetching fresh burn data from API...');
+	console.log(`Fetching burn data from API (max ${maxTransactions} transactions)...`);
 	const allBurns: BurnTransaction[] = [];
 	let offset = 0;
 	const limit = 100; // Fetch in batches of 100
@@ -156,6 +218,12 @@ export async function fetchAllBurnTransactions(forceRefresh: boolean = false): P
 				break;
 			}
 
+			// Stop if we've reached the max transaction limit
+			if (fetchedTxCount >= maxTransactions) {
+				console.log(`Reached max transaction limit (${maxTransactions})`);
+				break;
+			}
+
 			// Safety check: if API returns nothing, stop
 			if (response.total === 0) {
 				console.log('API returned 0 total transactions, stopping');
@@ -163,16 +231,14 @@ export async function fetchAllBurnTransactions(forceRefresh: boolean = false): P
 			}
 
 			offset += limit;
-
-			// Safety limit to prevent infinite loops
-			if (offset > 10000) {
-				console.warn('Safety limit reached (10000 transactions), stopping');
-				break;
-			}
 		}
 
-		const result = { items: allBurns, total: allBurns.length };
-		console.log(`Finished fetching all burns: ${allBurns.length} valid burn transactions from ${totalTxCount} total transactions`);
+		console.log(`Finished fetching burns: ${allBurns.length} valid burn transactions`);
+
+		// Enrich with token metadata
+		const enrichedBurns = await enrichBurnTransactionsWithTokenData(allBurns);
+
+		const result = { items: enrichedBurns, total: enrichedBurns.length };
 
 		// Save to cache
 		saveBurnDataToCache(result);

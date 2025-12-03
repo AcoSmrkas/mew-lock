@@ -26,9 +26,9 @@
 		loading = true;
 		error = '';
 		try {
-			// Fetch all burns
-			console.log('Burn page: Starting to fetch all burn transactions...');
-			const allBurns = await fetchAllBurnTransactions();
+			// Fetch burns (limited to last 1000 transactions for faster load)
+			console.log('Burn page: Starting to fetch burn transactions...');
+			const allBurns = await fetchAllBurnTransactions(false, 1000);
 			console.log(`Burn page: Fetched ${allBurns.items.length} total burns`);
 
 			// Get recent burns for display
