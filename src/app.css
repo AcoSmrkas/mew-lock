@@ -6,14 +6,14 @@
 	--main-color: #f9d72d;
 	--secondary-color: #fff;
 	--main-color-buttons: #ddf247;
-	--main-color-hover: var(--info-color);
-	--info-color: #04dfff;
+	--main-color-hover: rgba(255, 107, 107, 0.8);
+	--info-color: rgba(255, 107, 107, 0.8);
 
 	--striped-1: #141a2a;
 	--striped-2: #192033;
 	--text-color: #ffffff88;
-	--forms-bg: #271843;
-	--borders: #ffffff22;
+	--forms-bg: rgba(22, 13, 37, 0.98);
+	--borders: rgba(255, 107, 107, 0.2);
 	--text-light: #ffffff77;
 	--text-strong: #ccc;
 	--background: #160d25;
@@ -84,44 +84,50 @@ h2 {
 }
 
 .btn-primary {
-	background-color: var(--main-color) !important;
-	color: var(--background) !important;
+	background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%) !important;
+	color: white !important;
 	font-weight: bold !important;
 	text-transform: unset !important;
+	border: none !important;
 }
 
 .btn-primary:hover {
-	background-color: var(--main-color-hover) !important;
-	border-color: var(--main-color-hover) !important;
+	background: linear-gradient(135deg, #ffaa00 0%, #ff6b6b 100%) !important;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
 }
 
 .btn-secondary {
-	background-color: var(--secondary-color) !important;
-	color: var(--background) !important;
+	background: rgba(255, 255, 255, 0.1) !important;
+	color: white !important;
 	font-weight: bold !important;
 	text-transform: unset !important;
+	border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
 .btn-secondary:hover {
-	background-color: var(--main-color-hover) !important;
-	border-color: var(--main-color-hover) !important;
+	background: rgba(255, 255, 255, 0.15) !important;
+	border-color: rgba(255, 107, 107, 0.4) !important;
+	transform: translateY(-2px);
 }
 
 .btn-info {
-	background-color: #03e0fd !important;
-	border: none;
+	background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%) !important;
+	border: none !important;
 	font-weight: bold !important;
+	color: white !important;
 }
 
 .btn-info:hover,
 .btn-info:focus,
 .btn-info:active {
-	background-color: var(--secondary-color) !important;
-	box-shadow: none !important;
+	background: linear-gradient(135deg, #ffaa00 0%, #ff6b6b 100%) !important;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4) !important;
 }
 
 .btn-info:focus {
-	box-shadow: none;
+	box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4) !important;
 }
 
 .unselectable {
@@ -147,7 +153,7 @@ input {
 }
 
 .border-primary {
-	border-color: var(--info-color) !important;
+	border-color: rgba(255, 107, 107, 0.5) !important;
 }
 
 .skeleton-card {
@@ -189,7 +195,7 @@ input {
 }
 
 .bg-info {
-	background: #3498db !important;
+	background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%) !important;
 }
 
 .bg-warning {

@@ -47,6 +47,7 @@
 				<a href="/" class="nav-link {pageName == '' ? 'active' : ''}"> 🏠 Home </a>
 				<a href="/explore" class="nav-link {pageName == 'explore' ? 'active' : ''}"> 🔍 Explore </a>
 				<a href="/locks" class="nav-link {pageName == 'locks' ? 'active' : ''}"> 🔒 Locks </a>
+				<a href="/burn" class="nav-link {pageName == 'burn' ? 'active' : ''}"> 🔥 Burn </a>
 				<a href="/activity" class="nav-link {pageName == 'activity' ? 'active' : ''}">
 					📊 Activity
 				</a>
@@ -109,6 +110,14 @@
 				>
 					<span class="mobile-nav-icon">🔒</span>
 					<span>Locks</span>
+				</a>
+				<a
+					href="/burn"
+					class="mobile-nav-link {pageName == 'burn' ? 'active' : ''}"
+					on:click={toggleNav}
+				>
+					<span class="mobile-nav-icon">🔥</span>
+					<span>Burn</span>
 				</a>
 				<a
 					href="/activity"

@@ -660,7 +660,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.875rem 1.75rem;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		border: none;
 		border-radius: 12px;
 		color: white;
@@ -692,7 +692,7 @@
 
 	.modern-wallet-button:hover {
 		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(102, 126, 234, 0.3);
+		border-color: rgba(255, 107, 107, 0.3);
 		transform: translateY(-1px);
 	}
 
@@ -701,13 +701,13 @@
 		top: 110%;
 		right: 0;
 		width: 275px;
-		background: rgba(26, 26, 46, 0.95);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(22, 13, 37, 0.98);
+		border: 1px solid rgba(255, 107, 107, 0.3);
 		border-radius: 16px;
 		padding: 1rem;
 		z-index: 50;
 		backdrop-filter: blur(20px);
-		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+		box-shadow: 0 12px 40px rgba(255, 107, 107, 0.2);
 	}
 
 	.wallet-button {
@@ -767,7 +767,7 @@
 	}
 
 	.address-select:focus {
-		border-color: rgba(155, 102, 255, 0.5);
+		border-color: rgba(255, 107, 107, 0.5);
 		outline: none;
 	}
 
@@ -810,7 +810,7 @@
 	.copy-button {
 		background: transparent;
 		border: none;
-		color: rgba(155, 102, 255, 0.6);
+		color: rgba(255, 107, 107, 0.6);
 		cursor: pointer;
 		padding: 4px;
 		transition: color 0.2s ease;
@@ -822,7 +822,7 @@
 	}
 
 	.copy-button:hover {
-		color: rgba(155, 102, 255, 0.9);
+		color: rgba(255, 107, 107, 0.9);
 	}
 
 	.modal-actions {
@@ -855,12 +855,12 @@
 	}
 
 	.action-button.confirm {
-		background-color: rgba(155, 102, 255, 0.2);
+		background-color: rgba(255, 107, 107, 0.2);
 		color: white;
 	}
 
 	.action-button.confirm:hover {
-		background-color: rgba(155, 102, 255, 0.3);
+		background-color: rgba(255, 107, 107, 0.3);
 	}
 	.notification-dot {
 		position: absolute;
@@ -873,13 +873,13 @@
 	}
 
 	.tier-badge {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		color: white;
 		font-size: 12px;
 		font-weight: 600;
 		border-radius: 6px;
 		padding: 0.25rem 0.5rem !important;
-		box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+		box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
 	}
 
 	.address-text {
@@ -1043,11 +1043,11 @@
 	}
 
 	.action-button.disconnect {
-		background: rgba(155, 102, 255, 0.2);
+		background: rgba(255, 107, 107, 0.2);
 	}
 
 	.action-button.disconnect:hover {
-		background: rgba(155, 102, 255, 0.3);
+		background: rgba(255, 107, 107, 0.3);
 	}
 
 	.action-button.profile {
@@ -1063,7 +1063,7 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		background: rgba(155, 102, 255, 0.2);
+		background: rgba(255, 107, 107, 0.2);
 		color: white;
 		border: none;
 		border-radius: 8px;
@@ -1075,7 +1075,7 @@
 	}
 
 	.connect-wallet-btn:hover {
-		background: rgba(155, 102, 255, 0.3);
+		background: rgba(255, 107, 107, 0.3);
 	}
 
 	/* Notification styles */
@@ -1153,11 +1153,11 @@
 	}
 
 	.notification-item.unread {
-		background: rgba(155, 102, 255, 0.1);
+		background: rgba(255, 107, 107, 0.1);
 	}
 
 	.notification-item.unread:hover {
-		background: rgba(155, 102, 255, 0.15);
+		background: rgba(255, 107, 107, 0.15);
 	}
 
 	.notification-icon {
@@ -1261,7 +1261,7 @@
 	}
 
 	.notification-price {
-		color: rgba(155, 102, 255, 0.9);
+		color: rgba(255, 170, 0, 0.9);
 		font-weight: 500;
 	}
 
@@ -1276,7 +1276,7 @@
 	}
 
 	.share-button {
-		background: rgba(155, 102, 255, 0.2);
+		background: rgba(255, 107, 107, 0.2);
 		color: white;
 		border: none;
 		border-radius: 4px;
@@ -1290,7 +1290,7 @@
 	}
 
 	.share-button:hover {
-		background: rgba(155, 102, 255, 0.3);
+		background: rgba(255, 107, 107, 0.3);
 	}
 
 	.modal-backdrop {

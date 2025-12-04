@@ -2,21 +2,23 @@
 	import { onMount } from 'svelte';
 	import {
 		fetchAllBurnTransactions,
-		fetchUserBurnTransactions,
 		clearBurnCache,
 		type BurnTransaction,
 		type BurnStats
 	} from '$lib/api-explorer/burnTracker';
-	import { connected_wallet_address } from '$lib/store/store';
 	import { nFormatter } from '$lib/utils/utils';
+	import BurnModal from '$lib/components/common/BurnModal.svelte';
+	import WalletButton from '$lib/components/nav/WalletButton.svelte';
 
 	let loading = true;
 	let stats: BurnStats | null = null;
-	let recentBurns: BurnTransaction[] = [];
-	let userBurns: BurnTransaction[] = [];
-	let activeTab: 'leaderboard' | 'recent' | 'my-burns' = 'leaderboard';
 	let error = '';
 	let refreshing = false;
+	let showBurnModal = false;
+
+	// Sorting state
+	let burnerSortBy: 'burnCount' | 'address' = 'burnCount';
+	let tokenSortBy: 'totalBurned' | 'burnCount' | 'name' = 'totalBurned';
 
 	onMount(async () => {
 		await loadData();
@@ -26,28 +28,15 @@
 		loading = true;
 		error = '';
 		try {
-			// Fetch burns (limited to last 1000 transactions for faster load)
 			console.log('Burn page: Starting to fetch burn transactions...');
 			const allBurns = await fetchAllBurnTransactions(false, 1000);
 			console.log(`Burn page: Fetched ${allBurns.items.length} total burns`);
 
-			// Get recent burns for display
-			recentBurns = allBurns.items.slice(0, 50);
-			console.log(`Burn page: Showing ${recentBurns.length} recent burns`);
-
-			// Calculate stats from all burns
 			stats = calculateBurnStatsFromBurns(allBurns.items);
 			console.log('Burn page: Calculated stats:', stats);
-
-			// Load user burns if wallet connected
-			if ($connected_wallet_address) {
-				userBurns = await fetchUserBurnTransactions($connected_wallet_address, 100);
-				console.log(`Burn page: User burns: ${userBurns.length}`);
-			}
 		} catch (err) {
 			console.error('Error loading burn data:', err);
 			error = 'Failed to load burn data. Please try again later.';
-			// Set empty stats on error
 			stats = {
 				totalBurns: 0,
 				uniqueBurners: 0,
@@ -63,9 +52,7 @@
 		const burnerStats = new Map<string, { burnCount: number; totalValueBurned: number }>();
 		const tokenStats = new Map<string, { name: string; totalBurned: number; burnCount: number; decimals?: number }>();
 
-		// Aggregate stats
 		for (const burn of burns) {
-			// Burner stats
 			const burnerStat = burnerStats.get(burn.burnerAddress) || {
 				burnCount: 0,
 				totalValueBurned: 0
@@ -73,7 +60,6 @@
 			burnerStat.burnCount++;
 			burnerStats.set(burn.burnerAddress, burnerStat);
 
-			// Token stats
 			for (const token of burn.burnedTokens) {
 				const tokenStat = tokenStats.get(token.tokenId) || {
 					name: token.name || 'Unknown Token',
@@ -89,22 +75,15 @@
 			}
 		}
 
-		// Convert to arrays and sort
 		const topBurners = Array.from(burnerStats.entries())
-			.map(([address, stats]) => ({
-				address,
-				...stats
-			}))
+			.map(([address, stats]) => ({ address, ...stats }))
 			.sort((a, b) => b.burnCount - a.burnCount)
-			.slice(0, 10);
+			.slice(0, 50);
 
 		const topBurnedTokens = Array.from(tokenStats.entries())
-			.map(([tokenId, stats]) => ({
-				tokenId,
-				...stats
-			}))
+			.map(([tokenId, stats]) => ({ tokenId, ...stats }))
 			.sort((a, b) => b.totalBurned - a.totalBurned)
-			.slice(0, 10);
+			.slice(0, 50);
 
 		return {
 			totalBurns: burns.length,
@@ -112,30 +91,6 @@
 			topBurners,
 			topBurnedTokens
 		};
-	}
-
-	// Reactive: reload user burns when wallet changes
-	$: if ($connected_wallet_address) {
-		loadUserBurns();
-	}
-
-	async function loadUserBurns() {
-		if (!$connected_wallet_address) return;
-		try {
-			userBurns = await fetchUserBurnTransactions($connected_wallet_address, 100);
-		} catch (err) {
-			console.error('Error loading user burns:', err);
-		}
-	}
-
-	function formatTimestamp(timestamp: number): string {
-		return new Date(timestamp).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
 	}
 
 	function formatAddress(address: string): string {
@@ -159,646 +114,759 @@
 			refreshing = false;
 		}
 	}
+
+	function handleBurnSuccess() {
+		refreshData();
+	}
+
+	function openBurnModal() {
+		showBurnModal = true;
+	}
+
+	// Reactive sorted data
+	$: sortedBurners = stats ? [...stats.topBurners].sort((a, b) => {
+		if (burnerSortBy === 'burnCount') {
+			return b.burnCount - a.burnCount;
+		} else {
+			return a.address.localeCompare(b.address);
+		}
+	}) : [];
+
+	$: sortedTokens = stats ? [...stats.topBurnedTokens].sort((a, b) => {
+		if (tokenSortBy === 'totalBurned') {
+			return b.totalBurned - a.totalBurned;
+		} else if (tokenSortBy === 'burnCount') {
+			return b.burnCount - a.burnCount;
+		} else {
+			return a.name.localeCompare(b.name);
+		}
+	}) : [];
 </script>
 
 <svelte:head>
-	<title>Burn Tracker - MewLock</title>
+	<title>Burn Leaderboard - MewLock</title>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </svelte:head>
 
-<div class="burn-tracker-page">
-	<!-- Header -->
-	<div class="page-header">
-		<div class="header-content">
-			<div>
-				<h1>🔥 Burn Tracker</h1>
-				<p class="subtitle">Track token burns, leaderboards, and burning statistics</p>
-			</div>
-			<button class="refresh-btn" on:click={refreshData} disabled={refreshing}>
-				<i class="fas fa-sync-alt" class:spinning={refreshing}></i>
-				{refreshing ? 'Refreshing...' : 'Refresh Data'}
-			</button>
-		</div>
-	</div>
-
+<div class="page-container">
 	{#if loading}
-		<div class="loading-container">
+		<div class="loading">
 			<div class="spinner"></div>
-			<p>Loading burn data...</p>
-		</div>
-	{:else if error}
-		<div class="error-message">
-			<p>{error}</p>
-			<button class="retry-btn" on:click={loadData}>Retry</button>
 		</div>
 	{:else if stats}
-		<!-- Stats Overview -->
-		<div class="stats-overview">
-			<div class="stat-card">
-				<div class="stat-value">{stats.totalBurns.toLocaleString()}</div>
-				<div class="stat-label">Total Burns</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-value">{stats.uniqueBurners.toLocaleString()}</div>
-				<div class="stat-label">Unique Burners</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-value">{stats.topBurnedTokens.length}</div>
-				<div class="stat-label">Tokens Burned</div>
-			</div>
-			{#if $connected_wallet_address}
-				<div class="stat-card highlight">
-					<div class="stat-value">{userBurns.length}</div>
-					<div class="stat-label">Your Burns</div>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Tabs -->
-		<div class="tabs">
-			<button
-				class="tab"
-				class:active={activeTab === 'leaderboard'}
-				on:click={() => (activeTab = 'leaderboard')}
-			>
-				🏆 Leaderboards
-			</button>
-			<button
-				class="tab"
-				class:active={activeTab === 'recent'}
-				on:click={() => (activeTab = 'recent')}
-			>
-				🔥 Recent Burns
-			</button>
-			{#if $connected_wallet_address}
-				<button
-					class="tab"
-					class:active={activeTab === 'my-burns'}
-					on:click={() => (activeTab = 'my-burns')}
-				>
-					👤 My Burns ({userBurns.length})
-				</button>
-			{/if}
-		</div>
-
-		<!-- Tab Content -->
-		<div class="tab-content">
-			{#if activeTab === 'leaderboard'}
-				<div class="leaderboards-grid">
-					<!-- Top Burners -->
-					<div class="leaderboard-section">
-						<h2>🔥 Top Burners</h2>
-						<div class="leaderboard-list">
-							{#each stats.topBurners as burner, index}
-								<div class="leaderboard-item">
-									<div class="rank">#{index + 1}</div>
-									<div class="item-info">
-										<div class="item-name">
-											<a
-												href="https://ergexplorer.com/addresses/{burner.address}"
-												target="_blank"
-												rel="noopener"
-											>
-												{formatAddress(burner.address)}
-											</a>
-										</div>
-										<div class="item-meta">{burner.burnCount} burns</div>
-									</div>
-									<div class="item-badge">{burner.burnCount}x</div>
-								</div>
-							{/each}
-						</div>
-					</div>
-
-					<!-- Top Burned Tokens -->
-					<div class="leaderboard-section">
-						<h2>💎 Most Burned Tokens</h2>
-						<div class="leaderboard-list">
-							{#each stats.topBurnedTokens as token, index}
-								<div class="leaderboard-item">
-									<div class="rank">#{index + 1}</div>
-									<div class="item-info">
-										<div class="item-name">{token.name}</div>
-										<div class="item-meta">
-											{formatTokenAmount(token.totalBurned, token.decimals)} burned
-										</div>
-									</div>
-									<div class="item-badge">{token.burnCount}x</div>
-								</div>
-							{/each}
-						</div>
+		<!-- Main Content Grid -->
+		<div class="content-grid">
+			<!-- Header Row -->
+			<div class="header-row">
+				<div class="logo-section">
+					<span class="emoji-icon">🔥</span>
+					<div class="logo-text">
+						<div class="logo-title">Burn Leaderboard</div>
+						<div class="logo-subtitle">Top burners & tokens</div>
 					</div>
 				</div>
-			{:else if activeTab === 'recent'}
-				<div class="burns-list">
-					<h2>Recent Burns</h2>
-					{#each recentBurns as burn}
-						<div class="burn-card">
-							<div class="burn-header">
-								<div class="burner">
-									<span class="label">Burner:</span>
-									<a
-										href="https://ergexplorer.com/addresses/{burn.burnerAddress}"
-										target="_blank"
-										rel="noopener"
-									>
-										{formatAddress(burn.burnerAddress)}
-									</a>
-								</div>
-								<div class="timestamp">{formatTimestamp(burn.timestamp)}</div>
+
+				<div class="nav-right-section">
+					<div class="nav-links desktop-nav">
+						<button class="nav-btn burn-btn" on:click={openBurnModal} title="Burn Tokens">
+							<span class="emoji-icon">🔥</span>
+							<span class="btn-text">Burn</span>
+						</button>
+						<a href="/" class="nav-btn" title="Home">
+							<i class="fas fa-home"></i>
+						</a>
+						<button class="nav-btn refresh-btn" on:click={refreshData} disabled={refreshing} title="Refresh Data">
+							<i class="fas fa-sync-alt" class:spinning={refreshing}></i>
+						</button>
+					</div>
+
+					<WalletButton />
+				</div>
+			</div>
+
+			<!-- Stats Row -->
+			<div class="stats-row">
+				<div class="stat">
+					<span class="stat-emoji">🔥</span>
+					<div class="stat-value">{stats.totalBurns.toLocaleString()}</div>
+					<div class="stat-label">Total Burns</div>
+				</div>
+				<div class="stat">
+					<span class="stat-emoji">👥</span>
+					<div class="stat-value">{stats.uniqueBurners.toLocaleString()}</div>
+					<div class="stat-label">Burners</div>
+				</div>
+				<div class="stat">
+					<span class="stat-emoji">💎</span>
+					<div class="stat-value">{stats.topBurnedTokens.length}</div>
+					<div class="stat-label">Tokens</div>
+				</div>
+			</div>
+
+			<!-- Top Burners Leaderboard -->
+			<div class="card leaderboard-card">
+				<div class="card-header">
+					<h3><span class="emoji-icon">🔥</span> Top Burners</h3>
+					<div class="sort-controls">
+						<button 
+							class="sort-btn" 
+							class:active={burnerSortBy === 'burnCount'}
+							on:click={() => burnerSortBy = 'burnCount'}
+						>
+							<i class="fas fa-fire"></i> Burns
+						</button>
+						<button 
+							class="sort-btn" 
+							class:active={burnerSortBy === 'address'}
+							on:click={() => burnerSortBy = 'address'}
+						>
+							<i class="fas fa-sort-alpha-down"></i> Address
+						</button>
+					</div>
+				</div>
+				<div class="list">
+					{#each sortedBurners as burner, index}
+						<div class="list-item">
+							<div class="rank" class:top3={index < 3}>
+								{#if index === 0}🥇
+								{:else if index === 1}🥈
+								{:else if index === 2}🥉
+								{:else}#{index + 1}
+								{/if}
 							</div>
-							<div class="burned-tokens">
-								{#each burn.burnedTokens as token}
-									<div class="token-pill">
-										<span class="token-name">{token.name || 'Unknown'}</span>
-										<span class="token-amount"
-											>{formatTokenAmount(token.amount, token.decimals)}</span
-										>
-									</div>
-								{/each}
-							</div>
-							<div class="burn-footer">
-								<a
-									href="https://ergexplorer.com/transactions/{burn.txId}"
-									target="_blank"
+							<div class="item-content">
+								<a 
+									href="https://ergexplorer.com/addresses/{burner.address}" 
+									target="_blank" 
 									rel="noopener"
-									class="tx-link"
+									class="item-name"
 								>
-									View TX →
+									{formatAddress(burner.address)}
 								</a>
-								<span class="height">Height: {burn.height.toLocaleString()}</span>
+								<div class="item-meta">{burner.burnCount} burns</div>
 							</div>
+							<div class="item-badge">{burner.burnCount}x</div>
 						</div>
 					{/each}
 				</div>
-			{:else if activeTab === 'my-burns'}
-				<div class="burns-list">
-					<h2>My Burn History</h2>
-					{#if userBurns.length === 0}
-						<div class="empty-state">
-							<p>You haven't burned any tokens yet.</p>
-							<p class="empty-hint">Start burning to appear on the leaderboard!</p>
-						</div>
-					{:else}
-						{#each userBurns as burn}
-							<div class="burn-card">
-								<div class="burn-header">
-									<div class="burner">
-										<span class="label">Your Burn</span>
-									</div>
-									<div class="timestamp">{formatTimestamp(burn.timestamp)}</div>
-								</div>
-								<div class="burned-tokens">
-									{#each burn.burnedTokens as token}
-										<div class="token-pill">
-											<span class="token-name">{token.name || 'Unknown'}</span>
-											<span class="token-amount"
-												>{formatTokenAmount(token.amount, token.decimals)}</span
-											>
-										</div>
-									{/each}
-								</div>
-								<div class="burn-footer">
-									<a
-										href="https://ergexplorer.com/transactions/{burn.txId}"
-										target="_blank"
-										rel="noopener"
-										class="tx-link"
-									>
-										View TX →
-									</a>
-									<span class="height">Height: {burn.height.toLocaleString()}</span>
+			</div>
+
+			<!-- Top Burned Tokens Leaderboard -->
+			<div class="card leaderboard-card">
+				<div class="card-header">
+					<h3><span class="emoji-icon">💎</span> Most Burned Tokens</h3>
+					<div class="sort-controls">
+						<button 
+							class="sort-btn" 
+							class:active={tokenSortBy === 'totalBurned'}
+							on:click={() => tokenSortBy = 'totalBurned'}
+						>
+							<i class="fas fa-coins"></i> Amount
+						</button>
+						<button 
+							class="sort-btn" 
+							class:active={tokenSortBy === 'burnCount'}
+							on:click={() => tokenSortBy = 'burnCount'}
+						>
+							<i class="fas fa-fire"></i> Burns
+						</button>
+						<button 
+							class="sort-btn" 
+							class:active={tokenSortBy === 'name'}
+							on:click={() => tokenSortBy = 'name'}
+						>
+							<i class="fas fa-sort-alpha-down"></i> Name
+						</button>
+					</div>
+				</div>
+				<div class="list">
+					{#each sortedTokens as token, index}
+						<div class="list-item">
+							<div class="rank" class:top3={index < 3}>
+								{#if index === 0}🥇
+								{:else if index === 1}🥈
+								{:else if index === 2}🥉
+								{:else}#{index + 1}
+								{/if}
+							</div>
+							<div class="item-content">
+								<div class="item-name">{token.name}</div>
+								<div class="item-meta">
+									{formatTokenAmount(token.totalBurned, token.decimals)} burned • {token.burnCount} burns
 								</div>
 							</div>
-						{/each}
-					{/if}
+							<div class="item-badge">{token.burnCount}x</div>
+						</div>
+					{/each}
 				</div>
-			{/if}
+			</div>
 		</div>
 	{/if}
 </div>
 
+<!-- Mobile Bottom Navigation -->
+<nav class="bottom-nav mobile-only">
+	<a href="/" class="bottom-nav-item">
+		<i class="fas fa-home"></i>
+		<span>Home</span>
+	</a>
+	<a href="/burn" class="bottom-nav-item active">
+		<i class="fas fa-trophy"></i>
+		<span>Ranks</span>
+	</a>
+	<button class="bottom-nav-item burn-item" on:click={openBurnModal}>
+		<span class="emoji-icon">🔥</span>
+		<span>Burn</span>
+	</button>
+	<a href="/activity" class="bottom-nav-item">
+		<i class="fas fa-chart-line"></i>
+		<span>Activity</span>
+	</a>
+</nav>
+
+<BurnModal bind:showModal={showBurnModal} onSuccess={handleBurnSuccess} />
+
 <style>
-	.burn-tracker-page {
-		max-width: 1200px;
+	/* Global body background */
+	:global(body) {
+		background: #000000;
+		position: relative;
+	}
+
+	:global(body::before) {
+		content: '';
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background:
+			radial-gradient(ellipse at 20% 80%, rgba(255, 69, 0, 0.15) 0%, transparent 50%),
+			radial-gradient(ellipse at 80% 20%, rgba(255, 140, 0, 0.12) 0%, transparent 50%),
+			radial-gradient(ellipse at 50% 50%, rgba(255, 0, 0, 0.08) 0%, transparent 60%),
+			radial-gradient(ellipse at 30% 30%, rgba(139, 0, 0, 0.1) 0%, transparent 50%);
+		filter: blur(80px);
+		animation: flameMove 20s ease-in-out infinite;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	:global(body > *) {
+		position: relative;
+		z-index: 1;
+	}
+
+	@keyframes flameMove {
+		0%, 100% {
+			transform: translate(0, 0) scale(1);
+			opacity: 0.8;
+		}
+		25% {
+			transform: translate(5%, -3%) scale(1.05);
+			opacity: 0.9;
+		}
+		50% {
+			transform: translate(-3%, 5%) scale(0.95);
+			opacity: 0.85;
+		}
+		75% {
+			transform: translate(3%, 2%) scale(1.02);
+			opacity: 0.9;
+		}
+	}
+
+	.page-container {
+		padding: 0.75rem;
+		width: 90%;
+		max-width: 1400px;
 		margin: 0 auto;
-		padding: 2rem;
 	}
 
-	.page-header {
-		margin-bottom: 3rem;
-	}
-
-	.header-content {
+	.loading {
 		display: flex;
-		justify-content: space-between;
+		justify-content: center;
 		align-items: center;
-		gap: 2rem;
+		min-height: 100vh;
 	}
 
-	.page-header h1 {
-		font-size: 3rem;
-		font-weight: 700;
-		background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+	.spinner {
+		width: 50px;
+		height: 50px;
+		border: 3px solid rgba(255, 107, 107, 0.1);
+		border-top-color: #ff6b6b;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.content-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		grid-template-rows: auto auto auto;
+		gap: 0.75rem;
+		width: 100%;
+	}
+
+	/* Header Row */
+	.header-row {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 1rem 1.5rem;
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid rgba(255, 107, 107, 0.2);
+		border-radius: 16px;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.logo-section {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.logo-section .emoji-icon {
+		font-size: 2.5rem;
+		filter: drop-shadow(0 0 20px rgba(255, 107, 107, 0.8));
+	}
+
+	.logo-text {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.logo-title {
+		font-size: 1.5rem;
+		font-weight: 800;
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		margin: 0 0 0.5rem 0;
-		text-align: left;
+		background-clip: text;
+		line-height: 1.2;
 	}
 
-	.subtitle {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 1.1rem;
-		text-align: left;
+	.logo-subtitle {
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.5);
 	}
 
-	.refresh-btn {
+	.nav-right-section {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.nav-links {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.nav-btn {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.75rem 1.5rem;
+		padding: 0.75rem;
 		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		border-radius: 8px;
-		color: white;
-		font-weight: 600;
-		font-size: 0.9rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		color: rgba(255, 255, 255, 0.8);
 		cursor: pointer;
 		transition: all 0.2s;
-		white-space: nowrap;
+		text-decoration: none;
+		font-size: 0.95rem;
 	}
 
-	.refresh-btn:hover:not(:disabled) {
+	.nav-btn:hover {
 		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(255, 107, 107, 0.4);
-		color: #ff6b6b;
+		border-color: rgba(255, 107, 107, 0.3);
+		color: white;
+		transform: translateY(-1px);
 	}
 
-	.refresh-btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.nav-btn.burn-btn {
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
+		border: none;
+		color: white;
+		font-weight: 600;
+	}
+
+	.nav-btn.burn-btn:hover {
+		background: linear-gradient(135deg, #ffaa00 0%, #ff6b6b 100%);
+		box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+	}
+
+	.nav-btn .emoji-icon {
+		font-size: 1.2rem;
+		filter: none;
+	}
+
+	.nav-btn i {
+		font-size: 1rem;
 	}
 
 	.spinning {
 		animation: spin 1s linear infinite;
 	}
 
-	@keyframes spin {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
+	/* Stats Row */
+	.stats-row {
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: 0.75rem;
 	}
 
-	.loading-container {
-		text-align: center;
-		padding: 4rem 2rem;
-	}
-
-	.spinner {
-		width: 50px;
-		height: 50px;
-		border: 4px solid rgba(255, 107, 107, 0.2);
-		border-top: 4px solid #ff6b6b;
-		border-radius: 50%;
-		animation: spin 1s linear infinite;
-		margin: 0 auto 1rem;
-	}
-
-	@keyframes spin {
-		0% {
-			transform: rotate(0deg);
-		}
-		100% {
-			transform: rotate(360deg);
-		}
-	}
-
-	.error-message {
-		text-align: center;
-		padding: 3rem 2rem;
-		background: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.3);
+	.stat {
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 12px;
-		color: #ef4444;
-	}
-
-	.retry-btn {
-		margin-top: 1rem;
-		padding: 0.75rem 1.5rem;
-		background: #ef4444;
-		color: white;
-		border: none;
-		border-radius: 8px;
-		cursor: pointer;
-		font-weight: 600;
+		padding: 1rem;
+		text-align: center;
 		transition: all 0.2s;
 	}
 
-	.retry-btn:hover {
-		background: #dc2626;
-		transform: translateY(-2px);
-	}
-
-	.stats-overview {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 1.5rem;
-		margin-bottom: 3rem;
-	}
-
-	.stat-card {
+	.stat:hover {
 		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
-		padding: 2rem;
-		text-align: center;
-		transition: all 0.3s;
-	}
-
-	.stat-card:hover {
-		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 107, 107, 0.3);
 		transform: translateY(-2px);
 	}
 
-	.stat-card.highlight {
-		border-color: rgba(255, 107, 107, 0.5);
-		background: rgba(255, 107, 107, 0.1);
+	.stat-emoji {
+		font-size: 1.5rem;
+		display: block;
+		margin-bottom: 0.5rem;
+		filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.4));
 	}
 
 	.stat-value {
-		font-size: 2.5rem;
+		font-size: 1.8rem;
 		font-weight: 700;
 		color: #ff6b6b;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.25rem;
 	}
 
 	.stat-label {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.95rem;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 	}
 
-	.tabs {
+	/* Cards */
+	.card {
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 16px;
+		padding: 1rem;
 		display: flex;
-		gap: 1rem;
-		margin-bottom: 2rem;
-		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+		flex-direction: column;
+		overflow: hidden;
 	}
 
-	.tab {
-		background: none;
-		border: none;
-		color: rgba(255, 255, 255, 0.6);
-		padding: 1rem 1.5rem;
-		cursor: pointer;
-		font-size: 1rem;
+	.leaderboard-card {
+		grid-column: span 2;
+	}
+
+	.card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.card-header h3 {
+		margin: 0;
+		font-size: 0.95rem;
 		font-weight: 600;
-		border-bottom: 3px solid transparent;
-		transition: all 0.2s;
-		margin-bottom: -2px;
+		color: white;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
-	.tab:hover {
+	.card-header .emoji-icon {
+		font-size: 1.2rem;
+		filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.6));
+	}
+
+	.sort-controls {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.sort-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.4rem 0.75rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.6);
+		cursor: pointer;
+		transition: all 0.2s;
+		font-size: 0.75rem;
+	}
+
+	.sort-btn:hover {
+		background: rgba(255, 255, 255, 0.08);
 		color: rgba(255, 255, 255, 0.9);
 	}
 
-	.tab.active {
+	.sort-btn.active {
+		background: rgba(255, 107, 107, 0.2);
+		border-color: rgba(255, 107, 107, 0.4);
 		color: #ff6b6b;
-		border-bottom-color: #ff6b6b;
 	}
 
-	.tab-content {
-		min-height: 400px;
+	.sort-btn i {
+		font-size: 0.7rem;
 	}
 
-	.leaderboards-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-		gap: 2rem;
-	}
-
-	.leaderboard-section h2 {
-		color: white;
-		font-size: 1.5rem;
-		margin: 0 0 1.5rem 0;
-	}
-
-	.leaderboard-list {
+	.list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.6rem;
+		flex: 1;
+		overflow-y: auto;
+		min-height: 0;
+		max-height: 500px;
 	}
 
-	.leaderboard-item {
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
-		padding: 1rem 1.5rem;
+	.list-item {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.6rem;
+		padding: 0.6rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 8px;
 		transition: all 0.2s;
+		flex-shrink: 0;
 	}
 
-	.leaderboard-item:hover {
-		background: rgba(255, 255, 255, 0.08);
+	.list-item:hover {
+		background: rgba(255, 255, 255, 0.05);
 		transform: translateX(4px);
 	}
 
 	.rank {
-		font-size: 1.5rem;
+		min-width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(255, 255, 255, 0.05);
+		border-radius: 8px;
 		font-weight: 700;
-		color: #ff6b6b;
-		min-width: 50px;
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.6);
 	}
 
-	.item-info {
+	.rank.top3 {
+		font-size: 1.2rem;
+		background: transparent;
+	}
+
+	.item-content {
 		flex: 1;
+		min-width: 0;
 	}
 
 	.item-name {
-		color: white;
 		font-weight: 600;
-		margin-bottom: 0.25rem;
-	}
-
-	.item-name a {
 		color: white;
+		font-size: 0.9rem;
+		display: block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		text-decoration: none;
 		transition: color 0.2s;
 	}
 
-	.item-name a:hover {
+	.item-name:hover {
 		color: #ff6b6b;
 	}
 
 	.item-meta {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.875rem;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		margin-top: 0.15rem;
 	}
 
 	.item-badge {
-		background: rgba(255, 107, 107, 0.2);
-		color: #ff6b6b;
-		padding: 0.5rem 1rem;
-		border-radius: 20px;
-		font-weight: 600;
-		font-size: 0.875rem;
-	}
-
-	.burns-list h2 {
-		color: white;
-		font-size: 1.5rem;
-		margin: 0 0 1.5rem 0;
-	}
-
-	.burn-card {
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
-		padding: 1.5rem;
-		margin-bottom: 1rem;
-		transition: all 0.2s;
-	}
-
-	.burn-card:hover {
-		background: rgba(255, 255, 255, 0.08);
-		transform: translateY(-2px);
-	}
-
-	.burn-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.burner {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.label {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.875rem;
-	}
-
-	.burner a {
-		color: #ff6b6b;
-		text-decoration: none;
-		font-weight: 600;
-	}
-
-	.burner a:hover {
-		text-decoration: underline;
-	}
-
-	.timestamp {
-		color: rgba(255, 255, 255, 0.5);
-		font-size: 0.875rem;
-	}
-
-	.burned-tokens {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin-bottom: 1rem;
-	}
-
-	.token-pill {
+		padding: 0.25rem 0.6rem;
 		background: rgba(255, 107, 107, 0.15);
 		border: 1px solid rgba(255, 107, 107, 0.3);
-		border-radius: 20px;
+		border-radius: 12px;
+		color: #ff6b6b;
+		font-weight: 600;
+		font-size: 0.75rem;
+	}
+
+	/* Bottom Navigation */
+	.bottom-nav {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: rgba(22, 13, 37, 0.98);
+		backdrop-filter: blur(20px);
+		border-top: 1px solid rgba(255, 107, 107, 0.2);
+		display: flex;
+		justify-content: space-around;
+		align-items: center;
+		padding: 0.5rem 0;
+		z-index: 1000;
+		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+	}
+
+	.bottom-nav-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
 		padding: 0.5rem 1rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.token-name {
-		color: white;
-		font-weight: 600;
-		font-size: 0.875rem;
-	}
-
-	.token-amount {
-		color: #ff6b6b;
-		font-weight: 700;
-		font-size: 0.875rem;
-	}
-
-	.burn-footer {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding-top: 1rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.tx-link {
-		color: #ff6b6b;
-		text-decoration: none;
-		font-weight: 600;
-		font-size: 0.875rem;
-		transition: all 0.2s;
-	}
-
-	.tx-link:hover {
-		color: #ee5a6f;
-		transform: translateX(4px);
-	}
-
-	.height {
-		color: rgba(255, 255, 255, 0.5);
-		font-size: 0.875rem;
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: 4rem 2rem;
 		color: rgba(255, 255, 255, 0.6);
+		text-decoration: none;
+		transition: all 0.2s;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		font-size: 0.75rem;
 	}
 
-	.empty-state p {
-		margin: 0.5rem 0;
+	.bottom-nav-item:hover {
+		color: rgba(255, 255, 255, 0.9);
 	}
 
-	.empty-hint {
-		color: rgba(255, 255, 255, 0.4);
-		font-size: 0.875rem;
+	.bottom-nav-item.active {
+		color: #ff6b6b;
+	}
+
+	.bottom-nav-item i {
+		font-size: 1.2rem;
+	}
+
+	.bottom-nav-item.burn-item {
+		position: relative;
+		bottom: 10px;
+	}
+
+	.bottom-nav-item.burn-item .emoji-icon {
+		font-size: 1.5rem;
+		background: linear-gradient(135deg, #ff6b6b 0%, #ffaa00 100%);
+		padding: 0.75rem;
+		border-radius: 50%;
+		box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4);
+		animation: pulse 2s ease-in-out infinite;
+		filter: none;
+	}
+
+	@keyframes pulse {
+		0%, 100% {
+			transform: scale(1);
+			box-shadow: 0 4px 16px rgba(255, 107, 107, 0.4);
+		}
+		50% {
+			transform: scale(1.05);
+			box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+		}
+	}
+
+	.mobile-only {
+		display: none !important;
+	}
+
+	/* Responsive */
+	@media (min-width: 769px) {
+		.mobile-only {
+			display: none !important;
+		}
 	}
 
 	@media (max-width: 768px) {
-		.burn-tracker-page {
-			padding: 1rem;
+		.mobile-only {
+			display: flex !important;
 		}
 
-		.page-header h1 {
+		.desktop-nav {
+			display: none !important;
+		}
+
+		.page-container {
+			padding: 0.5rem;
+			padding-bottom: 80px;
+			width: 100%;
+		}
+
+		.content-grid {
+			grid-template-columns: 1fr;
+			gap: 0.5rem;
+		}
+
+		.stats-row {
+			grid-template-columns: repeat(3, 1fr);
+			gap: 0.5rem;
+		}
+
+		.leaderboard-card {
+			grid-column: span 1;
+		}
+
+		.header-row {
+			padding: 0.75rem 1rem;
+		}
+
+		.logo-section .emoji-icon {
 			font-size: 2rem;
 		}
 
-		.stats-overview {
-			grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-			gap: 1rem;
+		.logo-title {
+			font-size: 1.25rem;
 		}
 
-		.leaderboards-grid {
-			grid-template-columns: 1fr;
+		.sort-controls {
+			flex-wrap: wrap;
 		}
 
-		.tabs {
-			flex-direction: column;
-			gap: 0;
+		.sort-btn {
+			padding: 0.35rem 0.6rem;
+			font-size: 0.7rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.page-container {
+			padding: 0.375rem;
+			padding-bottom: 80px;
 		}
 
-		.burn-header {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0.5rem;
+		.content-grid {
+			gap: 0.375rem;
+		}
+
+		.stat {
+			padding: 0.75rem 0.5rem;
+		}
+
+		.stat-value {
+			font-size: 1.5rem;
+		}
+
+		.stat-emoji {
+			font-size: 1.25rem;
 		}
 	}
 </style>

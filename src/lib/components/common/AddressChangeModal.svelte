@@ -11,7 +11,7 @@
 
 <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
 <dialog
-	class="bg-transparent border-2 border-info rounded-lg"
+	class="bg-transparent address-modal-border rounded-lg"
 	bind:this={dialog}
 	on:click={() => {
 		dialog.close();
@@ -21,7 +21,7 @@
 	}}
 >
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="p-4 rounded-lg" style="background: var(--forms-bg)" on:click|stopPropagation>
+	<div class="p-4 rounded-lg address-modal-bg" on:click|stopPropagation>
 		<slot />
 		<!-- svelte-ignore a11y-autofocus -->
 		<div class="flex justify-center mt-8">
@@ -39,17 +39,25 @@
 </dialog>
 
 <style>
+	.address-modal-border {
+		border: 1px solid rgba(255, 107, 107, 0.3) !important;
+	}
+
+	.address-modal-bg {
+		background: rgba(22, 13, 37, 0.98) !important;
+		backdrop-filter: blur(20px);
+	}
+
 	dialog {
 		border-radius: 0.2em;
 		border: none;
 		padding: 0;
 		background: rgba(16, 16, 16, 0.2);
 		color: #d1d1d1;
-		border: 1px solid #80808045;
 	}
 	dialog::backdrop {
-		background: rgba(0, 0, 0, 0.3);
-		backdrop-filter: blur(2px);
+		background: rgba(0, 0, 0, 0.5);
+		backdrop-filter: blur(4px);
 	}
 	dialog > div {
 		padding: 1em;

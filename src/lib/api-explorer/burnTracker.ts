@@ -4,7 +4,7 @@ import JSONbig from 'json-bigint-native';
 /**
  * Burn address where tokens are sent to be burned
  */
-export const BURN_ADDRESS = '9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmusY';
+export const BURN_ADDRESS = '9gvdJkzLGmzWUzTNWkBcV4nMGvnXAivWbXdXuRp5Y42D4CRDNBU';
 
 /**
  * Hex value for "burn" in R4 register

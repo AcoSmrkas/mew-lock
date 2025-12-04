@@ -88,6 +88,10 @@ export const LENDING_DEV_PK = '9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmu
 export const LENDING_FEE_DENOM = 100000;
 export const LENDING_MIN_FEE_PERCENT = 3000; // 3% minimum
 
+// Burn Constants
+export const ERG_BURN_FEE = 10000000; // 0.01 ERG
+export const BURN_ADDRESS = '9gvdJkzLGmzWUzTNWkBcV4nMGvnXAivWbXdXuRp5Y42D4CRDNBU';
+
 // Storage Rent Vault Constants
 export const STORAGE_RENT_COLLECTORS = [
 	{
