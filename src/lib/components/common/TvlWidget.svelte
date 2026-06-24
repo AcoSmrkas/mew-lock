@@ -7,7 +7,8 @@
 		OLD_CONTRACTS_CRC32,
 		OLD_ESCROWS_CRC32,
 		OFFERS_CRC32,
-		OFFERS_ESCROW_CRC32
+		OFFERS_ESCROW_CRC32,
+		OLD_OFFERS_CRC32
 	} from '$lib/common/const.ts';
 	import {
 		showCustomToast,
@@ -24,7 +25,7 @@
 
 			if (total == null) {
 				const response = await fetch(
-					`${API_HOST}mart/getTotalOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${ESCROW_CRC32}&contract[]=${OLD_ESCROWS_CRC32[0]}&contract[]=${OLD_ESCROWS_CRC32[1]}&contract[]=${OFFERS_ESCROW_CRC32}&contract[]=${OFFERS_CRC32}`
+					`${API_HOST}mart/getTotalOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${ESCROW_CRC32}&contract[]=${OLD_ESCROWS_CRC32[0]}&contract[]=${OLD_ESCROWS_CRC32[1]}&contract[]=${OFFERS_ESCROW_CRC32}&contract[]=${OFFERS_CRC32}&contract[]=${OLD_OFFERS_CRC32[0]}&contract[]=${OLD_OFFERS_CRC32[1]}`
 				);
 				const data = await response.json();
 
@@ -45,7 +46,7 @@
 				// Fetch data from both contracts
 				const [response] = await Promise.all([
 					fetch(
-						`${API_HOST}mart/getVol?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${ESCROW_CRC32}&contract[]=${OLD_ESCROWS_CRC32[0]}&contract[]=${OLD_ESCROWS_CRC32[1]}&contract[]=${OFFERS_ESCROW_CRC32}&contract[]=${OFFERS_CRC32}`
+						`${API_HOST}mart/getVol?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${ESCROW_CRC32}&contract[]=${OLD_ESCROWS_CRC32[0]}&contract[]=${OLD_ESCROWS_CRC32[1]}&contract[]=${OFFERS_ESCROW_CRC32}&contract[]=${OFFERS_CRC32}&contract[]=${OLD_OFFERS_CRC32[0]}&contract[]=${OLD_OFFERS_CRC32[1]}`
 					)
 				]);
 

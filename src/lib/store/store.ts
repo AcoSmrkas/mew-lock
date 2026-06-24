@@ -1,6 +1,7 @@
 import {
 	CONTRACT_CRC32,
 	OFFERS_CRC32,
+	OLD_OFFERS_CRC32,
 	ITEMS_PER_PAGE,
 	MAIN_PAGE_ITEMS_BUNDLE,
 	MAIN_PAGE_ITEMS_SINGLE,
@@ -244,7 +245,7 @@ async function onOffersLoaded(container, offers) {
 
 async function fetchOrders(offset, limit, bundle = null, seller = null, all = false) {
 	try {
-		let url = `${API_HOST}mart/getOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}&offset=${offset}&limit=${limit}&status=Order`;
+		let url = `${API_HOST}mart/getOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}&contract[]=${OLD_OFFERS_CRC32[0]}&contract[]=${OLD_OFFERS_CRC32[1]}&offset=${offset}&limit=${limit}&status=Order`;
 
 		if (bundle !== null || selectedBundle != null) {
 			url += `&bundle=${bundle == true || selectedBundle == 't' ? 't' : 'f'}`;
@@ -431,7 +432,7 @@ async function fetchCollectionOrdersByStatus(collectionId, status, limit = 100) 
 		let url = `${API_HOST}mart/getOrders?collectionId=${collectionId}&status=${status}&limit=${limit}`;
 
 		// Add contract filtering like in main fetchOrders function
-		url += `&contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}`;
+		url += `&contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}&contract[]=${OLD_OFFERS_CRC32[0]}&contract[]=${OLD_OFFERS_CRC32[1]}`;
 
 		// Apply bundle filter
 		if (selectedBundle != null) {

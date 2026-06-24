@@ -5,12 +5,13 @@ const MAIN_PAGE_ITEMS_BUNDLE = 10;
 const MAIN_PAGE_ITEMS_SINGLE = 10;
 const API_HOST = 'https://api.mewfinance.com/';
 const CONTRACT_CRC32 = '3955924278';
-const OFFERS_CRC32 = '3062309557';
+const OFFERS_CRC32 = '1716819484';
+const OLD_OFFERS_CRC32 = ['1834725596', '3062309557'];
 const OLD_CONTRACTS_CRC32 = ['1785495617', '1006322691'];
 
 async function fetchOrders(offset, limit, bundle = null) {
 	try {
-		let url = `${API_HOST}mart/getOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}&offset=${offset}&limit=${limit}&status=Order`;
+		let url = `${API_HOST}mart/getOrders?contract[]=${OLD_CONTRACTS_CRC32[0]}&contract[]=${OLD_CONTRACTS_CRC32[1]}&contract[]=${CONTRACT_CRC32}&contract[]=${OFFERS_CRC32}&contract[]=${OLD_OFFERS_CRC32[0]}&contract[]=${OLD_OFFERS_CRC32[1]}&offset=${offset}&limit=${limit}&status=Order`;
 
 		if (bundle !== null) {
 			url += `&bundle=${bundle === true ? 't' : 'f'}`;
