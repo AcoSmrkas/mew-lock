@@ -73,7 +73,7 @@ val depositorPubKey = SELF.R4[GroupElement].get
 val unlockHeight = SELF.R5[Int].get
 val feeNum: Long = 3000L        // 3% fee numerator
 val feeDenom: Long = 100000L    // Fee denominator (3000/100000 = 3%)
-val devSigmaProp = PK("9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmusY")
+val devSigmaProp = PK("9hMRoSfXZJs83S2hLqxZZ8ivw1L8FFgSk7RJB7eq2qXyxU2paED")
 ```
 
 #### Example Lock Transaction:
@@ -187,7 +187,7 @@ const unlockTx = {
 
 ### Fee Distribution
 
-- **Development Treasury**: `9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmusY`
+- **Development Treasury**: `9hMRoSfXZJs83S2hLqxZZ8ivw1L8FFgSk7RJB7eq2qXyxU2paED`
 - **Fee Rate**: 3% (3000/100000)
 - **Minimum Thresholds**: 
   - ERG: 0.1 ERG minimum for fee calculation
@@ -265,7 +265,7 @@ src/
   val feeNum: Long            = 3000L
   val feeDenom: Long          = 100000L
   val safeThreshold: Long     = 9223372036854775807L  // Max Long value for safe multiplication
-  val devSigmaProp: SigmaProp = PK("9fCMmB72WcFLseNx6QANheTCrDjKeb9FzdFNTdBREt2FzHTmusY")
+  val devSigmaProp: SigmaProp = PK("9hMRoSfXZJs83S2hLqxZZ8ivw1L8FFgSk7RJB7eq2qXyxU2paED")
   val isExpiredTimeWindow     = HEIGHT >= unlockHeight
   
   // Input validation
