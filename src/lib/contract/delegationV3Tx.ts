@@ -78,13 +78,13 @@ export function activateDelegationV3Tx(
 ): any {
 	const delegate = ErgoAddress.fromBase58(delegateAddress);
 
-	console.log('🚀 V3 ACTIVATION - Checking MEW tokens');
+	console.log('🚀 V3 ACTIVATION - Checking MEOW tokens');
 	console.log('Required fee amount:', feeAmount.toString(), 'raw units');
 	console.log('Required fee token ID:', feeTokenId);
 
-	// CHECK HOW MUCH MEW USER HAS
+	// CHECK HOW MUCH MEOW USER HAS
 	if (feeTokenId) {
-		console.log('📊 CHECKING USER MEW TOKENS:');
+		console.log('📊 CHECKING USER MEOW TOKENS:');
 		console.log('Total UTXOs provided:', additionalUtxos.length);
 
 		let totalMewTokens = BigInt(0);
@@ -98,21 +98,21 @@ export function activateDelegationV3Tx(
 						totalMewTokens += assetAmount;
 						mewUtxoCount++;
 						console.log(
-							`  UTXO ${index}, Asset ${assetIndex}: ${assetAmount.toString()} MEW raw units`
+							`  UTXO ${index}, Asset ${assetIndex}: ${assetAmount.toString()} MEOW raw units`
 						);
 					}
 				});
 			}
 		});
 
-		console.log(`💰 TOTAL MEW AVAILABLE: ${totalMewTokens.toString()} raw units`);
-		console.log(`💰 TOTAL MEW AVAILABLE: ${Number(totalMewTokens) / 100} display MEW`);
-		console.log(`📦 MEW UTXOs found: ${mewUtxoCount}`);
-		console.log(`✅ Sufficient MEW? ${totalMewTokens >= feeAmount ? 'YES' : 'NO'}`);
+		console.log(`💰 TOTAL MEOW AVAILABLE: ${totalMewTokens.toString()} raw units`);
+		console.log(`💰 TOTAL MEOW AVAILABLE: ${Number(totalMewTokens) / 100} display MEOW`);
+		console.log(`📦 MEOW UTXOs found: ${mewUtxoCount}`);
+		console.log(`✅ Sufficient MEOW? ${totalMewTokens >= feeAmount ? 'YES' : 'NO'}`);
 
 		if (totalMewTokens < feeAmount) {
 			console.error(
-				`❌ INSUFFICIENT MEW: Need ${feeAmount.toString()} but only have ${totalMewTokens.toString()}`
+				`❌ INSUFFICIENT MEOW: Need ${feeAmount.toString()} but only have ${totalMewTokens.toString()}`
 			);
 		}
 	}
@@ -323,7 +323,7 @@ export function parseFeeConfig(box: any) {
 		let feePercent = 3000;
 		let minFeeBlocks = 100;
 
-		// Look for MEW token ID to determine if this is a token fee
+		// Look for MEOW token ID to determine if this is a token fee
 		const mewTokenId = 'd4f0192622b440afc09711aa0545eacd04d78ad3f8a063523f451e10d3d0e6ef';
 		if (r8Hex.includes(mewTokenId)) {
 			feeTokenId = mewTokenId;
@@ -331,7 +331,7 @@ export function parseFeeConfig(box: any) {
 			// The fee amount is stored as a single byte at position 33 for our structure
 			if (hexBytes.length > 33) {
 				feeAmount = BigInt(hexBytes[33]);
-				console.log(`✅ Extracted MEW fee amount: ${feeAmount} raw units`);
+				console.log(`✅ Extracted MEOW fee amount: ${feeAmount} raw units`);
 			}
 		} else {
 			// Check for other known token IDs or ERG fees

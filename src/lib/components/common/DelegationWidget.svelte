@@ -221,7 +221,7 @@
 		let feeAmountConverted;
 		if (feeTokenId) {
 			// For token fees, find the token decimals and convert properly
-			let tokenDecimals = 2; // Default for SigUSD/MEW
+			let tokenDecimals = 2; // Default for SigUSD/MEOW
 
 			const feeToken = supportedFeeTokens.find(
 				(t) => t.tokenId === feeTokenId || (t.tokenId === feeTokenId && t.tokenId !== 'erg')
@@ -230,7 +230,7 @@
 				tokenDecimals = feeToken.decimals;
 			}
 
-			// Convert 1 MEW → 100 raw units (1 × 10^2)
+			// Convert 1 MEOW → 100 raw units (1 × 10^2)
 			feeAmountConverted = new BigNumber(feeInErg).times(10 ** tokenDecimals);
 		} else {
 			// For ERG, convert to nanoERG (×10^9)

@@ -365,7 +365,7 @@
 						</div>
 
 						<div class="info-row">
-							<span class="info-label">MEW Tier:</span>
+							<span class="info-label">MEOW Tier:</span>
 							<span class="info-value">{$mewTier}</span>
 						</div>
 						<div class="info-row">
