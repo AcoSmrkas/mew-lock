@@ -324,7 +324,7 @@ export function parseFeeConfig(box: any) {
 		let minFeeBlocks = 100;
 
 		// Look for MEW token ID to determine if this is a token fee
-		const mewTokenId = '6c35aa395c7c75b0f67f7804d6930f0e11ef93c3387dc1faa86498d54af7962c';
+		const mewTokenId = 'd4f0192622b440afc09711aa0545eacd04d78ad3f8a063523f451e10d3d0e6ef';
 		if (r8Hex.includes(mewTokenId)) {
 			feeTokenId = mewTokenId;
 
