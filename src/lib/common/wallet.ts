@@ -7,6 +7,7 @@ import {
 } from '$lib/store/store.ts';
 import { showCustomToast } from '$lib/utils/utils.js';
 import { armSignHook } from '$lib/common/recovery.ts';
+import { resetUserScope } from '$lib/common/userScope.js';
 
 const KEY_WALLET_TYPE = 'connected_ergo_wallet';
 export const KEY_ADDRESS = 'connected_address';
@@ -81,6 +82,9 @@ async function connectWallet(wallet) {
 
 export async function disconnectErgoWallet() {
 	const wallet = get(selected_wallet_ergo);
+	// Clear all user-scoped state (and invalidate in-flight fetches) before
+	// tearing down the connection.
+	resetUserScope();
 	selected_wallet_ergo.set('');
 	const address = get(connected_wallet_address);
 	connected_wallet_address.set('');

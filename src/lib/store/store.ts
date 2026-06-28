@@ -65,6 +65,40 @@ let selectedCategory,
 	selectedNotAddress,
 	selectedTokenId;
 
+// --- address-change guard primitives (paired with $lib/common/userScope) ---
+// connected_wallet_address can switch between the user's own addresses while
+// per-address fetches are in flight. Each such fetch captures the generation +
+// address it started for and only writes its result back if both are still
+// current, so a slow response for a previous address can never clobber the
+// freshly-selected one. resetUserScope() bumps the generation on every
+// address transition (before the new address is set).
+let addressGeneration = 0;
+export function currentAddressGeneration() {
+	return addressGeneration;
+}
+export function bumpAddressGeneration() {
+	return ++addressGeneration;
+}
+export function isCurrentAddress(addr, gen) {
+	return gen === addressGeneration && addr === get(connected_wallet_address);
+}
+export async function withAddressGuard(addr, gen, promise, apply) {
+	const result = await promise;
+	if (isCurrentAddress(addr, gen)) {
+		apply(result);
+	}
+	return result;
+}
+
+// Handle for the self-rescheduling UTXO poller so it can be stopped on a switch.
+let utxosPollTimer;
+export function stopUtxosPolling() {
+	if (utxosPollTimer) {
+		clearTimeout(utxosPollTimer);
+		utxosPollTimer = undefined;
+	}
+}
+
 $: connected_wallet_address.subscribe(async (value) => {
 	if (value == '') {
 		mewTier.set(0);
@@ -74,23 +108,35 @@ $: connected_wallet_address.subscribe(async (value) => {
 		return;
 	}
 
-	const mewTierData = (await axios.post(`${API_HOST}staking/getMewTier`, JSON.stringify([value])))
-		.data.items[0];
+	const gen = currentAddressGeneration();
 
-	mewTier.set(mewTierData.tier);
-	localStorage.setItem(MEW_TIER, get(mewTier));
+	await withAddressGuard(
+		value,
+		gen,
+		axios.post(`${API_HOST}staking/getMewTier`, JSON.stringify([value])),
+		(res) => {
+			mewTier.set(res.data.items[0].tier);
+			localStorage.setItem(MEW_TIER, get(mewTier));
+		}
+	);
 
-	const merchantData = (await axios.get(`${API_HOST}mart/getMerchantData?address=${value}`)).data;
+	await withAddressGuard(
+		value,
+		gen,
+		axios.get(`${API_HOST}mart/getMerchantData?address=${value}`),
+		(res) => {
+			const merchantData = res.data;
+			authorizedMerchant.set(merchantData.items[0].authorized);
 
-	authorizedMerchant.set(merchantData.items[0].authorized);
-
-	if (merchantData.items[0].authorized) {
-		merchantName.set(merchantData.items[0].store);
-		merchantSaleFee.set(merchantData.items[0].salefee);
-	} else {
-		merchantName.set('');
-		merchantSaleFee.set(0);
-	}
+			if (merchantData.items[0].authorized) {
+				merchantName.set(merchantData.items[0].store);
+				merchantSaleFee.set(merchantData.items[0].salefee);
+			} else {
+				merchantName.set('');
+				merchantSaleFee.set(0);
+			}
+		}
+	);
 });
 
 $: unconfirmedInputBoxIds.subscribe((value) => {
@@ -227,10 +273,18 @@ export async function loadMyOffers() {
 
 	let walletAddress = get(connected_wallet_address);
 	if (walletAddress == '') {
+		loadingOffers.set(false);
 		return;
 	}
 
+	const gen = currentAddressGeneration();
 	const orders = await fetchOrders(0, 1000, null, walletAddress, true);
+
+	// Drop the result if the user switched address while this was in flight.
+	if (!isCurrentAddress(walletAddress, gen)) {
+		loadingOffers.set(false);
+		return;
+	}
 
 	await onOffersLoaded(offersMy, orders);
 }
@@ -561,7 +615,8 @@ export async function fetchUtxos(walletAddress) {
 			utxosAssets.set(assets);
 			utxosTokenInfos.set(tokenInfos);
 
-			setTimeout(fetchUtxos, 10000, walletAddress);
+			stopUtxosPolling();
+			utxosPollTimer = setTimeout(fetchUtxos, 10000, walletAddress);
 		}
 	}
 

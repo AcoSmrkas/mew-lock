@@ -16,6 +16,7 @@
 	import NotificationFetcher from '$lib/components/common/NotificationFetcher.svelte';
 	import NotificationItem from '$lib/components/common/NotificationItem.svelte';
 	import { connectErgoWallet, disconnectErgoWallet, KEY_ADDRESS } from '$lib/common/wallet.js';
+	import { resetUserScope } from '$lib/common/userScope.js';
 	import { fetchConfirmedBalance } from '$lib/api-explorer/explorer.ts';
 	import {
 		nFormatter,
@@ -121,10 +122,13 @@
 
 		selectedAddress = address;
 
-		console.log('Loading balance', selectedAddress);
-
 		try {
-			const balanceData = await fetchConfirmedBalance($connected_wallet_address);
+			const balanceData = await fetchConfirmedBalance(address);
+
+			// Drop the result if the user switched address while this was in flight.
+			if ($connected_wallet_address !== address) {
+				return;
+			}
 
 			// Fetch balance from API
 			if (!balanceData) {
@@ -135,7 +139,6 @@
 			connected_wallet_balance.set(balanceData.nanoErgs);
 			balanceErg = (+balanceInNanoErg / 10 ** 9).toFixed(2);
 
-			const address = $connected_wallet_address;
 			truncatedAddress = address.substr(0, 4) + '...' + address.substr(address.length - 4);
 		} catch (error) {
 			console.error('Failed to fetch balance:', error);
@@ -151,6 +154,9 @@
 	}
 
 	function handleAddressChange() {
+		// Clear-then-fetch: wipe the previous account's state and invalidate any
+		// in-flight per-address fetches before switching.
+		resetUserScope();
 		connected_wallet_address.set(selectedAddress);
 		localStorage.setItem(KEY_ADDRESS, selectedAddress);
 		truncatedAddress =

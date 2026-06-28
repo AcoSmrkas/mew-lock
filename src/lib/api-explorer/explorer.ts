@@ -3,8 +3,21 @@ import { totalBoxes } from '$lib/store/store';
 import { ITEMS_PER_PAGE } from '$lib/common//const.ts';
 import axios from 'axios';
 
-var lastOutputBoxes = {};
-var lastInputBoxes = {};
+var lastOutputBoxes: Record<string, any> = {};
+var lastInputBoxes: Record<string, any> = {};
+
+// Drop unconfirmed/optimistic temp boxes. With an address, clears only that
+// address's entries; with no argument, clears every address (used on wallet
+// disconnect / address switch so optimistic boxes never bleed across accounts).
+export function clearTempBoxes(address?: string) {
+	if (address) {
+		delete lastInputBoxes[address];
+		delete lastOutputBoxes[address];
+	} else {
+		lastOutputBoxes = {};
+		lastInputBoxes = {};
+	}
+}
 
 export function updateTempBoxes(address, usedInputs, newOutputs) {
 	if (!lastInputBoxes[address]) {

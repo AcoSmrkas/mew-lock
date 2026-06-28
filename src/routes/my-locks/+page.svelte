@@ -29,13 +29,31 @@
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
 
+	// This is a wallet-bound page. onMount fires once, so without the reactive
+	// reload below a wallet/account switch would keep showing the previously
+	// connected account's locks (and their actionable Withdraw buttons).
+	let mounted = false;
+	let loadedForAddress = '';
+	// boxId -> timestamp for locks the user just withdrew. The contract fetch is
+	// confirmed-only, so a withdrawn lock lingers ~2 min; suppress it optimistically
+	// with a TTL so a dropped withdrawal reappears.
+	let optimisticallySpent = new Map();
+	const OPTIMISTIC_SPENT_TTL = 4 * 60 * 1000;
+
 import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
-		console.log('My-locks page mounted with connected address:', $connected_wallet_address);
 		await getCurrentBlockHeight();
 		await loadMewLockBoxes();
+		loadedForAddress = $connected_wallet_address;
+		mounted = true;
 	});
+
+	// Reload + recompute ownership whenever the connected address changes.
+	$: if (mounted && $connected_wallet_address !== loadedForAddress) {
+		loadedForAddress = $connected_wallet_address;
+		loadMewLockBoxes();
+	}
 
 	// Convert public key to address using ErgoAddress
 	function convertPkToAddress(pkRegister) {
@@ -80,12 +98,29 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 	}
 
 	async function loadMewLockBoxes() {
+		const addrAtStart = $connected_wallet_address;
 		loading = true;
 		try {
 			const response = await fetch(
 				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}?limit=500`
 			);
 			const data = await response.json();
+
+			// If the user switched address mid-fetch, drop this result; a newer
+			// load is already running and owns the loading flag + state.
+			if ($connected_wallet_address !== addrAtStart) {
+				return;
+			}
+
+			// Reconcile optimistic "just withdrawn" entries: drop those gone from the
+			// unspent set (confirmed) or aged out (likely a dropped tx).
+			const now = Date.now();
+			const fetchedIds = new Set(data.items.map((b) => b.boxId));
+			for (const [bid, ts] of optimisticallySpent) {
+				if (!fetchedIds.has(bid) || now - ts > OPTIMISTIC_SPENT_TTL) {
+					optimisticallySpent.delete(bid);
+				}
+			}
 
 			mewLockBoxes = data.items.map((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
@@ -122,10 +157,7 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			// Filter to only user's boxes
 			mewLockBoxes = mewLockBoxes.filter((box) => {
 				const matches = box.depositorAddress === $connected_wallet_address;
-				if (box.depositorAddress === '9ebD1sRPw7Tfd5qu3PrtrTvkDYX5srVnXxHunHNqufajLukfuDt') {
-					console.log(`Debug: Testing address match - Box: ${box.depositorAddress}, Wallet: ${$connected_wallet_address}, Matches: ${matches}`);
-				}
-				return matches;
+				return matches && !optimisticallySpent.has(box.boxId);
 			});
 			
 			console.log('Boxes after filtering:', mewLockBoxes.length);
@@ -136,8 +168,12 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			totalLocks = mewLockBoxes.length;
 		} catch (error) {
 			console.error('Error loading MewLock boxes:', error);
+		} finally {
+			// Only clear loading if this load is still the current one.
+			if ($connected_wallet_address === addrAtStart) {
+				loading = false;
+			}
 		}
-		loading = false;
 	}
 
 	async function handleWithdrawal(lockBox) {
@@ -173,6 +209,11 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 					10000,
 					'success'
 				);
+				// Optimistically drop the just-withdrawn lock so it doesn't linger in
+				// the confirmed-only contract fetch for ~2 min (kept hidden across the
+				// reload below via optimisticallySpent).
+				optimisticallySpent.set(lockBox.boxId, Date.now());
+				mewLockBoxes = mewLockBoxes.filter((b) => b.boxId !== lockBox.boxId);
 				await loadMewLockBoxes();
 			} else {
 				unsignedTx = withdrawalTx;
