@@ -3,7 +3,11 @@
  * Tracks price changes between lock creation and current time
  */
 
-const CRUX_API_BASE = 'https://api.cruxfinance.io/spectrum/price';
+// Was api.cruxfinance.io/spectrum/price, dead along with the rest of crux.
+// Our replacement is a POST batch endpoint keyed on (ids[], timestamps[]) that
+// snaps each timestamp to the nearest logged price, and returns USD directly.
+const EE_PRICE_AT_API = 'https://api.ergexplorer.com/tokens/getTokenPriceAt';
+const ERG_TOKEN_ID = '0000000000000000000000000000000000000000000000000000000000000000';
 
 export class PricePerformanceService {
     constructor() {
@@ -21,16 +25,42 @@ export class PricePerformanceService {
         }
 
         try {
-            // Use the exact API format you provided
-            const url = `${CRUX_API_BASE}?token_id=${tokenId}&time_point=${timestamp}`;
-            const response = await fetch(url);
-            
+            // Ask for ERG and the token at the same instant. Callers expect crux's
+            // shape ({ erg_price_usd, asset_price_erg }) and multiply the two, so
+            // convert our USD price back into an ERG-denominated one below.
+            const isErg = tokenId === ERG_TOKEN_ID;
+            const body = new URLSearchParams();
+            body.append('ids[]', 'ERG');
+            body.append('timestamps[]', String(timestamp));
+            if (!isErg) {
+                body.append('ids[]', tokenId);
+                body.append('timestamps[]', String(timestamp));
+            }
+
+            const response = await fetch(EE_PRICE_AT_API, { method: 'POST', body });
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            
-            const data = await response.json();
-            
+
+            const items = (await response.json()).items ?? [];
+            const ergUsd = Number(items.find((r) => r.ticker === 'ERG')?.price);
+
+            if (!ergUsd || !isFinite(ergUsd)) {
+                throw new Error('no historical ERG price');
+            }
+
+            let assetPriceErg = 1;
+            if (!isErg) {
+                const tokenUsd = Number(items.find((r) => r.tokenid === tokenId)?.price);
+                if (!tokenUsd || !isFinite(tokenUsd)) {
+                    throw new Error(`no historical price for ${tokenId}`);
+                }
+                assetPriceErg = tokenUsd / ergUsd;
+            }
+
+            const data = { erg_price_usd: ergUsd, asset_price_erg: assetPriceErg };
+
             // Cache the result
             this.cache.set(cacheKey, data);
             

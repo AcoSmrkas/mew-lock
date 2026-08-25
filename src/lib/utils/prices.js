@@ -18,22 +18,13 @@ export async function getPrices(callback) {
 		prices['ERG'] = ergData.items[0].value;
 		pricesNames['ERG'] = 'ERG';
 
-		const response = await fetch('https://api.cruxfinance.io/spectrum/token_list', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				sort_by: 'Volume',
-				sort_order: 'Desc',
-				limit: 500,
-				offset: 0,
-				filter_window: 'Day',
-				name_filter: ''
-			})
-		});
+		// Was api.cruxfinance.io/spectrum/token_list, which started returning
+		// HTTP 200 with a truncated body and is now unreachable entirely. Now our
+		// own feed, derived on-chain from Spectrum pool boxes; same field names,
+		// wrapped in { items }.
+		const response = await fetch(`${EE_API}tokens/getTokenPrices`);
 
-		pricesData = await response.json();
+		pricesData = (await response.json()).items;
 
 		handlePrices();
 	} catch (error) {
