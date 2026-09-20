@@ -13,6 +13,40 @@ import { SGroupElement, SInt, SSigmaProp, SByte, SColl, SByte as SByteType } fro
 export const MEWLOCK_CONTRACT_ADDRESS =
 	'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgTHyYBiqpnziCu8e2Fy9r9PCavASWuiFsfooJJbGSZFDdSLPLEgFWLKrFq1kksUhkKXWuhciQMP5W5akMYAWs4r5dPcaT8JhaaubtHtdKMgy6tZ3x9JRYdDbt9hSYq5Bg7vaBYqQTDcyTHJ6aXudhbnfbxJAbXzqjqqBkHhTt2wBBXXJzZKk7WN321fiL3kJQBrxPjk53u4aujWSAxJshKpHsNZdqqtif6AoLo81zWrQfPP6aBLu889zEbeMfL7RwbnMDE4K7mqX1wcv2N3Tw76tTm7MeXLVPs8Y9rATNVT5e2Em11L5JuPeJBZG6MNXJnWbtEWyc6PYji1C5JdYQjgzme6gZFpckU1NkiwtCUb8iMJXfx6NcMQnLNqLm8qcfR3uamQBmwEF3DXaTTvQD7opvtKxQJmdpDHKY6rZizwWk7uEWXWf946aSxPk7uv4jTnHod1rio5vuYACToJzmQLGYFA8SkjTtqED8wqyBfvFr63iu1CGtvMCi5E3SfMzjMYx7CstFgUeFMFKPAMLn3X8DGtc5H23JCVnAkwFrwzwXxC2NWzdsBbB4JVkBD783U6WNLPzhCykoP1QZBnc8nHiJpLzDpJuhwZp8DStumjMKRfEtNHp3QiUGW9tc94P49cLLu8VddmmMMwaZ769XSUTpcNi75sJRFUtHwKvyN4af7wjfmhCSkkReiUmb2ZmpJvw4FNs8An3xJSgEM5NX3zfz7Mr8PbtVfYjj35MiNSeEzRUKQH4qDpJX2R';
 
+// Pre-rotation MewLock contract address (retired 2026-06-24 in the post-breach
+// contract rotation). Existing depositors' locks are still sitting here since
+// there was no migration path off it — kept read-only so the UI can still find
+// and withdraw them. Ownership is enforced by each box's own R4 pubkey, not by
+// the dev fee key that rotated, so withdrawals from this address still work.
+export const MEWLOCK_LEGACY_CONTRACT_ADDRESSES = [
+	'5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAqCCBNBMNDXk66AhdKCbK5jFqnZWPwKm6eZ1BXjr9Au8sjhi4HKhrxZWbvr4yi9bBFFKbzhhQm9dVcMpCB3S5Yj2m6XaHaivHN1DFCPBo6nQRV9sBMYZrP3tbCtgKgiTLZWLNNPLFPWhmoR1DABBGnVe5GYNwTxJZY2Mc2u8KZQC4pLqkHJmdq2hHSfaxzK77QXtzyyk59z4EBjyMWeVCtrcDg2jZBepPhoT6i5xUAkzBzhGK3SFor2v44yahHZiHNPj5W3LEU9mFCdiPwNCVd9S2a5MNZJHBukWKVjVF4s5bhXkCzW2MbXjAH1cue4APHYvobkPpn2zd9vnwLow8abjAdLBmTz2idAWchsavdU'
+];
+
+export const ALL_MEWLOCK_CONTRACT_ADDRESSES = [
+	MEWLOCK_CONTRACT_ADDRESS,
+	...MEWLOCK_LEGACY_CONTRACT_ADDRESSES
+];
+
+// Fetches unspent MewLock boxes across the current contract and all retired
+// ones, so pre-rotation locks stay visible/withdrawable after a rotation.
+export async function fetchMewLockBoxes(limit = 500): Promise<Array<any>> {
+	const results = await Promise.all(
+		ALL_MEWLOCK_CONTRACT_ADDRESSES.map(async (address) => {
+			try {
+				const response = await fetch(
+					`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${address}?limit=${limit}`
+				);
+				const data = await response.json();
+				return data.items || [];
+			} catch (error) {
+				console.error('Error fetching MewLock boxes for', address, error);
+				return [];
+			}
+		})
+	);
+	return results.flat();
+}
+
 // Dev fee configuration (matching smart contract)
 const FEE_NUM = 3000; // feeNum from smart contract
 const FEE_DENOM = 100000; // feeDenom from smart contract

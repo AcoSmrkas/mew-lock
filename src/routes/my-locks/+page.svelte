@@ -40,7 +40,7 @@
 	let optimisticallySpent = new Map();
 	const OPTIMISTIC_SPENT_TTL = 4 * 60 * 1000;
 
-import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
+import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
@@ -101,10 +101,8 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 		const addrAtStart = $connected_wallet_address;
 		loading = true;
 		try {
-			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}?limit=500`
-			);
-			const data = await response.json();
+			// Boxes from the current contract and any retired ones (limit is 500 per contract)
+			const items = await fetchMewLockBoxes();
 
 			// If the user switched address mid-fetch, drop this result; a newer
 			// load is already running and owns the loading flag + state.
@@ -115,14 +113,14 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			// Reconcile optimistic "just withdrawn" entries: drop those gone from the
 			// unspent set (confirmed) or aged out (likely a dropped tx).
 			const now = Date.now();
-			const fetchedIds = new Set(data.items.map((b) => b.boxId));
+			const fetchedIds = new Set(items.map((b) => b.boxId));
 			for (const [bid, ts] of optimisticallySpent) {
 				if (!fetchedIds.has(bid) || now - ts > OPTIMISTIC_SPENT_TTL) {
 					optimisticallySpent.delete(bid);
 				}
 			}
 
-			mewLockBoxes = data.items.map((box) => {
+			mewLockBoxes = items.map((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);

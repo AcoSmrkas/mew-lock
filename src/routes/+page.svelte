@@ -14,7 +14,7 @@
 	let mewLockBoxes = [];
 	let currentHeight = 0;
 
-import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
+import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await loadPlatformStats();
@@ -28,13 +28,8 @@ import { MEWLOCK_CONTRACT_ADDRESS } from '$lib/contract/mewLockTx';
 			const heightData = await heightResponse.json();
 			currentHeight = heightData.fullHeight || 0;
 
-			// Then get the boxes (API limit is 500 max)
-			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}?limit=500`
-			);
-			const data = await response.json();
-
-			const boxes = data.items || [];
+			// Boxes from the current contract and any retired ones (limit is 500 per contract)
+			const boxes = await fetchMewLockBoxes();
 			mewLockBoxes = boxes;
 
 			// Calculate platform stats (consistent with locks page calculation)
