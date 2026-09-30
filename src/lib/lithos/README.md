@@ -149,12 +149,24 @@ campaign box, explorer GraphQL submit) was proven separately: a faucet drip, a
 lock chained on the unconfirmed drip, and its unlock (owner received exactly
 principal + reward, marker burned).
 
+## Deploying a campaign
+
+`lock.mewfinance.com/lithos-deploy` (add `?network=mainnet` to be sure) creates
+a campaign from a connected Nautilus wallet: it compiles the contract in the
+browser with the leftover going to the address you choose (default: your
+wallet), then asks for three signatures: markers, NFT, campaign box. If the
+page reloads midway, it offers Resume instead of minting again. At the end it
+shows the deployment JSON; pin it as `deployments/<network>.json` and redeploy
+the site for the page to show the campaign. Keep routes top-level: a nested
+route (`/lithos/deploy`) makes the build emit a `lithos/` directory and Apache
+then answers `/lithos` with a 301 to a 403.
+
 ## Before mainnet
 
-- Decide: budget, campaign length (`start`/`end`/`grace`), tiers and boosts,
-  minimum lock, starting base APR (sets `V0`).
-- Fee address for the sweep: Mew devs' fee address (decided); needs the
-  exact address.
-- Genesis on mainnet must be signed by a wallet, not a script. Nobody should
-  put a mainnet seed into a runner.
-- External review of `campaign.es` before any budget goes in.
+- The mainnet test campaign (10-120 block locks, 1,000 LIT, leftover back to
+  the deployer) is the first real-Nautilus signing; watch it closely.
+- For the real launch decide: budget, campaign length, tiers and boosts (agreed
+  30/90/180/365 days at 1.0/1.25/1.5/2.0x), minimum lock, starting base APR.
+- The real campaign's leftover goes to the Mew devs' fee address: get the
+  exact address before deploying.
+- External review of `campaign.es` before any real budget goes in.
