@@ -8,10 +8,15 @@ export type Network = 'mainnet' | 'testnet';
 
 export type Tier = { blocks: number; boostBps: number; label: string };
 
+/** A token id, or null for ERG. */
+export type AssetId = string | null;
+
 export type CampaignParams = {
 	network: Network;
-	/** Token that is locked and paid out (LIT on mainnet). */
-	litId: string;
+	/** What users lock (A). */
+	stakeId: AssetId;
+	/** What the campaign pays (B). May be the same asset as A. */
+	rewardId: AssetId;
 	/** Where leftover budget goes after end + grace (the Mew fee address). */
 	feeAddress: string;
 	/** Locks accepted while start <= HEIGHT <= end. */
@@ -22,8 +27,12 @@ export type CampaignParams = {
 	/** Most blocks a position may add on top of its tier length. */
 	slack: number;
 	tiers: Tier[];
-	/** Smallest principal, raw token units. */
+	/** Smallest principal, raw units of A. */
 	minLock: bigint;
+	/** nanoERG each position carries besides any ERG it locks or earns; back to the owner at unlock. */
+	deposit: bigint;
+	/** nanoERG the campaign box keeps outside the budget (only meaningful when B is ERG). */
+	reserve: bigint;
 };
 
 /** Extra blocks the UI adds to each lock so it stays valid while it waits for a block. */
@@ -31,6 +40,10 @@ export const UNLOCK_BUFFER = 20;
 
 /** Longest allowed lock on mainnet: one year keeps positions far from the 4-year storage-rent age. */
 export const MAX_LOCK_BLOCKS = BLOCKS_PER_YEAR;
+
+/** Defaults for `deposit` and `reserve` (0.001 and 0.01 ERG). */
+export const POSITION_DEPOSIT = 1_000_000n;
+export const CAMPAIGN_RESERVE = 10_000_000n;
 
 const HEX32 = /^[0-9a-f]{64}$/;
 
@@ -42,7 +55,12 @@ export function validateParams(p: CampaignParams): void {
 	const fail = (msg: string) => {
 		throw new Error(`invalid campaign params: ${msg}`);
 	};
-	if (!HEX32.test(p.litId)) fail('litId must be a 32-byte hex token id');
+	for (const [name, id] of [
+		['stakeId', p.stakeId],
+		['rewardId', p.rewardId]
+	] as const) {
+		if (id !== null && !HEX32.test(id)) fail(`${name} must be null (ERG) or a 32-byte hex token id`);
+	}
 	let fee: ErgoAddress;
 	try {
 		fee = ErgoAddress.fromBase58(p.feeAddress);
@@ -61,4 +79,6 @@ export function validateParams(p: CampaignParams): void {
 		if (!Number.isInteger(t.boostBps) || t.boostBps <= 0) fail('tier boost must be a positive integer (bps)');
 	}
 	if (p.minLock <= 0n) fail('minLock must be positive');
+	if (p.deposit < 100_000n) fail('deposit must cover a box (>= 100000 nanoERG)');
+	if (p.reserve < 1_000_000n) fail('reserve must cover the campaign box (>= 1000000 nanoERG)');
 }

@@ -11,7 +11,7 @@ import { parseCampaignBox, type PositionState } from './boxes.ts';
 import { compileCampaign } from './compile.ts';
 import { type LithosDeployment, pinParams } from './deployment.ts';
 import { BLOCKS_PER_YEAR, initialVirtualWeight, lockAprBps, marginalAprBps, maxReward, quoteLock } from './math.ts';
-import { type CampaignParams, validateParams } from './params.ts';
+import { CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT, validateParams } from './params.ts';
 import {
 	add,
 	BUDGET,
@@ -41,8 +41,7 @@ import {
 	buildMintTx,
 	buildSweepTx,
 	buildTopUpTx,
-	buildUnlockTx,
-	CAMPAIGN_BOX_VALUE
+	buildUnlockTx
 } from './txs.ts';
 
 /** The attack must be rejected by a contract and the honest original must then pass. */
@@ -101,7 +100,7 @@ describe('lock', () => {
 		expect(p.owner).toBe(c.alice.address.encode());
 		expect(p.principal).toBe(principal);
 		expect(p.reward).toBe(expected.reward);
-		expect(p.locked).toBe(principal + expected.reward);
+		expect(BigInt(p.box.assets[1].amount)).toBe(principal + expected.reward);
 		expect(p.tier).toBe(3);
 		// ~100% APR on the 1-year tier at the start (50% base x 2.0 boost), less
 		// ~1% because this lock's own weight is 1% of V0 and moves the curve.
@@ -478,7 +477,7 @@ describe('sweep', () => {
 		expect(run(c, sweepBy(c.mallory), [c.mallory])).toBe(true);
 		expect(c.campaign.utxos.toArray()).toHaveLength(0);
 		expect(c.fee.balance.tokens.find((t) => t.tokenId === LIT)?.amount).toBe(left);
-		expect(c.fee.balance.nanoergs - feeBefore).toBe(CAMPAIGN_BOX_VALUE);
+		expect(c.fee.balance.nanoergs - feeBefore).toBe(CAMPAIGN_RESERVE);
 		for (const party of [c.alice, c.bob, c.mallory, c.fee]) {
 			expect(party.balance.tokens.some((t) => t.tokenId === NFT || t.tokenId === MARKER)).toBe(false);
 		}
@@ -533,7 +532,7 @@ describe('authenticity', () => {
 		const fakeMarker = 'dd'.repeat(32);
 		c.campaign.addBalance(
 			{
-				nanoergs: CAMPAIGN_BOX_VALUE,
+				nanoergs: CAMPAIGN_RESERVE,
 				tokens: [
 					{ tokenId: fakeNft, amount: 1n },
 					{ tokenId: fakeMarker, amount: 1_000n },
@@ -612,14 +611,17 @@ describe('genesis', () => {
 
 		const params: CampaignParams = {
 			network: 'mainnet',
-			litId: LIT,
+			stakeId: LIT,
+			rewardId: LIT,
 			feeAddress: fee.address.encode(),
 			start: START,
 			end: END,
 			grace: GRACE,
 			slack: 60,
 			tiers: TIERS,
-			minLock: LIT_UNIT
+			minLock: LIT_UNIT,
+			deposit: POSITION_DEPOSIT,
+			reserve: CAMPAIGN_RESERVE
 		};
 		const campaignTree = compileCampaign(params, positionTree);
 		const campaignParty = chain.addParty(campaignTree, 'campaign');
@@ -632,7 +634,8 @@ describe('genesis', () => {
 			campaignNftId: nftId,
 			markerId,
 			markerSupply: MARKER_SUPPLY,
-			litId: LIT,
+			rewardId: LIT,
+			reserve: CAMPAIGN_RESERVE,
 			budget: BUDGET,
 			v0
 		});
@@ -642,6 +645,7 @@ describe('genesis', () => {
 			network: 'mainnet',
 			label: 'genesis',
 			params: pinParams(params),
+			assets: { stake: { ticker: 'LIT', decimals: 9 }, reward: { ticker: 'LIT', decimals: 9 } },
 			positionTree,
 			campaignTree,
 			campaignNftId: nftId,
@@ -661,14 +665,17 @@ describe('genesis', () => {
 describe('params', () => {
 	const base: CampaignParams = {
 		network: 'mainnet',
-		litId: LIT,
+		stakeId: LIT,
+		rewardId: LIT,
 		feeAddress: '9hMRoSfXZJs83S2hLqxZZ8ivw1L8FFgSk7RJB7eq2qXyxU2paED',
 		start: 1,
 		end: 2,
 		grace: 0,
 		slack: 60,
 		tiers: TIERS,
-		minLock: 1n
+		minLock: 1n,
+		deposit: POSITION_DEPOSIT,
+		reserve: CAMPAIGN_RESERVE
 	};
 
 	it('refuses mainnet tiers over one year, fee addresses on the wrong network, and a slack below the UI buffer', () => {

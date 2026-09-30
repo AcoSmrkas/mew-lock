@@ -175,7 +175,7 @@ async function submitRest(net: NetworkConfig, signed: SignedTx): Promise<string>
 	return (parseBig(text) as { id?: string }).id ?? signed.id;
 }
 
-/** Send test ERG and test tokens from the faucet to `to`. */
+/** Send test ERG, plus the campaign's staked token when it is one, from the faucet to `to`. */
 export async function drip(net: NetworkConfig, d: LithosDeployment, to: string): Promise<string> {
 	const boxes = await testBoxes(net, FAUCET_ADDRESS);
 	if (boxes.length === 0) throw new Error('The test faucet is empty. Ask the Mew team to refill it.');
@@ -185,10 +185,12 @@ export async function drip(net: NetworkConfig, d: LithosDeployment, to: string):
 	const tx = new TransactionBuilder(await getHeight(net))
 		.from(ordered)
 		.to(
-			new OutputBuilder(FAUCET_DRIP.nanoErg, to).addTokens({
-				tokenId: d.params.litId,
-				amount: FAUCET_DRIP.tokens
-			})
+			d.params.stakeId === null
+				? new OutputBuilder(FAUCET_DRIP.nanoErg, to)
+				: new OutputBuilder(FAUCET_DRIP.nanoErg, to).addTokens({
+						tokenId: d.params.stakeId,
+						amount: FAUCET_DRIP.tokens
+				  })
 		)
 		.sendChangeTo(FAUCET_ADDRESS)
 		.payFee(RECOMMENDED_MIN_FEE_VALUE)

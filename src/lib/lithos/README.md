@@ -1,27 +1,39 @@
-# MewLock x Lithos (LIT lock campaign)
+# MewLock campaigns (Lithos Lock is the first)
 
-Users lock LIT for a fixed number of blocks and get a reward that is fixed at
-the moment they lock and paid out, with their LIT, when the lock ends. There
-are no admin keys anywhere.
+A campaign lets users lock asset A for a fixed number of blocks and earn asset
+B. A and B are each any token or ERG, and may be the same (Lithos Lock is
+LIT/LIT). The reward is fixed at the moment of locking and paid out, together
+with the locked A, when the lock ends. There are no admin keys anywhere.
 
 ## Contracts (`contracts/`, compiled as ErgoTree v1)
 
 **campaign.es**: one singleton box per campaign.
 
-- tokens: `[campaign NFT, position markers, LIT budget]`, R4 = `V` (BigInt).
+- tokens: `[campaign NFT, position markers]`, plus the budget token when B is
+  a token. When B is ERG the budget is the box value minus `reserve`.
+  R4 = `V` (BigInt).
 - **Lock** (between `start` and `end`): creates exactly one position in
   `OUTPUTS(1)`, releases one marker, and pays
-  `reward <= B * w / (V + w)` with `w = principal * blocks * boostBps`. The
-  successor has `B - reward` and `V + w`.
-- **Top-up** (until `end`, anyone): adds LIT and/or ERG; nothing else changes.
-- **Sweep** (after `end + grace`, anyone): all LIT and ERG go to the fee
-  address baked in at compile time; the NFT and markers are burned.
+  `reward <= budget * w / (V + w)` with `w = principal * blocks * boostBps`.
+  The successor has `budget - reward` and `V + w`. The position must hold
+  exactly its marker, A and B (merged when they are the same token) and
+  `deposit` + any ERG it locks or earns.
+- **Top-up** (until `end`, anyone): adds budget and/or ERG; nothing else
+  changes.
+- **Sweep** (after `end + grace`, anyone): all ERG and every B token go to the
+  fee address baked in at compile time; the NFT and markers are burned.
 
 **position.es**: `proveDlog(R4) && HEIGHT >= R5`. Nothing else, so a position
-can never get stuck. R6..R8 hold principal, reward and tier for display.
+can never get stuck. R6..R8 hold principal, reward and tier. The position
+contract is the same for every campaign and asset mix.
 
-Everything is a compile-time constant: LIT id, fee address, start/end/grace,
-tiers and boosts, minimum lock. A change means a new campaign.
+Everything is a compile-time constant: A and B ids (empty = ERG), fee address,
+start/end/grace, tiers and boosts, minimum lock, deposit, reserve. A change
+means a new campaign. The first testnet campaigns ran a LIT-only version whose
+positions are identical; `readDeployment` maps them onto this shape.
+
+When A and B differ, `baseAprBps` and the rates are ratios of raw units, not a
+price-based APR: the page shows "B per A per year" instead of a percentage.
 
 ### Why this curve
 
@@ -54,24 +66,34 @@ Anyone can create boxes at either address, so never trust the address alone.
 npx vitest run src/lib/lithos/
 ```
 
-- `lithos.test.ts`: 35 mock-chain (sigmastate) cases. Every attack is a real
-  builder transaction with one thing tampered. It must be rejected with
-  "Script reduced to false", and the untampered original must then pass.
+- `lithos.test.ts`: 35 mock-chain (sigmastate) cases on LIT/LIT. Every attack
+  is a real builder transaction with one thing tampered. It must be rejected
+  with "Script reduced to false", and the untampered original must then pass.
+- `modes.test.ts`: the same approach across all five asset modes (LIT/LIT,
+  LIT/MEOW, ERG/LIT, LIT/ERG, ERG/ERG): exact lock, unlock payout, top-up and
+  sweep, plus mode-specific attacks (over-curve reward, short A, drained
+  budget, smuggled token, draining "top-up").
 - `sigmaRust.test.ts`: the same transactions signed by sigma-rust 0.28, the
-  engine in Nautilus and the ErgoPay relay. **Known divergence:** sigma-rust
-  signs a lock whose position R4 holds the right bytes as the wrong type;
-  sigmastate throws, so nodes reject it. Nothing bad can reach the chain.
+  engine in Nautilus and the ErgoPay relay, in every mode. **Known
+  divergence:** sigma-rust signs a lock whose position R4 holds the right bytes
+  as the wrong type; sigmastate throws, so nodes reject it (confirmed against a
+  real testnet node). Nothing bad can reach the chain.
 
 ## Testnet runner
 
 ```
-npx vite-node scripts/lithos/testnet.ts wallet     # addresses + balances
-npx vite-node scripts/lithos/testnet.ts deploy     # tLIT, markers, NFT, 45-block campaign
-npx vite-node scripts/lithos/testnet.ts scenario   # locks, top-up, refusals, unlocks, sweep
+npx vite-node scripts/lithos/testnet.ts wallet [--slot N]
+npx vite-node scripts/lithos/testnet.ts tokens                      # tLIT + tMEOW, once
+npx vite-node scripts/lithos/testnet.ts fund-slot --slots 1,2,3     # parallel scenario wallets
+npx vite-node scripts/lithos/testnet.ts deploy --slot N --stake lit|meow|erg --reward lit|meow|erg
+npx vite-node scripts/lithos/testnet.ts scenario --slot N           # locks, top-up, refusals, unlocks, sweep
+npx vite-node scripts/lithos/testnet.ts deploy --demo               # week-long campaign for the page
+npx vite-node scripts/lithos/testnet.ts faucet 20                   # refill the page's test faucet
 ```
 
 It uses a throwaway testnet key in `/.testnet/` (gitignored), signs with
-sigma-rust and broadcasts through public testnet nodes.
+sigma-rust and broadcasts through public testnet nodes. The page's in-browser
+test wallet is proven separately by `scripts/lithos/testwallet-check.ts`.
 
 ### Testnet dry run, 2026-09-30: passed
 
@@ -105,6 +127,27 @@ honest twin checked valid.
 Campaign state matched the maths to the raw unit at every step. After the
 three locks and the top-up, the budget was 1,000,000 − 9,427.961609678 + 10,000
 and V was V0 + 1e19 + 1.5e19 + 5e22.
+
+### Generic contract on testnet, 2026-09-30: all five asset modes passed
+
+Each mode ran its own campaign: three locks (one locked for another user, one
+large), a top-up, the refusals, three unlocks and a third-party sweep, 12
+transactions each. Every unlock paid exactly principal + reward in the right
+assets, every sweep paid the leftover to the fee address and burned the NFT and
+every marker, and a real node rejected the mistyped-owner lock in every mode.
+
+| mode (lock → earn) | campaign | sweep |
+|---|---|---|
+| tLIT → tLIT | [18e18e57](https://testnet.ergoplatform.com/en/transactions/18e18e579346ffc0486a7033abb68c4ac1ae7673eee6f5afa9c6b2d8063385ee) | [40e31311](https://testnet.ergoplatform.com/en/transactions/40e313119eb8ee48503478076913a34127aa149d9fad21bd8d1ae619e274d8f6) |
+| tLIT → tMEOW | [f35d0034](https://testnet.ergoplatform.com/en/transactions/f35d0034afd1c6279fefff0b180edb6553ecfd3c19c94ccd1f5126103190f985) | [71482ec8](https://testnet.ergoplatform.com/en/transactions/71482ec82edb90c220d01fa49d9c6e96bea840972a953c4918eccb81d1a75e47) |
+| tERG → tLIT | [11274f50](https://testnet.ergoplatform.com/en/transactions/11274f50b3459a759a125d74f00b522a17544b67ccabf3588a3746e29318b4a4) | [3c565a2c](https://testnet.ergoplatform.com/en/transactions/3c565a2c30b538ea41e1a01dee211406ad0d2ac8ff74732de1efde4a937094af) |
+| tLIT → tERG | [a249ddda](https://testnet.ergoplatform.com/en/transactions/a249ddda3227d3043ad7999284f2e96643fb2a948c6981b0ab4d9cf04164ecd6) | [f2c16f31](https://testnet.ergoplatform.com/en/transactions/f2c16f31f1fb1e30ebbaee35ea333f81659914f8dea9d7011fe4dfb79ac05d18) |
+| tERG → tERG | [3a851621](https://testnet.ergoplatform.com/en/transactions/3a85162160bf1371364b216a58d65f3ae21e589555ccd666dbfdeea4905a4ead) | [f3add13c](https://testnet.ergoplatform.com/en/transactions/f3add13c09d682fdde6e35b5c6b66973d52b6b30f35b4ec2eaba5521d99cd3a5) |
+
+The page's in-browser test wallet (Fleet Schnorr signing, empty proof for the
+campaign box, explorer GraphQL submit) was proven separately: a faucet drip, a
+lock chained on the unconfirmed drip, and its unlock (owner received exactly
+principal + reward, marker burned).
 
 ## Before mainnet
 

@@ -1,17 +1,19 @@
-// Shared fixtures for the MewLock x Lithos contract tests: a mock chain with a
+// Shared fixtures for the MewLock campaign contract tests: a mock chain with a
 // deployed campaign, three users and a fee address, plus tamper helpers.
+// A mode picks what is locked and what is paid: LIT, MEOW (a second token) or ERG.
 import type { EIP12UnsignedTransaction } from '@fleet-sdk/common';
 import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
 import { KeyedMockChainParty, MockChain, type NonKeyedMockChainParty } from '@fleet-sdk/mock-chain';
 import { SBigInt } from '@fleet-sdk/serializer';
 import { parseCampaignBox, parsePositionBox, type PositionState } from './boxes.ts';
 import { compileCampaign, compilePosition } from './compile.ts';
-import { type LithosDeployment, pinParams } from './deployment.ts';
+import { type AssetInfo, type LithosDeployment, pinParams } from './deployment.ts';
 import { initialVirtualWeight } from './math.ts';
-import type { CampaignParams } from './params.ts';
-import { buildLockTx, CAMPAIGN_BOX_VALUE } from './txs.ts';
+import { type AssetId, CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT } from './params.ts';
+import { buildLockTx } from './txs.ts';
 
 export const LIT = 'c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7';
+export const MEOW = 'ee'.repeat(32);
 export const NFT = 'aa'.repeat(32);
 export const MARKER = 'bb'.repeat(32);
 export const ERG = 1_000_000_000n;
@@ -28,9 +30,22 @@ export const TIERS = [
 	{ blocks: 262_800, boostBps: 20_000, label: '1 year' }
 ];
 
+export type Asset = 'LIT' | 'MEOW' | 'ERG';
+export type Mode = { stake: Asset; reward: Asset };
+export const MODES: Mode[] = [
+	{ stake: 'LIT', reward: 'LIT' },
+	{ stake: 'LIT', reward: 'MEOW' },
+	{ stake: 'ERG', reward: 'LIT' },
+	{ stake: 'LIT', reward: 'ERG' },
+	{ stake: 'ERG', reward: 'ERG' }
+];
+export const idOf = (a: Asset): AssetId => (a === 'LIT' ? LIT : a === 'MEOW' ? MEOW : null);
+const infoOf = (a: Asset): AssetInfo => ({ ticker: a, decimals: 9 });
+
 export const positionTree = compilePosition('mainnet');
 
 export type Ctx = {
+	mode: Mode;
 	chain: MockChain;
 	d: LithosDeployment;
 	alice: KeyedMockChainParty;
@@ -41,7 +56,7 @@ export type Ctx = {
 	positions: NonKeyedMockChainParty;
 };
 
-export function setup(): Ctx {
+export function setup(mode: Mode = { stake: 'LIT', reward: 'LIT' }): Ctx {
 	const chain = new MockChain({ height: START + 10 });
 	const alice = chain.newParty('alice');
 	const bob = chain.newParty('bob');
@@ -49,14 +64,17 @@ export function setup(): Ctx {
 	const fee = chain.newParty('fee');
 	const params: CampaignParams = {
 		network: 'mainnet',
-		litId: LIT,
+		stakeId: idOf(mode.stake),
+		rewardId: idOf(mode.reward),
 		feeAddress: fee.address.encode(),
 		start: START,
 		end: END,
 		grace: GRACE,
 		slack: 60,
 		tiers: TIERS,
-		minLock: 10n * LIT_UNIT
+		minLock: 10n * LIT_UNIT,
+		deposit: POSITION_DEPOSIT,
+		reserve: CAMPAIGN_RESERVE
 	};
 	const campaignTree = compileCampaign(params, positionTree);
 	const v0 = initialVirtualWeight(BUDGET, 5_000);
@@ -64,6 +82,7 @@ export function setup(): Ctx {
 		network: 'mainnet',
 		label: 'mock',
 		params: pinParams(params),
+		assets: { stake: infoOf(mode.stake), reward: infoOf(mode.reward) },
 		positionTree,
 		campaignTree,
 		campaignNftId: NFT,
@@ -74,23 +93,27 @@ export function setup(): Ctx {
 		initialV: v0.toString()
 	};
 	const campaign = chain.addParty(campaignTree, 'campaign') as unknown as NonKeyedMockChainParty;
+	const tokens = [
+		{ tokenId: NFT, amount: 1n },
+		{ tokenId: MARKER, amount: MARKER_SUPPLY }
+	];
+	if (params.rewardId) tokens.push({ tokenId: params.rewardId, amount: BUDGET });
 	campaign.addBalance(
-		{
-			nanoergs: CAMPAIGN_BOX_VALUE,
-			tokens: [
-				{ tokenId: NFT, amount: 1n },
-				{ tokenId: MARKER, amount: MARKER_SUPPLY },
-				{ tokenId: LIT, amount: BUDGET }
-			]
-		},
+		{ nanoergs: params.rewardId ? CAMPAIGN_RESERVE : CAMPAIGN_RESERVE + BUDGET, tokens },
 		{ R4: SBigInt(v0).toHex() }
 	);
 	const positions = chain.addParty(positionTree, 'positions') as unknown as NonKeyedMockChainParty;
 	for (const p of [alice, bob, mallory]) {
-		p.addBalance({ nanoergs: 100n * ERG, tokens: [{ tokenId: LIT, amount: 1_000_000_000n * LIT_UNIT }] });
+		p.addBalance({
+			nanoergs: 1_000_000_000n * ERG,
+			tokens: [
+				{ tokenId: LIT, amount: 1_000_000_000n * LIT_UNIT },
+				{ tokenId: MEOW, amount: 1_000_000_000n * LIT_UNIT }
+			]
+		});
 	}
 	fee.addBalance({ nanoergs: 10n * ERG });
-	return { chain, d, alice, bob, mallory, fee, campaign, positions };
+	return { mode, chain, d, alice, bob, mallory, fee, campaign, positions };
 }
 
 export const state = (c: Ctx) => parseCampaignBox(c.campaign.utxos.toArray()[0], c.d);
@@ -115,6 +138,12 @@ export function positionsOf(c: Ctx): PositionState[] {
 		.filter((p): p is PositionState => p !== null);
 }
 
+/** A party's balance of an asset (nanoERG for ERG). */
+export function balanceOf(p: KeyedMockChainParty, a: Asset): bigint {
+	if (a === 'ERG') return p.balance.nanoergs;
+	return p.balance.tokens.find((t) => t.tokenId === idOf(a))?.amount ?? 0n;
+}
+
 export const run = (c: Ctx, tx: ErgoUnsignedTransaction | EIP12UnsignedTransaction, signers: KeyedMockChainParty[]) =>
 	c.chain.execute(tx, { signers, throw: false });
 
@@ -133,4 +162,3 @@ export const changeOf = (t: EIP12UnsignedTransaction, who: KeyedMockChainParty) 
 	if (!box) throw new Error(`no change box for ${who.name}`);
 	return box;
 };
-

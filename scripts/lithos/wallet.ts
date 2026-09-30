@@ -10,8 +10,10 @@ import { ErgoHDKey, generateMnemonic } from '@fleet-sdk/wallet';
 const WALLET_DIR = resolve(process.cwd(), '.testnet');
 const WALLET_FILE = resolve(WALLET_DIR, 'wallet.json');
 
-// Index 0 deploys, locks and pays fees. Index 1 is the test "Mew fee" address
-// the sweep must pay. Index 2 is a second user for lock-for and theft attempts.
+// Per slot, index 3*slot + 0 deploys, locks and pays fees; + 1 is the test
+// "Mew fee" address the sweep must pay; + 2 is a second user for lock-for and
+// theft attempts. Slots let several scenarios run at once without spending
+// each other's boxes.
 export const ROLES = { main: 0, fee: 1, other: 2 } as const;
 export type Role = keyof typeof ROLES;
 
@@ -19,7 +21,7 @@ export type TestKey = { role: Role; key: ErgoHDKey; address: string };
 
 type WalletFile = { warning: string; network: 'testnet'; mnemonic: string; createdAt: string };
 
-export function loadOrCreateWallet(): { created: boolean; keys: Record<Role, TestKey> } {
+export function loadOrCreateWallet(slot = 0): { created: boolean; keys: Record<Role, TestKey> } {
 	let created = false;
 	if (!existsSync(WALLET_FILE)) {
 		mkdirSync(WALLET_DIR, { recursive: true });
@@ -39,7 +41,7 @@ export function loadOrCreateWallet(): { created: boolean; keys: Record<Role, Tes
 	const root = ErgoHDKey.fromMnemonicSync(file.mnemonic);
 	const keys = {} as Record<Role, TestKey>;
 	for (const role of Object.keys(ROLES) as Role[]) {
-		const key = root.derive(`m/44'/429'/0'/0/${ROLES[role]}`);
+		const key = root.derive(`m/44'/429'/0'/0/${3 * slot + ROLES[role]}`);
 		keys[role] = { role, key, address: key.address.encode(Network.Testnet) };
 	}
 	return { created, keys };

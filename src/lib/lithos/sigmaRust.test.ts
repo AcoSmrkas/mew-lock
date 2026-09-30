@@ -15,6 +15,7 @@ import {
 	GRACE,
 	LIT_UNIT,
 	lock,
+	MODES,
 	positionsOf,
 	run,
 	setup,
@@ -193,5 +194,38 @@ describe('sigma-rust (Nautilus) agrees with sigmastate', () => {
 				h
 			)
 		).toBe(true);
+	});
+
+	it('every asset mode: lock, top-up, unlock and sweep all sign under sigma-rust', () => {
+		for (const mode of MODES) {
+			const c = setup(mode);
+			const plan = lock(c, c.alice, 10_000n * LIT_UNIT, 0);
+			expect(rustSign(plan.tx, [c.alice], c.chain.height + 1), `${mode.stake}/${mode.reward} lock`).toBe(true);
+			expect(run(c, plan.tx, [c.alice])).toBe(true);
+
+			const topUp = buildTopUpTx({
+				deployment: c.d,
+				campaign: state(c),
+				inputs: c.bob.utxos.toArray(),
+				changeAddress: c.bob.address.encode(),
+				amount: LIT_UNIT,
+				height: c.chain.height
+			});
+			expect(rustSign(topUp, [c.bob], c.chain.height + 1), `${mode.stake}/${mode.reward} top-up`).toBe(true);
+
+			const [p] = positionsOf(c);
+			const unlock = buildUnlockTx({ deployment: c.d, position: p, inputs: c.alice.utxos.toArray(), height: p.unlockAt });
+			expect(rustSign(unlock, [c.alice], p.unlockAt), `${mode.stake}/${mode.reward} unlock`).toBe(true);
+
+			c.chain.jumpTo(END + GRACE);
+			const sweep = buildSweepTx({
+				deployment: c.d,
+				campaign: state(c),
+				inputs: c.bob.utxos.toArray(),
+				changeAddress: c.bob.address.encode(),
+				height: c.chain.height
+			});
+			expect(rustSign(sweep, [c.bob], END + GRACE + 1), `${mode.stake}/${mode.reward} sweep`).toBe(true);
+		}
 	});
 });

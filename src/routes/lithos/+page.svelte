@@ -4,7 +4,7 @@
 	import { ErgoAddress, type ErgoUnsignedTransaction } from '@fleet-sdk/core';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
-	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store';
+	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store.ts';
 	import { showCustomToast } from '$lib/utils/utils.js';
 	import { pickNetwork, type NetworkConfig } from '$lib/lithos/network.ts';
 	import {
@@ -16,17 +16,25 @@
 		type CampaignStats
 	} from '$lib/lithos/api.ts';
 	import type { CampaignState, PositionState } from '$lib/lithos/boxes.ts';
-	import { marginalAprBps, quoteLock } from '$lib/lithos/math.ts';
+	import { BLOCKS_PER_YEAR, marginalAprBps, quoteLock } from '$lib/lithos/math.ts';
 	import { UNLOCK_BUFFER } from '$lib/lithos/params.ts';
 	import {
 		buildLockTx,
 		buildSweepTx,
 		buildTopUpTx,
 		buildUnlockTx,
-		POSITION_BOX_VALUE,
 		TX_FEE
 	} from '$lib/lithos/txs.ts';
-	import { estimateDate, fmtApr, fmtBlocks, fmtErg, fmtLit, parseLit } from '$lib/lithos/format.ts';
+	import {
+		estimateDate,
+		fmtAmount,
+		fmtApr,
+		fmtBlocks,
+		fmtErg,
+		fmtRate,
+		parseAmount,
+		yearlyRate
+	} from '$lib/lithos/format.ts';
 	import {
 		changeAddress,
 		currentHeight,
@@ -51,7 +59,28 @@
 	let net: NetworkConfig | null = null;
 	$: d = net?.deployment ?? null;
 	$: testnet = net?.network === 'testnet';
-	$: ticker = testnet ? 'tLIT' : 'LIT';
+	// What is locked (A) and what is paid (B); either may be ERG, and they may be the same.
+	$: A = d?.assets.stake ?? { ticker: 'LIT', decimals: 9 };
+	$: B = d?.assets.reward ?? { ticker: 'LIT', decimals: 9 };
+	$: sameAsset = !!d && d.params.stakeId === d.params.rewardId;
+	$: deposit = d ? BigInt(d.params.deposit) : 0n;
+	// Reactive so the template re-renders when the deployment (and its decimals) load.
+	$: fmtA = (raw: bigint, max = 4) => fmtAmount(raw, A.decimals, max);
+	$: fmtB = (raw: bigint, max = 4) => fmtAmount(raw, B.decimals, max);
+	// Same asset: an APR. Different assets: B earned per whole A per year (no prices involved).
+	$: rateOf = (reward: bigint, principal: bigint, blocks: number) =>
+		sameAsset
+			? fmtApr(Number((reward * 10_000n * BigInt(BLOCKS_PER_YEAR)) / (principal * BigInt(blocks))))
+			: `${fmtRate(yearlyRate(reward, B.decimals, principal, A.decimals, blocks, BLOCKS_PER_YEAR))} ${B.ticker} per ${A.ticker} / yr`;
+	$: marginalRate = (boostBps: number) => {
+		if (!campaign) return '—';
+		const bps = marginalAprBps(campaign.budget, campaign.v, boostBps);
+		return sameAsset
+			? fmtApr(bps)
+			: `${fmtRate((bps / 10_000) * 10 ** (A.decimals - B.decimals))} ${B.ticker} per ${A.ticker} / yr`;
+	};
+	/** nanoERG kept aside for fees and the deposit when the staked asset is ERG. */
+	const ERG_HEADROOM = 10_000_000n;
 
 	let height = 0;
 	let campaign: CampaignState | null = null;
@@ -66,8 +95,16 @@
 	$: activeAddress = testWallet?.address ?? $connected_wallet_address;
 
 	let boxes: Box<bigint>[] = [];
-	$: litBalance = d ? tokenTotal(boxes, d.params.litId) : 0n;
 	$: ergBalance = boxes.reduce((sum, b) => sum + BigInt(b.value), 0n);
+	$: balanceOf = (id: string | null) => (id === null ? ergBalance : tokenTotal(boxes, id));
+	$: stakeBalance = !d
+		? 0n
+		: d.params.stakeId === null
+		? ergBalance > ERG_HEADROOM
+			? ergBalance - ERG_HEADROOM
+			: 0n
+		: balanceOf(d.params.stakeId);
+	$: rewardBalance = !d ? 0n : balanceOf(d.params.rewardId);
 	$: mine = testWallet
 		? new Set([testWallet.address])
 		: new Set([$connected_wallet_address, ...($connected_wallet_addresses ?? [])].filter(Boolean));
@@ -88,7 +125,7 @@
 	let tier = 1;
 	let understood = false;
 	let busy = '';
-	$: principal = parseLit(amountInput);
+	$: principal = parseAmount(amountInput, A.decimals);
 	$: tierDef = d?.params.tiers[tier];
 	$: minLock = d ? BigInt(d.params.minLock) : 0n;
 	$: quote =
@@ -115,21 +152,22 @@
 		: principal === null || principal === 0n
 		? 'Enter an amount'
 		: principal < minLock
-		? `Minimum ${fmtLit(minLock)} ${ticker}`
-		: principal > litBalance
-		? `Not enough ${ticker}`
+		? `Minimum ${fmtA(minLock)} ${A.ticker}`
+		: principal > stakeBalance
+		? `Not enough ${A.ticker}`
 		: !understood
 		? 'Tick the box above to confirm'
 		: '';
 
 	// Fund form
 	let topUpInput = '';
-	$: topUpAmount = parseLit(topUpInput);
+	$: topUpAmount = parseAmount(topUpInput, B.decimals);
 
 	// ErgoPay hand-off
 	let showErgopayModal = false;
 	let isAuth = false;
-	let unsignedTx: unknown = null;
+	// The shared ErgoPay modal types this prop as string but posts whatever it gets as JSON.
+	let unsignedTx: any = null;
 
 	let submitted: { txId: string; what: string }[] = [];
 	let timer: ReturnType<typeof setInterval> | undefined;
@@ -184,7 +222,7 @@
 	}
 
 	function setMax() {
-		amountInput = fmtLit(litBalance, 9).replace(/,/g, '');
+		amountInput = fmtAmount(stakeBalance, A.decimals, A.decimals).replace(/,/g, '');
 	}
 
 	const myChange = () => (testWallet ? Promise.resolve(testWallet.address) : changeAddress());
@@ -277,13 +315,13 @@
 			if (shown && plan.quote.reward < shown.reward) {
 				campaign = fresh;
 				showCustomToast(
-					`Rates just moved: your reward is now ${fmtLit(plan.quote.reward, 9)} ${ticker}. Check it and press Lock again.`,
+					`Rates just moved: your reward is now ${fmtB(plan.quote.reward, B.decimals)} ${B.ticker}. Check it and press Lock again.`,
 					8_000,
 					'info'
 				);
 				return;
 			}
-			await submit(plan.tx, `Lock of ${fmtLit(principal)} ${ticker}`);
+			await submit(plan.tx, `Lock of ${fmtA(principal)} ${A.ticker}`);
 			amountInput = '';
 			understood = false;
 		});
@@ -301,7 +339,7 @@
 			);
 			await submit(
 				buildUnlockTx({ deployment: d, position: p, inputs, height: h }),
-				`Unlock of ${fmtLit(p.principal + p.reward)} ${ticker}`
+				`Unlock of ${fmtA(p.principal)} ${A.ticker} + ${fmtB(p.reward)} ${B.ticker}`
 			);
 		});
 
@@ -318,7 +356,7 @@
 					amount: topUpAmount,
 					height: await myHeight()
 				}),
-				`Top-up of ${fmtLit(topUpAmount)} ${ticker}`
+				`Top-up of ${fmtB(topUpAmount)} ${B.ticker}`
 			);
 			topUpInput = '';
 		});
@@ -367,8 +405,8 @@
 		<p class="ll-kicker">MewLock × Lithos <span>·</span> PoW-Fi</p>
 		<h1>Lithos Lock</h1>
 		<p class="ll-lede">
-			Lock {ticker} for a fixed number of blocks. Your reward is set the moment you lock and comes back with
-			your {ticker} when the lock ends. No keys, no admins: only you can open your lock.
+			Lock {A.ticker} for a fixed number of blocks. Your {B.ticker} reward is set the moment you lock and comes
+			back with your {A.ticker} when the lock ends. No keys, no admins: only you can open your lock.
 		</p>
 		{#if d}
 			<p class="ll-term" aria-live="polite">
@@ -398,6 +436,7 @@
 		</section>
 	{:else}
 		{#if loadError}<p class="ll-error">{loadError}</p>{/if}
+		{#if d.note}<p class="ll-note-banner" role="note">{d.note}</p>{/if}
 
 		{#if testnet}
 			<section class="ll-card ll-testwallet" aria-label="Test wallet">
@@ -417,7 +456,7 @@
 							<button type="button" class="ll-link" on:click={copyAddress} title="Copy address">
 								{testWallet.address.slice(0, 10)}…{testWallet.address.slice(-6)}
 							</button>
-							· {fmtErg(ergBalance)} tERG · {fmtLit(litBalance, 2)} {ticker}
+							· {fmtErg(ergBalance)} tERG{#if d.params.stakeId !== null}{` · ${fmtA(balanceOf(d.params.stakeId), 2)} ${A.ticker}`}{/if}
 						</p>
 						<p class="ll-muted ll-small">
 							The key is stored only in this browser. Test tokens have no value.
@@ -427,7 +466,9 @@
 						<button class="ll-btn ll-btn-small" disabled={busy !== ''} on:click={getTestTokens}>
 							{busy === 'drip'
 								? 'Sending…'
-								: `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG + ${fmtLit(FAUCET_DRIP.tokens, 0)} ${ticker}`}
+								: d.params.stakeId === null
+								? `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG`
+								: `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG + ${fmtA(FAUCET_DRIP.tokens, 0)} ${A.ticker}`}
 						</button>
 						<button class="ll-btn ll-btn-small ll-btn-ghost" on:click={dropTestWallet}>Forget</button>
 					</div>
@@ -437,24 +478,24 @@
 
 		<section class="ll-stats" aria-label="Campaign statistics">
 			<div class="ll-stat">
-				<span>{ticker} locked</span>
-				<b>{stats ? fmtLit(stats.totalLocked, 2) : '…'}</b>
+				<span>{A.ticker} locked</span>
+				<b>{stats ? fmtA(stats.totalLocked, 2) : '…'}</b>
 			</div>
 			<div class="ll-stat">
 				<span>Lockers</span>
 				<b>{stats ? stats.lockers.toLocaleString('en-US') : '…'}</b>
 			</div>
 			<div class="ll-stat">
-				<span>Base APR for the next lock</span>
-				<b class="ll-hot">{campaign ? fmtApr(marginalAprBps(campaign.budget, campaign.v, 10_000)) : '—'}</b>
+				<span>{sameAsset ? 'Base APR for the next lock' : 'Base rate for the next lock'}</span>
+				<b class="ll-hot">{marginalRate(10_000)}</b>
 			</div>
 			<div class="ll-stat">
-				<span>Reward budget left</span>
-				<b>{campaign ? fmtLit(campaign.budget, 2) : swept ? '0' : '…'}</b>
+				<span>Reward budget left ({B.ticker})</span>
+				<b>{campaign ? fmtB(campaign.budget, 2) : swept ? '0' : '…'}</b>
 			</div>
 			<div class="ll-stat">
-				<span>Rewards set aside</span>
-				<b>{stats ? fmtLit(stats.rewardsCommitted, 2) : '…'}</b>
+				<span>Rewards set aside ({B.ticker})</span>
+				<b>{stats ? fmtB(stats.rewardsCommitted, 2) : '…'}</b>
 			</div>
 			<div class="ll-stat">
 				<span>Locks close at</span>
@@ -465,14 +506,14 @@
 
 		<section class="ll-grid">
 			<form class="ll-card ll-lock" on:submit|preventDefault={lock}>
-				<h2>Lock {ticker}</h2>
+				<h2>Lock {A.ticker}</h2>
 
 				<label class="ll-field">
 					<span class="ll-label">
 						Amount
 						{#if activeAddress}
 							<button type="button" class="ll-link" on:click={setMax}>
-								Balance {fmtLit(litBalance, 4)} {ticker} · Max
+								Balance {fmtA(stakeBalance, 4)} {A.ticker} · Max
 							</button>
 						{/if}
 					</span>
@@ -484,10 +525,10 @@
 							bind:value={amountInput}
 							aria-invalid={amountInput !== '' && principal === null}
 						/>
-						<span>{ticker}</span>
+						<span>{A.ticker}</span>
 					</div>
 					{#if amountInput !== '' && principal === null}
-						<small class="ll-warn">Use a number with up to 9 decimals.</small>
+						<small class="ll-warn">Use a number with up to {A.decimals} decimals.</small>
 					{/if}
 				</label>
 
@@ -497,9 +538,13 @@
 						<label class="ll-tier" class:active={tier === i}>
 							<input type="radio" name="tier" value={i} bind:group={tier} />
 							<b>{t.label}</b>
-							<span>{t.blocks.toLocaleString('en-US')} blocks · {boost(t.boostBps)}</span>
+							<span>
+								{t.label.includes('block')
+									? fmtBlocks(t.blocks, net.blockSeconds)
+									: `${t.blocks.toLocaleString('en-US')} blocks`} · {boost(t.boostBps)}
+							</span>
 							<span class="ll-hot">
-								{campaign ? fmtApr(marginalAprBps(campaign.budget, campaign.v, t.boostBps)) : '—'} APR now
+								{marginalRate(t.boostBps)}{sameAsset ? ' APR' : ''} now
 							</span>
 						</label>
 					{/each}
@@ -507,13 +552,22 @@
 
 				{#if quote && principal && tierDef}
 					<dl class="ll-quote">
-						<div><dt>You lock</dt><dd>{fmtLit(principal, 9)} {ticker}</dd></div>
+						<div><dt>You lock</dt><dd>{fmtA(principal, A.decimals)} {A.ticker}</dd></div>
 						<div>
 							<dt>Reward, fixed now</dt>
-							<dd class="ll-hot">+{fmtLit(quote.reward, 9)} {ticker}</dd>
+							<dd class="ll-hot">+{fmtB(quote.reward, B.decimals)} {B.ticker}</dd>
 						</div>
-						<div><dt>You get back</dt><dd>{fmtLit(principal + quote.reward, 9)} {ticker}</dd></div>
-						<div><dt>APR</dt><dd>{fmtApr(quote.aprBps)}</dd></div>
+						<div>
+							<dt>You get back</dt>
+							<dd>
+								{#if sameAsset}
+									{fmtA(principal + quote.reward, A.decimals)} {A.ticker}
+								{:else}
+									{fmtA(principal, A.decimals)} {A.ticker} + {fmtB(quote.reward, B.decimals)} {B.ticker}
+								{/if}
+							</dd>
+						</div>
+						<div><dt>{sameAsset ? 'APR' : 'Rate'}</dt><dd>{rateOf(quote.reward, principal, tierDef.blocks)}</dd></div>
 						<div>
 							<dt>Unlocks at</dt>
 							<dd>block #{unlockPreview.toLocaleString('en-US')} · {blockDate(unlockPreview)}</dd>
@@ -521,21 +575,21 @@
 						<div>
 							<dt>Costs</dt>
 							<dd>
-								{fmtErg(TX_FEE)} ERG fee + {fmtErg(POSITION_BOX_VALUE)} ERG deposit, returned at unlock
+								{fmtErg(TX_FEE)} ERG fee + {fmtErg(deposit)} ERG deposit, returned at unlock
 							</dd>
 						</div>
 					</dl>
 					<label class="ll-check">
 						<input type="checkbox" bind:checked={understood} />
 						<span>
-							I understand my {ticker} is locked until block #{unlockPreview.toLocaleString('en-US')}
+							I understand my {A.ticker} is locked until block #{unlockPreview.toLocaleString('en-US')}
 							({fmtBlocks(tierDef.blocks + UNLOCK_BUFFER, net.blockSeconds)}) and nobody can release it early.
 						</span>
 					</label>
 				{/if}
 
 				<button class="ll-btn" type="submit" disabled={!!lockBlocker || busy !== ''}>
-					{busy === 'lock' ? 'Waiting for the wallet…' : lockBlocker || `Lock ${ticker}`}
+					{busy === 'lock' ? 'Waiting for the wallet…' : lockBlocker || `Lock ${A.ticker}`}
 				</button>
 			</form>
 
@@ -550,8 +604,8 @@
 						{#each myPositions as p (p.box.boxId)}
 							<li>
 								<div>
-									<b>{fmtLit(p.principal, 4)} {ticker}</b>
-									<span class="ll-hot">+{fmtLit(p.reward, 4)}</span>
+									<b>{fmtA(p.principal, 4)} {A.ticker}</b>
+									<span class="ll-hot">+{fmtB(p.reward, 4)} {sameAsset ? '' : B.ticker}</span>
 									<small>{d.params.tiers[p.tier]?.label ?? `tier ${p.tier}`}</small>
 								</div>
 								<div class="ll-when">
@@ -584,7 +638,7 @@
 					</ul>
 				{/if}
 				<p class="ll-note">
-					Your locked {ticker} sits in its own contract box, not at your address, so your wallet balance
+					Your locked {A.ticker} sits in its own contract box, not at your address, so your wallet balance
 					will not show it. It is listed here, and on the explorer.
 				</p>
 			</section>
@@ -630,15 +684,14 @@
 			<h2 id="risks-title">Before you lock</h2>
 			<ul>
 				<li>
-					Your {ticker} stays locked until its unlock block. Nobody can release it early: not you, not Mew,
+					Your {A.ticker} stays locked until its unlock block. Nobody can release it early: not you, not Mew,
 					not Lithos.
 				</li>
 				<li>
-					Your reward is fixed in {ticker}, but LIT's price can move a lot, and the ERG/LIT market is
-					thin.
+					Your reward is fixed in {B.ticker}, but prices can move a lot, and the ERG/LIT market is thin.
 				</li>
 				<li>
-					The APR shown is for the next lock. It falls as more {ticker} locks and rises when the budget is
+					The rate shown is for the next lock. It falls as more {A.ticker} locks and rises when the budget is
 					topped up. Your own reward never changes after you lock.
 				</li>
 				<li>
@@ -650,7 +703,7 @@
 					developers' fee address. That address is fixed in the contract.
 				</li>
 				<li>
-					You need a little ERG: {fmtErg(TX_FEE)} for the network fee, plus a {fmtErg(POSITION_BOX_VALUE)}
+					You need a little ERG: {fmtErg(TX_FEE)} for the network fee, plus a {fmtErg(deposit)}
 					deposit that comes back when you unlock.
 				</li>
 			</ul>
@@ -660,12 +713,12 @@
 			<form class="ll-card" on:submit|preventDefault={topUp}>
 				<h2>Add to the reward pool</h2>
 				<p class="ll-muted">
-					Anyone can add {ticker} to the budget until block #{d.params.end.toLocaleString('en-US')}. It
+					Anyone can add {B.ticker} to the budget until block #{d.params.end.toLocaleString('en-US')}. It
 					raises the rate for every lock after it.
 				</p>
 				<div class="ll-input">
 					<input inputmode="decimal" autocomplete="off" placeholder="0.0" bind:value={topUpInput} />
-					<span>{ticker}</span>
+					<span>{B.ticker}</span>
 				</div>
 				<button
 					class="ll-btn ll-btn-ghost"
@@ -674,7 +727,7 @@
 						wrongNetwork ||
 						!(open || notStarted) ||
 						!topUpAmount ||
-						topUpAmount > litBalance ||
+						topUpAmount > rewardBalance ||
 						busy !== ''}
 				>
 					{busy === 'topup' ? 'Waiting for the wallet…' : 'Add to pool'}
@@ -700,7 +753,14 @@
 </main>
 
 {#if showErgopayModal}
-	<ErgopayModal bind:showErgopayModal bind:isAuth bind:unsignedTx>
+	<ErgopayModal
+		bind:showErgopayModal
+		bind:isAuth
+		bind:unsignedTx
+		qrCodeText=""
+		onBtnClick={undefined}
+		onTxSubmitted={() => setTimeout(refresh, 5_000)}
+	>
 		<button slot="btn">Close</button>
 	</ErgopayModal>
 {/if}
@@ -1136,7 +1196,17 @@
 	.ll-admin .ll-input {
 		margin-bottom: 0;
 	}
-.ll-testwallet {
+
+	.ll-note-banner {
+		border: 1px solid #f9d72d66;
+		background: #f9d72d12;
+		color: var(--ll-accent);
+		border-radius: 10px;
+		padding: 10px 14px;
+		margin: 0 0 20px;
+		font-size: 0.92rem;
+	}
+	.ll-testwallet {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
