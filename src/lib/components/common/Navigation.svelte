@@ -5,6 +5,7 @@
 	import MewLockModal from './MewLockModal.svelte';
 	import { priceService } from '$lib/services/priceService';
 	import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
+	import { ergLocked } from '$lib/store/tvl.ts';
 	import { onMount } from 'svelte';
 
 	let mobileMenuOpen = false;
@@ -53,9 +54,9 @@
 	];
 
 	$: currentPath = $page.url.pathname;
-	// The Lithos dashboard belongs to the Lithos Lock menu item.
+	// The Lithos dashboard and deploy pages belong to the Lithos Lock menu item.
 	$: isActive = (href: string) =>
-		currentPath === href || (href === '/lithos' && currentPath === '/lithos-locks');
+		currentPath === href || (href === '/lithos' && currentPath.startsWith('/lithos-'));
 
 	onMount(() => {
 		calculateTVL();
@@ -73,6 +74,7 @@
 			
 			// Fetch all locked boxes (current contract + any retired ones)
 			const boxes = await fetchMewLockBoxes();
+			ergLocked.set(boxes.reduce((sum, box) => sum + (box.value ? parseInt(box.value) / 1e9 : 0), 0));
 			
 			let totalUsdValue = 0;
 			
@@ -279,7 +281,7 @@
 	.nav-links.desktop {
 		display: flex;
 		align-items: center;
-		gap: 2rem;
+		gap: 0.25rem;
 	}
 
 	.nav-link {
@@ -461,12 +463,15 @@
 	}
 
 
-	/* Responsive */
-	@media (max-width: 768px) {
-		.nav-container {
-			padding: 1rem;
+	/* Responsive: text-only links first, then the menu button once a connected wallet's
+	   Lock Assets button would no longer fit next to all four links. */
+	@media (max-width: 1200px) {
+		.nav-link svg {
+			display: none;
 		}
+	}
 
+	@media (max-width: 1024px) {
 		.nav-links.desktop,
 		.nav-actions.desktop {
 			display: none;
@@ -474,6 +479,12 @@
 
 		.mobile-actions-header {
 			display: flex;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.nav-container {
+			padding: 1rem;
 		}
 
 		.logo-text {

@@ -7,39 +7,39 @@
 
 	const questions = [
 		{
-			question: 'What is MewLock?',
+			question: 'What is Mew Lock?',
 			answer:
-				'MewLock is a time-locked asset protocol on Ergo that allows users to lock ERG and tokens for specified durations. Assets are secured by smart contracts and can only be withdrawn after the unlock height is reached.'
+				'Mew Lock is a time-locked asset protocol on Ergo that allows users to lock ERG and tokens for specified durations. Assets are secured by smart contracts and can only be withdrawn after the unlock height is reached.'
 		},
 		{
-			question: 'How does MewLock work?',
+			question: 'How does Mew Lock work?',
 			answer:
-				'Users send assets to the MewLock smart contract with a specified unlock height (block number). The contract stores the assets safely until the blockchain reaches that height, after which only the original depositor can withdraw them.'
+				'Users send assets to the Mew Lock smart contract with a specified unlock height (block number). The contract stores the assets safely until the blockchain reaches that height, after which only the original depositor can withdraw them.'
 		},
 		{
 			question: 'What are the fees?',
 			answer:
-				'MewLock has a 3% withdrawal fee on all locked assets. For locks longer than 4 years, additional Ergo storage rent fees may apply as per the Ergo protocol.'
+				'Mew Lock has a 3% withdrawal fee on all locked assets. For locks longer than 4 years, additional Ergo storage rent fees may apply as per the Ergo protocol.'
 		},
 		{
-			question: 'What data is needed for a MewLock transaction?',
+			question: 'What data is needed for a Mew Lock transaction?',
 			answer:
-				'Lock Transaction Inputs: (1) User\'s UTXOs containing ERG/tokens to lock, (2) User\'s address for change. Outputs: (1) MewLock contract box with locked assets, (2) Change back to user. Registers: R4 contains user\'s public key, R5 contains unlock height (block number).'
+				'Lock Transaction Inputs: (1) User\'s UTXOs containing ERG/tokens to lock, (2) User\'s address for change. Outputs: (1) Mew Lock contract box with locked assets, (2) Change back to user. Registers: R4 contains user\'s public key, R5 contains unlock height (block number).'
 		},
 		{
 			question: 'How are withdrawal transactions structured?',
 			answer:
-				'Withdrawal Transaction Inputs: (1) MewLock contract box containing locked assets, (2) User\'s UTXOs for fees. Outputs: (1) Assets returned to user (minus 3% fee), (2) Fee to protocol, (3) Miner fee. The transaction can only be created after the unlock height is reached.'
+				'Withdrawal Transaction Inputs: (1) Mew Lock contract box containing locked assets, (2) User\'s UTXOs for fees. Outputs: (1) Assets returned to user (minus 3% fee), (2) Fee to protocol, (3) Miner fee. The transaction can only be created after the unlock height is reached.'
 		},
 		{
 			question: 'Detailed Lock Transaction Example',
 			answer:
-				'Lock Transaction Building Example:\\n\\n**Inputs:**\\n- Input[0]: User UTXO (5 ERG + 1000 SigUSD tokens)\\n- Input[1]: User UTXO (0.5 ERG for fees)\\n\\n**Outputs:**\\n- Output[0]: MewLock Contract Box\\n  - Value: 5000000000 nanoERG\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 1000000000}]\\n  - ErgoTree: MewLock contract script\\n  - Registers:\\n    - R4: 0702c1a2b3c4d5e6f7... (user public key)\\n    - R5: 04a0860100 (unlock height 100000 in VLQ encoding)\\n- Output[1]: Change Box\\n  - Value: 499000000 nanoERG (0.499 ERG after 0.001 ERG miner fee)\\n  - ErgoTree: User address script\\n\\n**Transaction Fee:** 0.001 ERG (1000000 nanoERG)'
+				'Lock Transaction Building Example:\\n\\n**Inputs:**\\n- Input[0]: User UTXO (5 ERG + 1000 SigUSD tokens)\\n- Input[1]: User UTXO (0.5 ERG for fees)\\n\\n**Outputs:**\\n- Output[0]: Mew Lock Contract Box\\n  - Value: 5000000000 nanoERG\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 1000000000}]\\n  - ErgoTree: Mew Lock contract script\\n  - Registers:\\n    - R4: 0702c1a2b3c4d5e6f7... (user public key)\\n    - R5: 04a0860100 (unlock height 100000 in VLQ encoding)\\n- Output[1]: Change Box\\n  - Value: 499000000 nanoERG (0.499 ERG after 0.001 ERG miner fee)\\n  - ErgoTree: User address script\\n\\n**Transaction Fee:** 0.001 ERG (1000000 nanoERG)'
 		},
 		{
 			question: 'Detailed Withdrawal Transaction Example',
 			answer:
-				'Withdrawal Transaction Building Example:\\n\\n**Inputs:**\\n- Input[0]: MewLock Contract Box (from lock example)\\n  - Value: 5000000000 nanoERG\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 1000000000}]\\n- Input[1]: User UTXO (0.2 ERG for fees)\\n\\n**Outputs:**\\n- Output[0]: User Receives (97% after 3% fee)\\n  - Value: 4850000000 nanoERG (4.85 ERG)\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 970000000}] (970 SigUSD)\\n  - ErgoTree: User address script\\n- Output[1]: Protocol Fee (3%)\\n  - Value: 150000000 nanoERG (0.15 ERG)\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 30000000}] (30 SigUSD)\\n  - ErgoTree: Protocol fee address\\n- Output[2]: Change\\n  - Value: 199000000 nanoERG (0.199 ERG after miner fee)\\n  - ErgoTree: User address script\\n\\n**Validation:** Current height >= R5 unlock height'
+				'Withdrawal Transaction Building Example:\\n\\n**Inputs:**\\n- Input[0]: Mew Lock Contract Box (from lock example)\\n  - Value: 5000000000 nanoERG\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 1000000000}]\\n- Input[1]: User UTXO (0.2 ERG for fees)\\n\\n**Outputs:**\\n- Output[0]: User Receives (97% after 3% fee)\\n  - Value: 4850000000 nanoERG (4.85 ERG)\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 970000000}] (970 SigUSD)\\n  - ErgoTree: User address script\\n- Output[1]: Protocol Fee (3%)\\n  - Value: 150000000 nanoERG (0.15 ERG)\\n  - Assets: [{"tokenId": "03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf04", "amount": 30000000}] (30 SigUSD)\\n  - ErgoTree: Protocol fee address\\n- Output[2]: Change\\n  - Value: 199000000 nanoERG (0.199 ERG after miner fee)\\n  - ErgoTree: User address script\\n\\n**Validation:** Current height >= R5 unlock height'
 		},
 		{
 			question: 'Can I withdraw my assets early?',
@@ -62,16 +62,16 @@
 				'**Register Encoding Details:**\\n\\n**R4 (User Public Key):**\\n- Type: GroupElement (07)\\n- Format: 07 + 33-byte compressed public key\\n- Example: 0702c1a2b3c4d5e6f7... (34 bytes total)\\n\\n**R5 (Unlock Height):**\\n- Type: SInt (04)\\n- Format: VLQ (Variable Length Quantity) encoded\\n- Example: Block 100000 = 04a0860100\\n- Decoding: [0xa0, 0x86, 0x01, 0x00] -> 100000\\n\\n**VLQ Decoding Process:**\\n```\\nlet result = 0, shift = 0\\nfor each byte in hex:\\n  result += (byte & 0x7F) << shift\\n  if (byte & 0x80) == 0: break\\n  shift += 7\\n```\\n\\n**Smart Contract Validation:**\\n- HEIGHT >= SELF.R5[Int].get (unlock height check)\\n- OUTPUTS(0).propositionBytes == proveDlog(SELF.R4[GroupElement].get).propBytes (owner check)\\n- Fee calculation: locked_value * 0.97 (3% protocol fee)'
 		},
 		{
-			question: 'What is the MewLock contract address?',
+			question: 'What is the Mew Lock contract address?',
 			answer:
-				'The MewLock smart contract address is: 5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAq'
+				'The Mew Lock smart contract address is: 5adWKCNFaCzfHxRxzoFvAS7khVsqXqvKV6cejDimUXDUWJNJFhRaTmT65PRUPv2fGeXJQ2Yp9GqpiQayHqMRkySDMnWW7X3tBsjgwgT11pa1NuJ3cxf4Xvxo81Vt4HmY3KCxkg1aptVZdCSDA7ASiYE6hRgN5XnyPsaAY2Xc7FUoWN1ndQRA7Km7rjcxr3NHFPirZvTbZfB298EYwDfEvrZmSZhU2FGpMUbmVpdQSbooh8dGMjCf4mXrP2N4FSkDaNVZZPcEPyDr4WM1WHrVtNAEAoWJUTXQKeLEj6srAsPw7PpXgKa74n3Xc7qiXEr2Tut7jJkFLeNqLouQN13kRwyyADQ5aXTCBuhqsucQvyqEEEk7ekPRnqk4LzRyVqCVsRZ7Y5Kk1r1jZjPeXSUCTQGnL1pdFfuJ1SfaYkbgebjnJT2KJWVRamQjztvrhwarcVHDXbUKNawznfJtPVm7abUv81mro23AKhhkPXkAweZ4jXdKwQxjiAq'
 		}
 	];
 </script>
 
 <div class="faq-container">
 	<div class="faq-content">
-		<h1 class="faq-title">MewLock FAQ</h1>
+		<h1 class="faq-title">Mew Lock FAQ</h1>
 
 		<div class="faq-list">
 			{#each questions as { question, answer }, index}

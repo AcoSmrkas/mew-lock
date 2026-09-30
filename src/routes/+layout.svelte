@@ -87,6 +87,7 @@
 
 {#if ready}
 	<slot />
+	<Footer />
 	<InfoPopup bind:showPopup bind:popupInfo>
 		<button slot="btn">Close</button>
 	</InfoPopup>

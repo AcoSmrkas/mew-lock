@@ -558,7 +558,7 @@
 		<div class="w-52 h-52">
 			<div
 				class="leading-6 pb-2 text-white w-100 text-center font-bold"
-				style="font-family:'Manrope';font-size:1.5em;"
+				style="font-size:1.5em;"
 			>
 				Select Wallet
 			</div>
@@ -567,7 +567,7 @@
 					<a
 						href="https://chrome.google.com/webstore/detail/nautilus-wallet/gjlmehlldlphhljhpnlddaodbjjcchai"
 						target="blank_"
-						style="height: 50px;text-wrap:nowrap;"
+						style="text-wrap:nowrap;"
 						class="w-full flex justify-center items-center btn btn-primary mb-3 install-naut"
 					>
 						<img style="height: 1.4em; width: 1.4em;" src="/wallets/nautilus.svg" alt="" />
@@ -631,7 +631,7 @@
 	<AddressChangeModal bind:showAddressChangeModal onBtnClick={handleAddressChange}>
 		<div
 			class="leading-6 pb-2 text-white w-100 text-center font-bold rounded-lg"
-			style="font-family:'Manrope';font-size:1.5em;"
+			style="font-size:1.5em;"
 		>
 			Select Address
 		</div>
@@ -737,7 +737,7 @@
 
 	.modal-title {
 		color: white;
-		font-family: 'Manrope', sans-serif;
+		font-family: var(--ml-font);
 		font-size: 1.5em;
 		font-weight: 600;
 		margin: 0;

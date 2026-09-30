@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '$lib/lithos/lithos.css';
 	// Deploy a campaign from a connected wallet: mint the position markers and
 	// the campaign NFT, compile the contract (the leftover goes to an address of
 	// your choice, baked in), and create the campaign box. Three signatures, no
@@ -272,7 +273,7 @@
 				to: d.change,
 				amount: MARKER_SUPPLY,
 				name: 'LITLOCK position',
-				description: 'MewLock campaign position marker',
+				description: 'Mew Lock campaign position marker',
 				decimals: 0
 			});
 			const markerId = tx.inputs[0].boxId;
@@ -290,7 +291,7 @@
 				to: d.change,
 				amount: 1n,
 				name: 'LITLOCK campaign',
-				description: `MewLock campaign: ${d.label}`,
+				description: `Mew Lock campaign: ${d.label}`,
 				decimals: 0
 			});
 			const campaignNftId = tx.inputs[0].boxId;
@@ -345,163 +346,88 @@
 </script>
 
 <svelte:head>
-	<title>Deploy a campaign | MewLock</title>
+	<title>Deploy a campaign | Mew Lock</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
 <Navigation />
 
-<main class="dp">
-	<h1>Deploy a MewLock campaign</h1>
-	<p class="dp-muted">
-		Three signatures from your wallet: mint the position markers, mint the campaign NFT, then create the
-		campaign box with its budget. Everything below is compiled into the contract and cannot change later.
-		{#if net?.network === 'testnet'}<b>Testnet</b>{#if testWallet} · signing with the test wallet{/if}.{/if}
-	</p>
-
-	{#if progress}
-		<section class="dp-card dp-resume">
-			<h2>Unfinished deployment</h2>
-			<p class="dp-muted">
-				"{progress.draft.label}" stopped after step {stepsDone} of 3. Resume to finish it without minting again,
-				or discard it (anything already minted stays in the wallet).
+<main class="ll">
+	<div class="ll-narrow">
+		<header class="ll-header">
+			<h1>Deploy a campaign</h1>
+			<p class="ll-description">
+				Three signatures from your wallet: mint the position markers, mint the campaign NFT, then
+				create the campaign box with its budget. Everything below is compiled into the contract and
+				cannot change later.
+				{#if net?.network === 'testnet'}<b>Testnet</b>{#if testWallet} · signing with the test wallet{/if}.{/if}
 			</p>
-			<div class="dp-row">
-				<button class="dp-btn" disabled={busy} on:click={resume}>{busy ? 'Working…' : 'Resume'}</button>
-				<button class="dp-btn dp-ghost" disabled={busy} on:click={clearProgress}>Discard</button>
+		</header>
+
+		{#if progress}
+			<section class="ll-card ll-form-card ll-resume">
+				<h2>Unfinished deployment</h2>
+				<p class="ll-card-text">
+					"{progress.draft.label}" stopped after step {stepsDone} of 3. Resume to finish it without minting
+					again, or discard it (anything already minted stays in the wallet).
+				</p>
+				<div class="ll-row">
+					<button class="ll-btn ll-btn-primary" disabled={busy} on:click={resume}
+						>{busy ? 'Working…' : 'Resume'}</button
+					>
+					<button class="ll-btn ll-btn-secondary" disabled={busy} on:click={clearProgress}
+						>Discard</button
+					>
+				</div>
+			</section>
+		{/if}
+
+		<form class="ll-card ll-form-card ll-form" on:submit|preventDefault={deploy}>
+			<h2>Campaign</h2>
+			<label>Label <input bind:value={label} /></label>
+			<label>Note shown on the page <input bind:value={note} /></label>
+			<div class="ll-form-row">
+				<label>Locked token id (empty = ERG) <input class="ll-mono" bind:value={stakeId} /></label>
+				<label>Reward token id (empty = ERG) <input class="ll-mono" bind:value={rewardId} /></label>
 			</div>
-		</section>
-	{/if}
+			<div class="ll-form-row">
+				<label>Ticker <input bind:value={ticker} /></label>
+				<label>Decimals <input type="number" bind:value={decimals} /></label>
+			</div>
+			<label>Tiers, blocks:multiplier <input bind:value={tiersText} /></label>
+			<div class="ll-form-row">
+				<label>Locks open for (blocks) <input type="number" bind:value={openBlocks} /></label>
+				<label>Grace before sweep (blocks) <input type="number" bind:value={grace} /></label>
+			</div>
+			<div class="ll-form-row">
+				<label>Budget ({ticker}) <input bind:value={budgetInput} /></label>
+				<label>Minimum lock ({ticker}) <input bind:value={minLockInput} /></label>
+				<label>Starting base APR (%) <input type="number" bind:value={baseAprPct} /></label>
+			</div>
+			<label>
+				Leftover goes to (empty = your wallet)
+				<input class="ll-mono" bind:value={leftoverTo} placeholder={signer || 'your wallet address'} />
+			</label>
+			<button
+				class="ll-btn ll-btn-primary ll-btn-block ll-btn-lg"
+				type="submit"
+				disabled={!!problem || busy || !!progress}
+			>
+				{busy ? 'Deploying… keep this tab open' : problem || 'Deploy (3 signatures)'}
+			</button>
+		</form>
 
-	<form class="dp-card" on:submit|preventDefault={deploy}>
-		<label>Label <input bind:value={label} /></label>
-		<label>Note shown on the page <input bind:value={note} /></label>
-		<div class="dp-row">
-			<label>Locked token id (empty = ERG) <input bind:value={stakeId} /></label>
-			<label>Reward token id (empty = ERG) <input bind:value={rewardId} /></label>
-		</div>
-		<div class="dp-row">
-			<label>Ticker <input bind:value={ticker} /></label>
-			<label>Decimals <input type="number" bind:value={decimals} /></label>
-		</div>
-		<label>Tiers, blocks:multiplier <input bind:value={tiersText} /></label>
-		<div class="dp-row">
-			<label>Locks open for (blocks) <input type="number" bind:value={openBlocks} /></label>
-			<label>Grace before sweep (blocks) <input type="number" bind:value={grace} /></label>
-		</div>
-		<div class="dp-row">
-			<label>Budget ({ticker}) <input bind:value={budgetInput} /></label>
-			<label>Minimum lock ({ticker}) <input bind:value={minLockInput} /></label>
-			<label>Starting base APR (%) <input type="number" bind:value={baseAprPct} /></label>
-		</div>
-		<label>
-			Leftover goes to (empty = your wallet)
-			<input bind:value={leftoverTo} placeholder={signer || 'your wallet address'} />
-		</label>
-		<button class="dp-btn" type="submit" disabled={!!problem || busy || !!progress}>
-			{busy ? 'Deploying… keep this tab open' : problem || 'Deploy (3 signatures)'}
-		</button>
-	</form>
+		{#if log.length}
+			<pre class="ll-log">{log.join('\n')}</pre>
+		{/if}
 
-	{#if log.length}
-		<pre class="dp-log">{log.join('\n')}</pre>
-	{/if}
-
-	{#if result}
-		<section class="dp-card">
-			<h2>Deployment</h2>
-			<p class="dp-muted">Campaign NFT <code>{result.campaignNftId}</code></p>
-			<button class="dp-btn" on:click={copyResult}>Copy deployment JSON</button>
-			<pre class="dp-log">{JSON.stringify(result, null, 2)}</pre>
-		</section>
-	{/if}
+		{#if result}
+			<section class="ll-card ll-form-card">
+				<h2>Deployment</h2>
+				<p class="ll-card-text">Campaign NFT <code class="ll-mono">{result.campaignNftId}</code></p>
+				<button class="ll-btn ll-btn-primary" on:click={copyResult}>Copy deployment JSON</button>
+				<pre class="ll-log">{JSON.stringify(result, null, 2)}</pre>
+			</section>
+		{/if}
+	</div>
 </main>
-
-<style>
-	.dp {
-		max-width: 860px;
-		margin: 0 auto;
-		padding: 96px 16px 64px;
-		color: #e9e4f4;
-	}
-	h1 {
-		color: var(--main-color, #f9d72d);
-		font-size: 1.8rem;
-		margin: 0 0 8px;
-	}
-	h2 {
-		font-size: 1.1rem;
-		margin: 0 0 8px;
-	}
-	.dp-muted {
-		color: var(--text-light, #ffffff77);
-		line-height: 1.55;
-	}
-	.dp-card {
-		background: #1c1230;
-		border: 1px solid var(--borders, #ffffff22);
-		border-radius: 14px;
-		padding: 20px;
-		margin: 20px 0;
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-	.dp-row {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 12px;
-	}
-	label {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		font-size: 0.82rem;
-		color: var(--text-light, #ffffff77);
-	}
-	input {
-		background: #0000004d;
-		border: 1px solid var(--borders, #ffffff22);
-		border-radius: 8px;
-		padding: 9px 10px;
-		color: #e9e4f4;
-		font-family: ui-monospace, Menlo, monospace;
-		min-width: 0;
-	}
-	.dp-btn {
-		border: 0;
-		border-radius: 10px;
-		padding: 12px 16px;
-		font-weight: 700;
-		background: var(--main-color, #f9d72d);
-		color: #1b1030;
-		cursor: pointer;
-	}
-	.dp-ghost {
-		background: transparent;
-		border: 1px solid var(--main-color, #f9d72d);
-		color: var(--main-color, #f9d72d);
-	}
-	.dp-resume {
-		border-color: #f9d72d66;
-	}
-	.dp-btn:disabled {
-		background: #ffffff1f;
-		color: var(--text-light, #ffffff77);
-		cursor: not-allowed;
-	}
-	.dp-log {
-		background: #0000004d;
-		border: 1px solid var(--borders, #ffffff22);
-		border-radius: 10px;
-		padding: 12px;
-		font-size: 0.8rem;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-		max-height: 420px;
-		overflow: auto;
-	}
-	code {
-		overflow-wrap: anywhere;
-	}
-</style>

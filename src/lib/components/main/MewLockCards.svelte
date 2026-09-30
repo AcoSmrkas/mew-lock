@@ -340,7 +340,7 @@
 		font-weight: 600;
 		color: var(--secondary-color);
 		margin: 0 0 0.5rem 0;
-		font-family: 'Manrope', sans-serif;
+		font-family: var(--ml-font);
 	}
 
 	.section-subtitle {

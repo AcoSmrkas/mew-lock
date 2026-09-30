@@ -1186,7 +1186,7 @@
 				fill="currentColor"
 			/>
 		</svg>
-		MewLock - Time-Locked Storage
+		Mew Lock - Time-Locked Storage
 	</div>
 	<p class="header-subtitle">
 		Lock your ERG and tokens in time-based smart contracts for secure storage until unlock height.
@@ -1255,7 +1255,7 @@
 		</div>
 
 		<div class="p-3 bg-footer rounded-lg">
-			<h4 class="text-white font-bold mb-2">🔒 MewLock Smart Contract</h4>
+			<h4 class="text-white font-bold mb-2">🔒 Mew Lock Smart Contract</h4>
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
 				<p class="text-gray-300"><strong>ERG Amount:</strong> {lockAmount || '0'} ERG</p>
 				<p class="text-gray-300">

@@ -157,19 +157,31 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 				{#if lithosDeployment}
 					<section class="lithos-ad" aria-labelledby="lithos-ad-title">
 						<div class="lithos-ad-copy">
-							<p>MEW LOCK × LITHOS</p>
+							<span class="lithos-ad-badge">
+								<svg viewBox="0 0 24 24" aria-hidden="true"
+									><path
+										d="M16,9H19L14,16M10,9H14L12,17M5,9H8L10,16M15,4H17L19,7H16M11,4H13L14,7H10M7,4H9L8,7H5M6,2L2,8L12,22L22,8L18,2H6Z"
+									/></svg
+								>
+								Mew Lock × Lithos
+							</span>
 							<h2 id="lithos-ad-title">Lock LIT. Earn LIT. Keep the keys.</h2>
-							<a href="/lithos">{lithosEventOpen ? 'Lock LIT now' : 'Explore Lithos'} <span>→</span></a>
 						</div>
 						<div class="lithos-ad-stats">
 							{#if lithosLoading}
-								<span>Checking campaign…</span>
+								<span class="lithos-ad-loading">Checking campaign…</span>
 							{:else if lithosStats}
-								<div><b>{fmtAmount(lithosStats.totalLocked, lithosDeployment.assets.stake.decimals)}</b><small>LIT locked</small></div>
-								<div><b>{lithosStats.lockers}</b><small>lockers</small></div>
-								<div><b>{lithosStats.positions}</b><small>open locks</small></div>
+								<div>
+									<b>{fmtAmount(lithosStats.totalLocked, lithosDeployment.assets.stake.decimals)}</b
+									><small>LIT locked</small>
+								</div>
+								<div><b>{lithosStats.lockers}</b><small>Lockers</small></div>
+								<div><b>{lithosStats.positions}</b><small>Open locks</small></div>
 							{/if}
 						</div>
+						<a class="lithos-ad-cta" href="/lithos"
+							>{lithosEventOpen ? 'Lock LIT now' : 'Explore Lithos'} <span aria-hidden="true">→</span></a
+						>
 					</section>
 				{/if}
 
@@ -306,97 +318,9 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	</div>
 </section>
 
-<!-- Footer -->
-<footer class="footer">
-	<div class="footer-container">
-		<div class="footer-content">
-			<div class="footer-left">
-				<div class="footer-brand">
-					<h4>Mew Lock</h4>
-					<p>Secure time-locked asset storage on Ergo</p>
-				</div>
-				<div class="footer-links">
-					<a href="https://t.me/MewFinance" target="_blank" class="footer-link">
-						<svg
-							width="20"
-							height="20"
-							viewBox="0 0 24 24"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
-						>
-							<path
-								d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22S22 17.52 22 12S17.52 2 12 2M16.64 8.8C16.49 10.38 15.75 14.22 15.37 15.99C15.21 16.74 14.9 16.99 14.61 17.02C14.37 17.04 13.62 16.91 12.69 16.64L7.55 14.53C7.27 14.42 7.29 14.05 7.64 13.92L15.33 9.97C15.71 9.8 15.67 9.5 15.33 9.64L9.68 12.81L7.4 12.08C6.99 11.96 6.99 11.64 7.5 11.43L15.89 8.17C16.25 8.05 16.67 8.35 16.64 8.8Z"
-								fill="currentColor"
-							/>
-						</svg>
-						Telegram
-					</a>
-					<a href="https://x.com/Mew_finance" target="_blank" class="footer-link">
-						<svg
-							width="20"
-							height="20"
-							viewBox="0 0 24 24"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
-						>
-							<path
-								d="M22.46 6C21.69 6.35 20.86 6.58 20 6.69C20.88 6.16 21.56 5.32 21.88 4.31C21.05 4.81 20.13 5.16 19.16 5.36C18.37 4.5 17.26 4 16 4C13.65 4 11.73 5.92 11.73 8.29C11.73 8.63 11.77 8.96 11.84 9.27C8.28 9.09 5.11 7.38 3 4.79C2.63 5.42 2.42 6.16 2.42 6.94C2.42 8.43 3.17 9.75 4.33 10.5C3.62 10.5 2.96 10.3 2.38 10C2.38 10 2.38 10 2.38 10.03C2.38 12.11 3.86 13.85 5.82 14.24C5.46 14.34 5.08 14.39 4.69 14.39C4.42 14.39 4.15 14.36 3.89 14.31C4.43 16 6 17.26 7.89 17.29C6.43 18.45 4.58 19.13 2.56 19.13C2.22 19.13 1.88 19.11 1.54 19.07C3.44 20.29 5.7 21 8.12 21C16 21 20.33 14.46 20.33 8.79C20.33 8.6 20.33 8.42 20.32 8.23C21.16 7.63 21.88 6.87 22.46 6Z"
-								fill="currentColor"
-							/>
-						</svg>
-						Twitter
-					</a>
-					<a href="/faq" class="footer-link">
-						<svg
-							width="20"
-							height="20"
-							viewBox="0 0 24 24"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
-						>
-							<path
-								d="M12 2C6.48 2 2 6.48 2 12S6.48 22 12 22S22 17.52 22 12S17.52 2 12 2M13 19H11V17H13V19M15.07 11.25L14.17 12.17C13.45 12.9 13 13.5 13 15H11V14.5C11 13.4 11.45 12.4 12.17 11.67L13.41 10.41C13.78 10.05 14 9.55 14 9C14 7.9 13.1 7 12 7S10 7.9 10 9H8C8 6.79 9.79 5 12 5S16 6.79 16 9C16 9.88 15.64 10.67 15.07 11.25Z"
-								fill="currentColor"
-							/>
-						</svg>
-						FAQ
-					</a>
-				</div>
-			</div>
-
-			<div class="footer-right">
-				<div class="footer-stats">
-					<span class="total-locked">
-						<svg
-							width="16"
-							height="16"
-							viewBox="0 0 24 24"
-							fill="none"
-							xmlns="http://www.w3.org/2000/svg"
-						>
-							<path
-								d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z"
-								fill="currentColor"
-							/>
-						</svg>
-						{nFormatter(totalValueLocked, 2)} ERG Secured
-					</span>
-					<span class="copyright">© 2025 Mew Lock</span>
-				</div>
-			</div>
-		</div>
-	</div>
-</footer>
 
 <style>
 	/* Global Styles */
-	:global(body) {
-		margin: 0;
-		font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-		background: #0a0a0f;
-		color: white;
-		overflow-x: hidden;
-	}
 
 	/* Hero Section - Full Screen */
 	.hero-section {
@@ -636,58 +560,56 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		justify-content: center;
 	}
 
-	/* Compact campaign promotion: live numbers without turning the home page into a second dashboard. */
+	/* Lithos campaign card: the home page card style, with the live campaign numbers. */
 	.lithos-ad {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 18px;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		gap: 1.5rem;
 		align-items: center;
-		padding: 13px 16px;
-		border: 1px solid rgba(249, 215, 45, 0.55);
-		border-radius: 13px;
-		background: linear-gradient(100deg, rgba(249, 215, 45, 0.11), rgba(4, 223, 255, 0.06));
+		padding: 1.25rem 1.5rem;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 16px;
+		background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.08) 100%);
+		text-align: left;
 	}
 	.lithos-ad-copy {
-		display: flex;
-		align-items: center;
-		gap: 12px;
 		min-width: 0;
 	}
-	.lithos-ad-copy p {
-		margin: 0;
-		color: #04dfff;
-		font-size: 0.66rem;
-		font-weight: 800;
-		letter-spacing: 0.1em;
-		white-space: nowrap;
+	.lithos-ad-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.3rem 0.7rem;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 999px;
+		background: rgba(102, 126, 234, 0.1);
+		color: #8b9cf7;
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	.lithos-ad-badge svg {
+		width: 13px;
+		height: 13px;
+		fill: currentColor;
 	}
 	.lithos-ad-copy h2 {
-		margin: 0;
-		color: #f9d72d;
-		font-size: clamp(1rem, 1.8vw, 1.25rem);
-		line-height: 1.1;
-	}
-	.lithos-ad-copy a {
-		padding: 7px 10px;
-		border-radius: 7px;
-		background: #f9d72d;
-		color: #1b1030;
-		font-size: 0.76rem;
-		font-weight: 800;
-		text-decoration: none;
-		white-space: nowrap;
+		margin: 0.6rem 0 0;
+		color: white;
+		font-size: 1.25rem;
+		font-weight: 700;
+		line-height: 1.25;
 	}
 	.lithos-ad-stats {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(66px, 1fr));
-		gap: 6px;
+		grid-template-columns: repeat(3, auto);
+		gap: 0.75rem;
 	}
 	.lithos-ad-stats > div {
-		min-width: 0;
-		padding: 7px 9px;
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: 7px;
-		background: rgba(10, 10, 20, 0.35);
+		min-width: 84px;
+		padding: 0.625rem 0.875rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		background: rgba(0, 0, 0, 0.25);
 		text-align: center;
 	}
 	.lithos-ad-stats b,
@@ -696,15 +618,40 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	}
 	.lithos-ad-stats b {
 		color: white;
-		font-size: 0.85rem;
+		font-size: 1.05rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
 		overflow-wrap: anywhere;
 	}
-	.lithos-ad-stats small,
-	.lithos-ad-stats > span {
-		margin-top: 3px;
-		color: rgba(255, 255, 255, 0.58);
-		font-size: 0.62rem;
+	.lithos-ad-stats small {
+		margin-top: 0.15rem;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.75rem;
 		white-space: nowrap;
+	}
+	.lithos-ad-loading {
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.85rem;
+	}
+	.lithos-ad-cta {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1.25rem;
+		border-radius: 12px;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+		transition: all 0.3s ease;
+	}
+	.lithos-ad-cta:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+		color: white;
 	}
 
 	.simple-stats {
@@ -1073,89 +1020,6 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		animation: bounce 2s infinite;
 	}
 
-	/* Footer */
-	.footer {
-		background: rgba(0, 0, 0, 0.3);
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		padding: 3rem 0;
-	}
-
-	.footer-container {
-		max-width: 1400px;
-		margin: 0 auto;
-		padding: 0 2rem;
-	}
-
-	.footer-content {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 2rem;
-	}
-
-	.footer-left {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.footer-brand h4 {
-		color: #667eea;
-		font-size: 1.5rem;
-		font-weight: 700;
-		margin: 0;
-	}
-
-	.footer-brand p {
-		color: rgba(255, 255, 255, 0.6);
-		margin: 0;
-		font-size: 0.9rem;
-	}
-
-	.footer-links {
-		display: flex;
-		gap: 2rem;
-	}
-
-	.footer-link {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		color: rgba(255, 255, 255, 0.6);
-		text-decoration: none;
-		font-size: 0.9rem;
-		transition: all 0.2s;
-	}
-
-	.footer-link:hover {
-		color: #667eea;
-	}
-
-	.footer-right {
-		text-align: right;
-	}
-
-	.footer-stats {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		align-items: flex-end;
-	}
-
-	.total-locked {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		color: #667eea;
-		font-weight: 600;
-		font-size: 0.9rem;
-	}
-
-	.copyright {
-		color: rgba(255, 255, 255, 0.4);
-		font-size: 0.8rem;
-	}
 
 	/* Responsive Design */
 	@media (max-width: 1024px) {
@@ -1186,10 +1050,10 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		}
 
 		.lithos-ad {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr) auto;
 		}
 		.lithos-ad-copy {
-			flex-wrap: wrap;
+			grid-column: 1 / -1;
 		}
 	}
 
@@ -1235,30 +1099,21 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		}
 
 		.lithos-ad {
-			padding: 12px;
-		}
-		.lithos-ad-copy {
-			display: grid;
-			grid-template-columns: 1fr auto;
-		}
-		.lithos-ad-copy p {
-			grid-column: 1 / -1;
+			grid-template-columns: minmax(0, 1fr);
+			gap: 1rem;
+			padding: 1.25rem;
 		}
 		.lithos-ad-copy h2 {
-			font-size: 1rem;
+			font-size: 1.1rem;
 		}
 		.lithos-ad-stats {
-			grid-template-columns: repeat(3, 1fr);
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+		.lithos-ad-stats > div {
+			min-width: 0;
+			padding: 0.625rem 0.5rem;
 		}
 
-		.footer-content {
-			flex-direction: column;
-			text-align: center;
-		}
-
-		.footer-stats {
-			align-items: center;
-		}
 	}
 
 	@media (max-width: 480px) {

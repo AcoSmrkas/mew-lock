@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Navigation from '$lib/components/common/Navigation.svelte';
 	import { onMount } from 'svelte';
 	import { connected_wallet_address, selected_wallet_ergo } from '$lib/store/store';
 	import { nFormatter, showCustomToast } from '$lib/utils/utils.js';
@@ -289,52 +290,20 @@
 	<title>Mew Lock - Time-Locked Storage | Secure Your Tokens</title>
 	<meta
 		name="description"
-		content="Secure your tokens with time-based smart contracts. MewLock provides decentralized time-locked storage on Ergo blockchain."
+		content="Secure your tokens with time-based smart contracts. Mew Lock provides decentralized time-locked storage on Ergo blockchain."
 	/>
 </svelte:head>
 
-<!-- Modern Compact Navigation -->
-<nav class="fixed top-0 w-full z-50 bg-background/95 backdrop-blur-md border-b border-borders">
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-		<div class="flex items-center justify-between h-16">
-			<!-- Logo -->
-			<div class="flex items-center">
-				<div class="flex-shrink-0">
-					<h1
-						class="text-2xl font-bold bg-gradient-to-r from-main-color to-info-color bg-clip-text text-transparent"
-					>
-						🔒 MewLock
-					</h1>
-				</div>
-			</div>
-
-			<!-- Wallet Connection -->
-			<div class="flex items-center space-x-4">
-				{#if $connected_wallet_address}
-					<div class="bg-forms-bg px-3 py-1 rounded-lg text-sm">
-						<span class="text-text-light">Connected:</span>
-						<span class="text-main-color font-mono">
-							{$connected_wallet_address.substring(0, 6)}...{$connected_wallet_address.substring(
-								$connected_wallet_address.length - 6
-							)}
-						</span>
-					</div>
-				{:else}
-					<button class="btn btn-primary text-sm px-4 py-2"> Connect Wallet </button>
-				{/if}
-			</div>
-		</div>
-	</div>
-</nav>
+<Navigation />
 
 <!-- Main Content -->
-<main class="pt-20 min-h-screen bg-background">
+<main class="min-h-screen">
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<!-- Hero Section -->
 		<div class="text-center mb-12">
 			<h1 class="text-5xl font-bold text-white mb-4">
 				Time-Locked <span
-					class="bg-gradient-to-r from-main-color to-info-color bg-clip-text text-transparent"
+					class="gradient-text"
 					>Storage</span
 				>
 			</h1>
@@ -498,7 +467,7 @@
 				<div class="text-center py-16">
 					<div class="text-6xl text-borders mb-4">🔒</div>
 					<h3 class="text-2xl font-bold text-white mb-2">No Locked Tokens</h3>
-					<p class="text-text-light mb-6">Start by locking your first tokens with MewLock</p>
+					<p class="text-text-light mb-6">Start by locking your first tokens with Mew Lock</p>
 					<button class="btn btn-primary px-6 py-3 rounded-lg" on:click={openLockModal}>
 						Lock Your First Tokens
 					</button>
@@ -588,7 +557,7 @@
 
 					<!-- Contract Info -->
 					<div class="bg-footer border border-borders rounded-lg p-4">
-						<h4 class="text-white font-bold mb-3">🔒 MewLock Smart Contract</h4>
+						<h4 class="text-white font-bold mb-3">🔒 Mew Lock Smart Contract</h4>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
 							<div class="text-text-light">
 								<strong>ERG Amount:</strong>
@@ -634,88 +603,9 @@
 	</div>
 {/if}
 
-<!-- Compact Footer -->
-<footer class="bg-footer border-t border-borders mt-16">
-	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-			<!-- Brand -->
-			<div>
-				<h3
-					class="text-xl font-bold bg-gradient-to-r from-main-color to-info-color bg-clip-text text-transparent mb-3"
-				>
-					🔒 MewLock
-				</h3>
-				<p class="text-text-light text-sm">
-					Secure time-locked storage for your ERG and tokens on the Ergo blockchain.
-				</p>
-			</div>
-
-			<!-- Links -->
-			<div>
-				<h4 class="font-semibold text-white mb-3">Resources</h4>
-				<ul class="space-y-2 text-sm">
-					<li>
-						<a href="#" class="text-text-light hover:text-main-color transition-colors"
-							>Documentation</a
-						>
-					</li>
-					<li>
-						<a href="#" class="text-text-light hover:text-main-color transition-colors"
-							>Smart Contract</a
-						>
-					</li>
-					<li>
-						<a href="#" class="text-text-light hover:text-main-color transition-colors">Explorer</a>
-					</li>
-				</ul>
-			</div>
-
-			<!-- Social -->
-			<div>
-				<h4 class="font-semibold text-white mb-3">Community</h4>
-				<div class="flex space-x-4">
-					<a
-						href="https://t.me/MewFinance"
-						target="_blank"
-						class="text-text-light hover:text-main-color transition-colors"
-					>
-						<i class="fab fa-telegram text-xl" />
-					</a>
-					<a
-						href="https://x.com/Mew_finance"
-						target="_blank"
-						class="text-text-light hover:text-main-color transition-colors"
-					>
-						<i class="fab fa-twitter text-xl" />
-					</a>
-				</div>
-			</div>
-		</div>
-
-		<div class="border-t border-borders mt-8 pt-6 text-center">
-			<p class="text-text-light text-sm">
-				© {new Date().getFullYear()} MewLock. Built on Ergo blockchain.
-			</p>
-		</div>
-	</div>
-</footer>
-
 <style>
 	/* Custom CSS using the existing color variables */
-	:root {
-		--main-color: #f9d72d;
-		--secondary-color: #fff;
-		--info-color: #04dfff;
-		--background: #160d25;
-		--forms-bg: #271843;
-		--borders: #ffffff22;
-		--text-light: #ffffff77;
-		--footer: #0e0917;
-	}
 
-	.bg-background {
-		background-color: var(--background);
-	}
 	.bg-forms-bg {
 		background-color: var(--forms-bg);
 	}
@@ -751,53 +641,15 @@
 		}
 	}
 
-	.btn {
-		border-radius: 12px !important;
-		font-size: 0.9em !important;
-		font-weight: bold !important;
-		text-transform: unset !important;
-		transition: all 0.2s ease;
-	}
-
-	.btn-primary {
-		background-color: var(--main-color) !important;
-		color: var(--background) !important;
-		border: none;
-	}
-
-	.btn-primary:hover:not(:disabled) {
-		background-color: var(--info-color) !important;
-		transform: translateY(-1px);
-	}
-
-	.btn-secondary {
-		background-color: var(--secondary-color) !important;
-		color: var(--background) !important;
-		border: none;
-	}
-
-	.btn-secondary:hover:not(:disabled) {
-		background-color: var(--info-color) !important;
+	.gradient-text {
+		background: var(--ml-gradient);
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
 	}
 
 	.btn-big {
 		padding: 15px 30px !important;
-	}
-
-	.form-control {
-		background: var(--footer) !important;
-		border-radius: 8px;
-		color: #ffffff;
-		padding: 0.75rem;
-		font-size: 1rem;
-		width: 100%;
-		border: 1px solid var(--borders) !important;
-	}
-
-	.form-control:focus {
-		outline: none;
-		box-shadow: none;
-		border: 1px solid var(--main-color) !important;
 	}
 
 	.btn-spinner {

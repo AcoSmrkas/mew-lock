@@ -3,27 +3,47 @@
 @tailwind utilities;
 
 :root {
-	--main-color: #f9d72d;
+	/* Mew Lock design tokens: every page, the nav and the footer share these. */
+	--ml-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--ml-mono: 'SFMono-Regular', Monaco, Menlo, 'Ubuntu Mono', monospace;
+	--ml-accent: #667eea;
+	--ml-accent-2: #764ba2;
+	--ml-accent-light: #8b9cf7;
+	--ml-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	--ml-page-bg: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+	--ml-surface: rgba(255, 255, 255, 0.05);
+	--ml-surface-hover: rgba(102, 126, 234, 0.05);
+	--ml-inset: rgba(0, 0, 0, 0.25);
+	--ml-border: rgba(255, 255, 255, 0.1);
+	--ml-border-strong: rgba(255, 255, 255, 0.2);
+	--ml-accent-tint: rgba(102, 126, 234, 0.1);
+	--ml-accent-border: rgba(102, 126, 234, 0.3);
+	--ml-text: #ffffff;
+	--ml-muted: rgba(255, 255, 255, 0.7);
+	--ml-faint: rgba(255, 255, 255, 0.5);
+	--ml-success: #22c55e;
+	--ml-warning: #f59e0b;
+	--ml-danger: #ef4444;
+	--ml-radius-sm: 8px;
+	--ml-radius: 12px;
+	--ml-radius-lg: 16px;
+
+	/* Older names, kept for the shared modals and widgets, mapped onto the same palette. */
+	--main-color: var(--ml-accent);
 	--secondary-color: #fff;
-	--main-color-buttons: #ddf247;
-	--main-color-hover: var(--info-color);
-	--info-color: #04dfff;
+	--main-color-buttons: var(--ml-accent);
+	--main-color-hover: var(--ml-accent-light);
+	--info-color: var(--ml-accent-light);
 
 	--striped-1: #141a2a;
 	--striped-2: #192033;
 	--text-color: #ffffff88;
-	--forms-bg: #271843;
-	--borders: #ffffff22;
+	--forms-bg: #1a1a2e;
+	--borders: rgba(255, 255, 255, 0.1);
 	--text-light: #ffffff77;
 	--text-strong: #ccc;
-	--background: #160d25;
-	--footer: #0e0917;
-}
-
-@font-face {
-	font-family: 'Manrope', sans-serif;
-	font-weight: 200;
-	font-style: normal;
+	--background: #0f0f23;
+	--footer: #0b0b1c;
 }
 
 html {
@@ -35,32 +55,28 @@ body {
 	min-height: 100vh;
 	display: flex;
 	flex-direction: column;
-	background-color: var(--background);
-	font-family: 'Manrope';
-	background-repeat: repeat;
-	background: var(--background) !important;
+	margin: 0;
+	font-family: var(--ml-font);
+	color: var(--ml-text);
+	background: var(--ml-page-bg) fixed !important;
 	overflow-x: hidden;
 }
 
-h2 {
-	font-family: 'Manrope';
-}
-
 .form-control {
-	background: var(--footer) !important;
-	border-radius: 5px;
+	background: var(--ml-inset) !important;
+	border-radius: var(--ml-radius-sm);
 	color: #ffffff;
-	padding: 0.5rem;
+	padding: 0.5rem 0.75rem;
 	font-size: 1rem;
 	width: 100%;
-	border: 1px solid var(--borders) !important;
+	border: 1px solid var(--ml-border) !important;
 }
 
 .form-control:focus-visible {
 	outline-offset: unset !important;
 	outline: unset !important;
-	box-shadow: unset;
-	border: 1px solid var(--main-color) !important;
+	box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+	border: 1px solid var(--ml-accent) !important;
 }
 
 .container {
@@ -84,40 +100,43 @@ h2 {
 }
 
 .btn-primary {
-	background-color: var(--main-color) !important;
-	color: var(--background) !important;
-	font-weight: bold !important;
+	background: var(--ml-gradient) !important;
+	border: none !important;
+	color: #fff !important;
+	font-weight: 600 !important;
 	text-transform: unset !important;
+	transition: transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .btn-primary:hover {
-	background-color: var(--main-color-hover) !important;
-	border-color: var(--main-color-hover) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
 }
 
 .btn-secondary {
-	background-color: var(--secondary-color) !important;
-	color: var(--background) !important;
-	font-weight: bold !important;
+	background: rgba(255, 255, 255, 0.1) !important;
+	border: 1px solid var(--ml-border) !important;
+	color: #fff !important;
+	font-weight: 600 !important;
 	text-transform: unset !important;
 }
 
 .btn-secondary:hover {
-	background-color: var(--main-color-hover) !important;
-	border-color: var(--main-color-hover) !important;
+	background: rgba(255, 255, 255, 0.15) !important;
+	border-color: var(--ml-border-strong) !important;
 }
 
 .btn-info {
-	background-color: #03e0fd !important;
+	background: var(--ml-gradient) !important;
 	border: none;
-	font-weight: bold !important;
+	color: #fff !important;
+	font-weight: 600 !important;
 }
 
 .btn-info:hover,
 .btn-info:focus,
 .btn-info:active {
-	background-color: var(--secondary-color) !important;
-	box-shadow: none !important;
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
 }
 
 .btn-info:focus {
@@ -147,7 +166,18 @@ input {
 }
 
 .border-primary {
-	border-color: var(--info-color) !important;
+	border-color: var(--ml-accent) !important;
+}
+
+/* Every modal frame (wallets, ErgoPay, popups) uses .border-info: give it the card look. */
+.border-info {
+	border-width: 1px !important;
+	border-color: var(--ml-accent-border) !important;
+	border-radius: var(--ml-radius-lg) !important;
+}
+
+dialog.border-info {
+	overflow: hidden;
 }
 
 .skeleton-card {
@@ -213,6 +243,14 @@ input {
 	z-index: 0; /* Ensure the gradient is behind the content */
 }
 
+/* Toasts: the card look */
+#customToast {
+	border: 1px solid var(--ml-border) !important;
+	border-radius: var(--ml-radius) !important;
+	background: #1a1a2e !important;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
 .toast-body div span {
 	white-space: wrap;
 	overflow: hidden;
@@ -228,7 +266,7 @@ input {
 }
 
 .text-primary {
-	color: var(--main-color) !important;
+	color: var(--ml-accent-light) !important;
 }
 
 .text-bg {
@@ -236,11 +274,11 @@ input {
 }
 
 .font-manrope {
-	font-family: 'Manrope';
+	font-family: var(--ml-font);
 }
 
 .font-azeret {
-	font-family: 'Azeret Mono';
+	font-family: var(--ml-mono);
 }
 
 .bg-form {
@@ -262,16 +300,16 @@ input {
 }
 
 .active {
-	color: var(--main-color);
-	font-weight: bold;
+	color: var(--ml-accent);
 }
 
 a {
+	color: var(--ml-accent-light);
 	transition: all 0.2s ease;
 }
 
 a:hover {
-	color: var(--main-color) !important;
+	color: #b4c0ff;
 }
 
 /* FAB styles */

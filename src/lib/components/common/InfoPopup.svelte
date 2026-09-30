@@ -48,7 +48,7 @@
 	>
 		<div
 			class="leading-6 pb-2 mb-3 text-white text-center font-bold w-100"
-			style="font-family:'Manrope';font-size:1.5em;"
+			style="font-size:1.5em;"
 		>
 			{title}
 		</div>

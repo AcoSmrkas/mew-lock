@@ -499,9 +499,17 @@
 			</section>
 
 			{#if lithosDeployment}
+				<div class="lithos-block">
 				<section class="lithos-shortcut" aria-labelledby="lithos-shortcut-title">
 					<div>
-						<p class="lithos-kicker">MewLock × Lithos</p>
+						<span class="lithos-badge">
+							<svg viewBox="0 0 24 24" aria-hidden="true"
+								><path
+									d="M16,9H19L14,16M10,9H14L12,17M5,9H8L10,16M15,4H17L19,7H16M11,4H13L14,7H10M7,4H9L8,7H5M6,2L2,8L12,22L22,8L18,2H6Z"
+								/></svg
+							>
+							Mew Lock × Lithos
+						</span>
 						<h2 id="lithos-shortcut-title">Your LIT locks</h2>
 						{#if lithosLoading}
 							<p>Checking your LIT positions on the chain…</p>
@@ -546,6 +554,7 @@
 						{/each}
 					</div>
 				{/if}
+				</div>
 			{/if}
 
 			<!-- Your Tokens Section -->
@@ -922,10 +931,23 @@
 		margin: 0 0 2rem 0;
 	}
 
+	/* Four cards: one row, or two rows of two, never three plus a lone fourth. */
 	.stats-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		grid-template-columns: repeat(4, minmax(0, 1fr));
 		gap: 1.5rem;
+	}
+
+	@media (max-width: 1100px) {
+		.stats-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 768px) {
+		.stats-grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	.stat-card {
@@ -1000,54 +1022,77 @@
 		margin: 0 0 2rem 0;
 	}
 
+	/* Lithos card: the same card as on the home page. */
+	.lithos-block {
+		margin: 0 0 3rem;
+	}
 	.lithos-shortcut {
-		margin: 0 0 1rem;
-		padding: 1.35rem 1.5rem;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
-		border: 1px solid #f9d72d80;
-		border-radius: 14px;
-		background: linear-gradient(110deg, #f9d72d14, #04dfff0e);
+		gap: 1.5rem;
+		padding: 1.5rem;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 16px;
+		background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.08) 100%);
 	}
-	.lithos-kicker {
-		margin: 0 0 0.35rem;
-		color: #04dfff;
+	.lithos-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.3rem 0.7rem;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 999px;
+		background: rgba(102, 126, 234, 0.1);
+		color: #8b9cf7;
 		font-size: 0.75rem;
-		font-weight: 800;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
+		font-weight: 600;
+	}
+	.lithos-badge svg {
+		width: 13px;
+		height: 13px;
+		fill: currentColor;
 	}
 	.lithos-shortcut h2 {
-		margin: 0;
-		color: #f9d72d;
+		margin: 0.6rem 0 0;
+		color: white;
 		font-size: 1.5rem;
+		font-weight: 700;
 	}
-	.lithos-shortcut p:not(.lithos-kicker) {
+	.lithos-shortcut p {
 		margin: 0.4rem 0 0;
-		color: rgba(255, 255, 255, 0.72);
+		color: rgba(255, 255, 255, 0.7);
 	}
 	.lithos-manage {
+		display: inline-flex;
 		flex-shrink: 0;
-		border-radius: 8px;
-		padding: 0.75rem 1rem;
-		background: #f9d72d;
-		color: #1b1030;
-		font-weight: 800;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1.25rem;
+		border-radius: 12px;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		font-size: 0.9rem;
+		font-weight: 600;
 		text-decoration: none;
+		transition: all 0.3s ease;
+	}
+	.lithos-manage:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+		color: white;
 	}
 	.lithos-position-preview {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-		gap: 0.75rem;
-		margin: 0 0 3rem;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		gap: 1rem;
+		margin-top: 1rem;
 	}
 	.lithos-position-preview > div {
-		padding: 1rem;
-		border: 1px solid rgba(4, 223, 255, 0.25);
-		border-radius: 10px;
-		background: rgba(28, 18, 48, 0.78);
+		padding: 1rem 1.25rem;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.05);
 	}
 	.lithos-position-preview strong,
 	.lithos-position-preview span,
@@ -1056,15 +1101,18 @@
 	}
 	.lithos-position-preview strong {
 		color: white;
+		font-variant-numeric: tabular-nums;
 	}
 	.lithos-position-preview span {
 		margin-top: 0.35rem;
-		color: #04dfff;
-		font-size: 0.85rem;
+		color: #22c55e;
+		font-size: 0.875rem;
+		font-weight: 600;
 	}
 	.lithos-position-preview small {
 		margin-top: 0.5rem;
-		color: rgba(255, 255, 255, 0.62);
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.8rem;
 	}
 
 	.tokens-grid {
@@ -1410,6 +1458,15 @@
 
 	/* Responsive */
 	@media (max-width: 768px) {
+		.lithos-shortcut {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.lithos-manage {
+			justify-content: center;
+		}
+
 		.locks-header,
 		.locks-main {
 			padding: 1rem;
