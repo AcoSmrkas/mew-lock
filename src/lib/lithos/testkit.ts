@@ -79,6 +79,7 @@ export function setup(mode: Mode = { stake: 'LIT', reward: 'LIT' }): Ctx {
 	const campaignTree = compileCampaign(params, positionTree);
 	const v0 = initialVirtualWeight(BUDGET, 5_000);
 	const d: LithosDeployment = {
+		contractVersion: 2,
 		network: 'mainnet',
 		label: 'mock',
 		params: pinParams(params),

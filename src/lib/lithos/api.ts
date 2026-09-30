@@ -76,9 +76,32 @@ export async function getCampaign(net: NetworkConfig, d: LithosDeployment): Prom
 	return parseCampaignBox(box, d);
 }
 
-/** Every open, genuine position of the campaign. */
+/**
+ * A marker by itself is not provenance: after an unlock a marker can be held
+ * by anyone, who could send a look-alike box to the position tree. A genuine
+ * position is output 1 of a transaction that spent this campaign's NFT box.
+ */
+async function wasCreatedByCampaign(net: NetworkConfig, d: LithosDeployment, position: PositionState) {
+	if (position.box.index !== 1 || !position.box.transactionId) return false;
+	try {
+		const tx = await getJson(`${net.explorerApi}/transactions/${position.box.transactionId}`);
+		return (tx.inputs ?? []).some(
+			(input: any) =>
+				input.ergoTree === d.campaignTree &&
+				(input.assets ?? []).some(
+					(asset: any) => asset.tokenId === d.campaignNftId && BigInt(asset.amount) === 1n
+				)
+		);
+	} catch {
+		// Fail closed. The next refresh can show the position once the explorer
+		// exposes its creation transaction.
+		return false;
+	}
+}
+
+/** Every open, genuine position of the campaign, authenticated by provenance. */
 export async function getPositions(net: NetworkConfig, d: LithosDeployment): Promise<PositionState[]> {
-	const positions: PositionState[] = [];
+	const candidates: PositionState[] = [];
 	const limit = 100;
 	for (let offset = 0; ; offset += limit) {
 		const page = await getJson(
@@ -86,11 +109,14 @@ export async function getPositions(net: NetworkConfig, d: LithosDeployment): Pro
 		);
 		for (const raw of page.items as any[]) {
 			const p = parsePositionBox(normalizeBox(raw), d);
-			if (p) positions.push(p);
+			if (p) candidates.push(p);
 		}
 		if ((page.items as any[]).length < limit) break;
 	}
-	return positions;
+	const proven = await Promise.all(
+		candidates.map(async (position) => ((await wasCreatedByCampaign(net, d, position)) ? position : null))
+	);
+	return proven.filter((position): position is PositionState => position !== null);
 }
 
 export type CampaignStats = {

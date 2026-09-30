@@ -330,6 +330,13 @@
 		showCustomToast('Address copied.', 2_000, 'info');
 	}
 
+	function selectCampaign(event: Event) {
+		const campaignId = (event.currentTarget as HTMLSelectElement).value;
+		const url = new URL(window.location.href);
+		url.searchParams.set('campaign', campaignId);
+		window.location.assign(url.toString());
+	}
+
 	const lock = () =>
 		run('lock', async () => {
 			if (lockBlocker || !d || !net || !principal || !tierDef) return;
@@ -464,6 +471,18 @@
 					Current block #{height ? height.toLocaleString('en-US') : '…'}
 				</span>
 			</div>
+			{#if net && net.deployments.length > 1}
+				<label class="ll-field" style="max-width: 430px; margin-top: 12px">
+					<span>Campaign</span>
+					<select value={d.campaignNftId} on:change={selectCampaign}>
+						{#each net.deployments as deployment}
+							<option value={deployment.campaignNftId}>
+								{deployment.label} · contract v{deployment.contractVersion}
+							</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 		{/if}
 	</header>
 
@@ -689,7 +708,7 @@
 			<section class="ll-card ll-positions-card" aria-labelledby="mine-title">
 				<div class="ll-card-head">
 					<h2 id="mine-title">Campaign locks</h2>
-					{#if !testnet}<a class="ll-card-link" href="/lithos-locks">Full LIT dashboard →</a>{/if}
+					{#if !testnet}<a class="ll-card-link" href={`/lithos-locks?network=${net.network}&campaign=${d.campaignNftId}`}>Full LIT dashboard →</a>{/if}
 				</div>
 				<div class="ll-segmented" role="group" aria-label="Filter campaign locks">
 					<button

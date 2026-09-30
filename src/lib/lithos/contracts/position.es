@@ -1,7 +1,7 @@
 {
-  // MewLock x Lithos: one lock position.
+  // MewLock: one campaign position.
   //
-  // Holds the owner's LIT plus the reward the campaign reserved for it at lock
+  // Holds the owner's principal plus the reward the campaign reserved at lock
   // time (tokens(0) is the campaign's position marker). Only the owner can
   // spend it, and only once the unlock height is reached.
   //

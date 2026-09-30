@@ -13,7 +13,7 @@
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
-	import { networkConfig } from '$lib/lithos/network.ts';
+	import { networkConfig, pickNetwork } from '$lib/lithos/network.ts';
 	import { getHeight, getPositions } from '$lib/lithos/api.ts';
 	import { fmtAmount, fmtBlocks } from '$lib/lithos/format.ts';
 	import type { PositionState } from '$lib/lithos/boxes.ts';
@@ -31,8 +31,8 @@
 	let lithosHeight = 0;
 	let lithosLoading = false;
 	let lithosError = false;
-	const lithosNetwork = networkConfig('mainnet');
-	const lithosDeployment = lithosNetwork.deployment;
+	let lithosNetwork = networkConfig('mainnet');
+	let lithosDeployment = lithosNetwork.deployment;
 
 	// Stats
 	let totalValueLocked = 0;
@@ -58,6 +58,8 @@
 	import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
+		lithosNetwork = pickNetwork(new URL(window.location.href));
+		lithosDeployment = lithosNetwork.deployment;
 		await getCurrentBlockHeight();
 		// Mounted before the first loads, so a switch while they run reloads below.
 		loadedForAddress = $connected_wallet_address;
@@ -104,6 +106,11 @@
 		} finally {
 			if ($connected_wallet_address === addressAtStart) lithosLoading = false;
 		}
+	}
+
+	function lithosLocksUrl() {
+		if (!lithosDeployment) return '/lithos-locks';
+		return `/lithos-locks?network=${lithosNetwork.network}&campaign=${lithosDeployment.campaignNftId}`;
 	}
 
 	// Convert public key to address using ErgoAddress
@@ -524,7 +531,7 @@
 							<p>No LIT positions yet. The event lock is ready when you are.</p>
 						{/if}
 					</div>
-					<a class="lithos-manage" href={lithosPositions.length ? '/lithos-locks' : '/lithos'}
+					<a class="lithos-manage" href={lithosPositions.length ? lithosLocksUrl() : `/lithos?network=${lithosNetwork.network}&campaign=${lithosDeployment?.campaignNftId ?? ''}`}
 						>{lithosPositions.length ? 'Manage & unlock LIT' : 'Add a LIT lock'}
 						<span aria-hidden="true">→</span></a
 					>

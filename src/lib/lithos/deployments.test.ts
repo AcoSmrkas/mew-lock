@@ -12,11 +12,14 @@ describe('pinned deployments', () => {
 		const d = readDeployment(raw);
 		if (!d) continue;
 
-		it(`${name}: trees recompile from the pinned params`, () => {
+		it(`${name}: legacy campaign remains pinned and readable`, () => {
 			expect(d.network).toBe(name);
+			expect(d.contractVersion).toBe(1);
 			const position = compilePosition(d.network);
 			expect(d.positionTree).toBe(position);
-			expect(d.campaignTree).toBe(compileCampaign(paramsOf(d), position));
+			// Campaign v1 predates the input-zero sweep isolation in the current
+			// source. Its pinned tree stays authoritative for existing locks.
+			expect(d.campaignTree).not.toBe(compileCampaign(paramsOf(d), position));
 		});
 	}
 });

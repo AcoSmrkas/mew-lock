@@ -642,6 +642,7 @@ describe('genesis', () => {
 		expect(chain.execute(createTx, { signers: [deployer] })).toBe(true);
 
 		const d: LithosDeployment = {
+			contractVersion: 2,
 			network: 'mainnet',
 			label: 'genesis',
 			params: pinParams(params),

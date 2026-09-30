@@ -36,11 +36,9 @@
   //   _deposit      Long        nanoERG each position carries besides any ERG it locks or earns
   //   _reserve      Long        nanoERG kept in this box that is never budget (B = ERG only)
   //
-  // Token and register lookups on other boxes use getOrElse, never .get, and
-  // each spending path lives in its own lazy if-branch, so evaluating one path
-  // cannot throw on a transaction built for another. (A register holding an
-  // unexpected type still throws when read, which only ever rejects a lock
-  // whose own position box is malformed.)
+  // This is the v2 campaign contract. Deployments made from this source set
+  // `contractVersion: 2` in their pinned deployment JSON. Existing v1
+  // campaigns remain supported by the UI, but cannot be changed on-chain.
 
   val stakeIsErg  = _stakeId.size == 0
   val rewardIsErg = _rewardId.size == 0
@@ -71,6 +69,10 @@
       b.tokens.forall({ (t: (Coll[Byte], Long)) => t._1 != nft._1 && t._1 != markers._1 })
     })
     sigmaProp(
+      // A sweep may only validate the campaign at input zero. Without this,
+      // two expired campaigns with the same fee tree could be co-spent while
+      // one payout output covered only the larger balance.
+      SELF.id == INPUTS(0).id &&
       out.propositionBytes == _feeTree &&
       out.value >= SELF.value &&
       (rewardIsErg || rewardIn(out) >= rewardIn(SELF)) &&
@@ -117,7 +119,12 @@
       val ergB      = if (rewardIsErg) reward else 0L
       val tokA      = if (stakeIsErg) 0L else principal + (if (sameAsset) reward else 0L)
       val tokB      = if (rewardOwnToken) reward else 0L
-      val posTokens = 1 + (if (stakeIsErg) 0 else 1) + (if (rewardOwnToken) 1 else 0)
+      // A reward-token position with a rounded-down reward owns no reward
+      // token entry. Ergo boxes cannot carry a token amount of zero.
+      // Keep this deliberately nested. The ErgoScript typer does not support a
+      // boolean conjunction inside an `if` which feeds token-count arithmetic.
+      val rewardTokenSlot = if (rewardOwnToken) { if (reward > 0L) 1 else 0 } else 0
+      val posTokens = 1 + (if (stakeIsErg) 0 else 1) + rewardTokenSlot
 
       HEIGHT >= _start && HEIGHT <= _end &&
       v > 0.toBigInt &&

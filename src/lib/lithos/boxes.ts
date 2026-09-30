@@ -69,7 +69,10 @@ export function positionContents(d: LithosDeployment, principal: bigint, reward:
 	const same = stakeId === rewardId;
 	const tokens: { tokenId: string; amount: bigint }[] = [];
 	if (stakeId !== null) tokens.push({ tokenId: stakeId, amount: principal + (same ? reward : 0n) });
-	if (rewardId !== null && !same) tokens.push({ tokenId: rewardId, amount: reward });
+	// A reward that rounds to zero has no token slot (Ergo disallows a zero
+	// amount). This matches the v2 campaign contract. Existing v1 campaigns
+	// never create this edge case because they reject it on-chain.
+	if (rewardId !== null && !same && reward > 0n) tokens.push({ tokenId: rewardId, amount: reward });
 	const nanoErg =
 		BigInt(d.params.deposit) + (stakeId === null ? principal : 0n) + (rewardId === null ? reward : 0n);
 	return { nanoErg, tokens };

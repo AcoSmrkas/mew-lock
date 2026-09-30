@@ -6,7 +6,7 @@
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
 	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store.ts';
 	import { showCustomToast } from '$lib/utils/utils.js';
-	import { networkConfig } from '$lib/lithos/network.ts';
+	import { networkConfig, pickNetwork } from '$lib/lithos/network.ts';
 	import { getHeight, getPositions } from '$lib/lithos/api.ts';
 	import type { PositionState } from '$lib/lithos/boxes.ts';
 	import { BLOCKS_PER_YEAR } from '$lib/lithos/math.ts';
@@ -22,8 +22,8 @@
 	} from '$lib/lithos/wallet.ts';
 	import { positionsOwnedBy, walletOwnerAddresses } from '$lib/lithos/ownership.ts';
 
-	const net = networkConfig('mainnet');
-	const deployment = net.deployment;
+	let net = networkConfig('mainnet');
+	let deployment = net.deployment;
 	let height = 0;
 	let positions: PositionState[] = [];
 	let loading = true;
@@ -52,6 +52,8 @@
 	$: rewardAsset = deployment?.assets.reward ?? asset;
 
 	onMount(() => {
+		net = pickNetwork(new URL(window.location.href));
+		deployment = net.deployment;
 		refresh();
 		timer = setInterval(refresh, 30_000);
 	});
@@ -78,6 +80,15 @@
 
 	function remaining(position: PositionState) {
 		return Math.max(0, position.unlockAt - height);
+	}
+	function selectCampaign(event: Event) {
+		const campaign = (event.currentTarget as HTMLSelectElement).value;
+		const url = new URL(window.location.href);
+		url.searchParams.set('campaign', campaign);
+		window.location.assign(url.toString());
+	}
+	function lockPageUrl() {
+		return `/lithos?network=${net.network}&campaign=${deployment?.campaignNftId ?? ''}`;
 	}
 	function apr(position: PositionState) {
 		if (!deployment || deployment.params.stakeId !== deployment.params.rewardId) return null;
@@ -147,7 +158,19 @@
 				home.
 			</p>
 		</div>
-		<a href="/lithos" class="ll-btn ll-btn-primary">+ Add a LIT lock</a>
+		<div>
+			{#if deployment && net.deployments.length > 1}
+				<label class="ll-field" style="min-width: 260px; margin-bottom: 10px">
+					<span>Campaign</span>
+					<select value={deployment.campaignNftId} on:change={selectCampaign}>
+						{#each net.deployments as candidate}
+							<option value={candidate.campaignNftId}>{candidate.label} · contract v{candidate.contractVersion}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+			<a href={lockPageUrl()} class="ll-btn ll-btn-primary">+ Add a LIT lock</a>
+		</div>
 	</header>
 
 	{#if !$connected_wallet_address}
@@ -264,7 +287,7 @@
 		{:else}
 			<div class="ll-card ll-state">
 				<p class="ll-card-text">No Lithos LIT locks found for this wallet.</p>
-				<a href="/lithos" class="ll-btn ll-btn-primary">Lock LIT in the event →</a>
+				<a href={lockPageUrl()} class="ll-btn ll-btn-primary">Lock LIT in the event →</a>
 			</div>
 		{/if}
 	{/if}

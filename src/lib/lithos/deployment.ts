@@ -14,8 +14,12 @@ import {
 
 /** How to show an asset: ERG is { ticker: 'ERG', decimals: 9 }. */
 export type AssetInfo = { ticker: string; decimals: number };
+/** v1 was the original campaign script; v2 pins a sweep to input zero. */
+export type ContractVersion = 1 | 2;
 
 export type LithosDeployment = {
+	/** Kept with the deployment because a deployed ErgoTree is immutable. */
+	contractVersion: ContractVersion;
 	network: Network;
 	label: string;
 	/** Shown as a banner on the page (e.g. for a test campaign). */
@@ -67,12 +71,14 @@ export function pinParams(p: CampaignParams): LithosDeployment['params'] {
  */
 export function readDeployment(raw: any): LithosDeployment | null {
 	if (!raw?.campaignNftId) return null;
-	if (raw.params.stakeId !== undefined) return raw as LithosDeployment;
+	const contractVersion: ContractVersion = raw.contractVersion === 2 ? 2 : 1;
+	if (raw.params.stakeId !== undefined) return { ...raw, contractVersion } as LithosDeployment;
 	const lit = raw.params.litId as string;
 	const info: AssetInfo = { ticker: raw.network === 'testnet' ? 'tLIT' : 'LIT', decimals: 9 };
 	const { litId: _lit, ...params } = raw.params;
 	return {
 		...raw,
+		contractVersion,
 		params: {
 			...params,
 			stakeId: lit,

@@ -9,7 +9,7 @@
 	import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import { connected_wallet_address } from '$lib/store/store.ts';
-	import { pickNetwork, type NetworkConfig } from '$lib/lithos/network.ts';
+	import { pickNetwork, rememberDeployment, type NetworkConfig } from '$lib/lithos/network.ts';
 	import { getHeight, getJson, normalizeBox, tokenTotal } from '$lib/lithos/api.ts';
 	import { buildCampaignCreateTx, buildMintTx } from '$lib/lithos/txs.ts';
 	import { initialVirtualWeight } from '$lib/lithos/math.ts';
@@ -225,6 +225,7 @@
 			say(`Compiled. Locks will be open from block ${h.toLocaleString('en-US')} to ${params.end.toLocaleString('en-US')}; leftover goes to ${leftover}.`);
 			saveProgress({
 				draft: {
+					contractVersion: 2,
 					network,
 					label,
 					note,
@@ -331,6 +332,7 @@
 			genesisTxId: progress!.createTxId!,
 			genesisHeight
 		};
+		rememberDeployment(result);
 		try {
 			localStorage.setItem('lithos_last_deploy', JSON.stringify(result));
 		} catch {
@@ -425,6 +427,7 @@
 			<section class="ll-card ll-form-card">
 				<h2>Deployment</h2>
 				<p class="ll-card-text">Campaign NFT <code class="ll-mono">{result.campaignNftId}</code></p>
+				<p class="ll-card-text">Contract v{result.contractVersion} includes the sweep isolation fix.</p>
 				<button class="ll-btn ll-btn-primary" on:click={copyResult}>Copy deployment JSON</button>
 				<pre class="ll-log">{JSON.stringify(result, null, 2)}</pre>
 			</section>
