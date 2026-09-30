@@ -11,13 +11,19 @@ export function parseAmount(input: string, decimals: number): bigint | null {
 	return BigInt(m[1] || '0') * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, '0') || '0');
 }
 
-/** Raw units -> "1,234.5678" with at most `maxDecimals` (truncated, never rounded up). */
+/**
+ * Raw units -> "1,234.5678" with at most `maxDecimals` (truncated, never rounded up).
+ * A non-zero amount below one unit keeps two significant digits instead of reading 0
+ * (short locks earn rewards like 0.000019).
+ */
 export function fmtAmount(raw: bigint, decimals: number, maxDecimals = 4): string {
 	const unit = 10n ** BigInt(decimals);
 	const neg = raw < 0n;
 	const v = neg ? -raw : raw;
 	const whole = (v / unit).toLocaleString('en-US');
-	const frac = (v % unit).toString().padStart(decimals, '0').slice(0, maxDecimals).replace(/0+$/, '');
+	const digits = (v % unit).toString().padStart(decimals, '0');
+	let frac = digits.slice(0, maxDecimals).replace(/0+$/, '');
+	if (!frac && v > 0n && v < unit) frac = digits.slice(0, digits.search(/[1-9]/) + 2).replace(/0+$/, '');
 	return `${neg ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`;
 }
 

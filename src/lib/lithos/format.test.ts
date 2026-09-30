@@ -21,6 +21,15 @@ describe('parseLit / fmtLit', () => {
 		expect(fmtLit(0n)).toBe('0');
 	});
 
+	it('keeps two significant digits of a tiny non-zero amount instead of 0', () => {
+		expect(fmtLit(19_025n)).toBe('0.000019');
+		expect(fmtLit(19_025n, 2)).toBe('0.000019');
+		expect(fmtLit(1n)).toBe('0.000000001');
+		expect(fmtLit(100_000n, 2)).toBe('0.0001');
+		expect(fmtLit(190_258_000n, 2)).toBe('0.19');
+		expect(fmtLit(1_000_019_025n)).toBe('1');
+	});
+
 	it('formats APR and block estimates', () => {
 		expect(fmtApr(4999)).toBe('49.99%');
 		expect(fmtBlocks(21_600, 120)).toBe('≈ 30 days');
