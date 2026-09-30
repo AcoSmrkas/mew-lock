@@ -29,6 +29,9 @@
 		showLockModal = false;
 	}
 
+	// Lithos Lock is live at /lithos but unlisted until launch; flip to show it in the menu.
+	const SHOW_LITHOS_LOCK = false;
+
 	// Navigation items
 	const navItems = [
 		{ href: '/', label: 'Home', icon: 'M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z' },
@@ -37,7 +40,16 @@
 			href: '/my-locks',
 			label: 'My Locks',
 			icon: 'M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z'
-		}
+		},
+		...(SHOW_LITHOS_LOCK
+			? [
+					{
+						href: '/lithos',
+						label: 'Lithos Lock',
+						icon: 'M16,9H19L14,16M10,9H14L12,17M5,9H8L10,16M15,4H17L19,7H16M11,4H13L14,7H10M7,4H9L8,7H5M6,2L2,8L12,22L22,8L18,2H6Z'
+					}
+			  ]
+			: [])
 	];
 
 	$: currentPath = $page.url.pathname;

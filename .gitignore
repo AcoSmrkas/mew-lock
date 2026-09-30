@@ -11,3 +11,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 src/lib/components/explore/CollageCreator.svelte
 .claude/settings.local.json
+
+# Lithos lock testnet runner: throwaway TESTNET-ONLY wallet, never commit
+/.testnet/
