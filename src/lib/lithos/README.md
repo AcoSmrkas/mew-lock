@@ -161,10 +161,35 @@ the site for the page to show the campaign. Keep routes top-level: a nested
 route (`/lithos/deploy`) makes the build emit a `lithos/` directory and Apache
 then answers `/lithos` with a 301 to a 403.
 
+`deployments.test.ts` recompiles every pinned deployment from its params and
+fails unless the trees match byte for byte, so a pinned file can never point
+the page at a contract this source does not describe.
+
+### Mainnet test campaign, 2026-09-30: live
+
+HQ deployed it from `/lithos-deploy` with Nautilus, so the three setup
+signatures (markers, NFT, campaign box) are the first real-Nautilus ones.
+Pinned in `deployments/mainnet.json` and shown at `lock.mewfinance.com/lithos`.
+
+| | |
+|---|---|
+| Locks / pays | LIT / LIT |
+| Tiers | 10 / 30 / 60 / 120 blocks at 1.0 / 1.25 / 1.5 / 2.0x |
+| Open | #1,884,522 to #1,886,682 (about 3 days); sweep after #1,886,712 |
+| Budget | 1,000 LIT, base APR 50%, minimum lock 1 LIT |
+| Leftover | back to the deployer, `9g2QPdXizK17Vquic8v5j9f5coR9yVdxzT4gqFw4Jm9dfdFs68L` |
+| Genesis | `5310ccba…fe9219` at #1,884,531 |
+| NFT / marker | `bb49b32f…f25054` (supply 1) / `97454689…c1bc51` (supply 1e9, all in the campaign box) |
+
+Checked before pinning: every genesis input came from the leftover address,
+the box on chain holds the NFT, every marker and 1,000 LIT with R4 = 5.256e21,
+and its tree equals the pinned tree and the recompile. Still to prove with
+Nautilus: a lock (spends the campaign box) and an unlock (spends a position).
+
 ## Before mainnet
 
-- The mainnet test campaign (10-120 block locks, 1,000 LIT, leftover back to
-  the deployer) is the first real-Nautilus signing; watch it closely.
+- The mainnet test campaign above must show a Nautilus lock and unlock before
+  the real one goes up.
 - For the real launch decide: budget, campaign length, tiers and boosts (agreed
   30/90/180/365 days at 1.0/1.25/1.5/2.0x), minimum lock, starting base APR.
 - The real campaign's leftover goes to the Mew devs' fee address: get the
