@@ -178,14 +178,15 @@ export const SMALL_BUDGET = 400_000n * LIT_UNIT;
  * Audit F-1 (LIT/LIT only): a second, smaller campaign with its own contract
  * (an earlier end) and the same fee address, both past end + grace, swept in
  * one transaction. The fee address gets only the larger budget and the
- * builder's change keeps the smaller one, unless `payBoth`.
+ * builder's change keeps the smaller one, unless `payBoth`. The second
+ * campaign runs contract `second` (default: the same as the first).
  */
-export function coSweep(c: Ctx, payBoth = false) {
-	const tree = compileCampaign({ ...paramsOf(c.d), end: END - 10 }, positionTree, c.d.contract);
+export function coSweep(c: Ctx, payBoth = false, second = c.d.contract) {
+	const tree = compileCampaign({ ...paramsOf(c.d), end: END - 10 }, positionTree, second);
 	const nft = 'a2'.repeat(32);
 	const marker = 'b2'.repeat(32);
-	const second = c.chain.addParty(tree, 'campaign 2');
-	second.addBalance(
+	const party = c.chain.addParty(tree, 'campaign 2');
+	party.addBalance(
 		{
 			nanoergs: CAMPAIGN_RESERVE,
 			tokens: [
@@ -198,7 +199,7 @@ export function coSweep(c: Ctx, payBoth = false) {
 	);
 	c.chain.jumpTo(END + GRACE);
 	const big = state(c);
-	const small = second.utxos.toArray()[0];
+	const small = party.utxos.toArray()[0];
 	return new TransactionBuilder(c.chain.height)
 		.from([big.box, small, ...c.mallory.utxos.toArray()])
 		.configureSelector((s) => s.ensureInclusion([big.box.boxId, small.boxId]))

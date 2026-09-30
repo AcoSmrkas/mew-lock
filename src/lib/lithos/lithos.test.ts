@@ -553,6 +553,18 @@ describe('sweep: two campaigns sharing a fee address (audit F-1)', () => {
 		expect(() => c.chain.execute(coSweep(c, true), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
 	});
 
+	it('residual (audit V3-1): v3 first + a v2 campaign second, same fee address, still leaks the v2 one', () => {
+		const c = setup();
+		const before = balanceOf(c.mallory, 'LIT');
+		expect(run(c, coSweep(c, false, 2), [c.mallory])).toBe(true);
+		expect(balanceOf(c.mallory, 'LIT') - before).toBe(SMALL_BUDGET);
+	});
+
+	it('the other way round (v2 first, v3 second) the v3 campaign refuses', () => {
+		const c = setup(undefined, 2);
+		expect(() => c.chain.execute(coSweep(c, false, 3), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
+	});
+
 	it('v3 refuses a sweep that does not spend the campaign first', () => {
 		const c = setup();
 		c.chain.jumpTo(END + GRACE);
