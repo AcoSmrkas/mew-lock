@@ -78,7 +78,13 @@ export async function getCampaign(net: NetworkConfig, d: LithosDeployment): Prom
 	return parseCampaignBox(box, d);
 }
 
-/** Every open, genuine position of the campaign. */
+/**
+ * Every open, genuine position of the campaign. A box at the position address
+ * holding a marker and what its registers declare is not proof enough: the
+ * contract does not force the marker's burn at unlock (the app burns it), so
+ * whoever keeps one can dress up a look-alike. A genuine position is the
+ * second output of a lock of this campaign, so that is what is checked.
+ */
 export async function getPositions(net: NetworkConfig, d: LithosDeployment): Promise<PositionState[]> {
 	const positions: PositionState[] = [];
 	const limit = 100;
@@ -92,7 +98,91 @@ export async function getPositions(net: NetworkConfig, d: LithosDeployment): Pro
 		}
 		if ((page.items as any[]).length < limit) break;
 	}
-	return positions;
+
+	let fromHistory: Map<string, boolean>;
+	try {
+		fromHistory = locksIn(await campaignHistory(net, d));
+	} catch {
+		return positions; // Without the history, show everything rather than hide real locks.
+	}
+	const genuine: PositionState[] = [];
+	for (const p of positions) {
+		if (p.box.index !== 1) continue;
+		const txId = p.box.transactionId;
+		let ok = fromHistory.get(txId) ?? checkedTxs.get(txId);
+		if (ok === undefined) {
+			// Not in the history we read: some other transaction, or a lock newer
+			// than it (another backend may lag a block). Ask the transaction itself.
+			try {
+				ok = await isLockTx(net, d, txId);
+				checkedTxs.set(txId, ok);
+			} catch {
+				ok = true; // A failed read must not hide a real lock; it is checked again next time.
+			}
+		}
+		if (ok) genuine.push(p);
+	}
+	return genuine;
+}
+
+type HistoryBox = { transactionId: string; spentTransactionId: string | null; markers: bigint };
+
+// Per campaign NFT: how many explorer items were read, and the campaign boxes among them.
+const histories = new Map<string, { seen: number; boxes: Map<string, HistoryBox> }>();
+// Transactions already checked one by one; a transaction never changes.
+const checkedTxs = new Map<string, boolean>();
+
+const markersIn = (raw: any, d: LithosDeployment): bigint =>
+	BigInt((raw?.assets ?? []).find((a: any) => a.tokenId === d.markerId)?.amount ?? 0);
+
+const isCampaignBox = (raw: any, d: LithosDeployment) =>
+	raw?.ergoTree === d.campaignTree && raw.assets?.[0]?.tokenId === d.campaignNftId;
+
+/** Every box that ever held the campaign NFT at the campaign contract. */
+async function campaignHistory(net: NetworkConfig, d: LithosDeployment): Promise<HistoryBox[]> {
+	const h = histories.get(d.campaignNftId) ?? { seen: 0, boxes: new Map<string, HistoryBox>() };
+	const limit = 100;
+	// Listed oldest first, so only the tail is new; the last box read may have been spent since.
+	for (let offset = Math.max(0, h.seen - 1); ; offset += limit) {
+		const items = (
+			await getJson(`${net.explorerApi}/boxes/byTokenId/${d.campaignNftId}?limit=${limit}&offset=${offset}`)
+		).items as any[];
+		for (const raw of items) {
+			if (!isCampaignBox(raw, d)) continue;
+			h.boxes.set(raw.boxId, {
+				transactionId: raw.transactionId,
+				spentTransactionId: raw.spentTransactionId ?? null,
+				markers: markersIn(raw, d)
+			});
+		}
+		h.seen = Math.max(h.seen, offset + items.length);
+		if (items.length < limit) break;
+	}
+	histories.set(d.campaignNftId, h);
+	return [...h.boxes.values()];
+}
+
+/**
+ * Every campaign transaction the history can place, and whether it was a lock:
+ * its new campaign box holds one marker fewer than the one it spent (a top-up
+ * holds the same number).
+ */
+function locksIn(history: HistoryBox[]): Map<string, boolean> {
+	const createdBy = new Map(history.map((b) => [b.transactionId, b]));
+	const verdicts = new Map<string, boolean>();
+	for (const b of history) {
+		const next = b.spentTransactionId ? createdBy.get(b.spentTransactionId) : undefined;
+		if (next) verdicts.set(next.transactionId, next.markers === b.markers - 1n);
+	}
+	return verdicts;
+}
+
+/** The same test on one transaction: it spends the campaign and releases exactly one marker. */
+async function isLockTx(net: NetworkConfig, d: LithosDeployment, txId: string): Promise<boolean> {
+	const tx = await getJson(`${net.explorerApi}/transactions/${txId}`);
+	const before = (tx.inputs as any[])?.find((b) => isCampaignBox(b, d));
+	const after = tx.outputs?.[0];
+	return !!before && isCampaignBox(after, d) && markersIn(after, d) === markersIn(before, d) - 1n;
 }
 
 export type CampaignStats = {

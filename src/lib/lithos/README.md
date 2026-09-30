@@ -61,9 +61,13 @@ sweep, and it grows when participation is low.
 | `txs.ts` | builders: mint, create, lock, unlock, top-up, sweep |
 | `deployment.ts` | the pinned result of a genesis (`deployments/<network>.json`) |
 
-A position is genuine only if it sits at `positionTree` and holds exactly one
-`markerId`. A campaign box is genuine only if it holds `campaignNftId`.
-Anyone can create boxes at either address, so never trust the address alone.
+A position is genuine only if it sits at `positionTree`, holds exactly one
+`markerId` and what its registers declare, and was created as `OUTPUTS(1)` of a
+lock of this campaign (`getPositions` checks this against the campaign NFT's
+history: the contract does not force the marker's burn at unlock, so a kept
+marker could dress up a look-alike). A campaign box is genuine only if it
+holds `campaignNftId`. Anyone can create boxes at either address, so never
+trust the address alone.
 
 ## Tests
 
@@ -71,7 +75,7 @@ Anyone can create boxes at either address, so never trust the address alone.
 npx vitest run src/lib/lithos/
 ```
 
-- `lithos.test.ts`: 40 mock-chain (sigmastate) cases on LIT/LIT. Every attack
+- `lithos.test.ts`: 42 mock-chain (sigmastate) cases on LIT/LIT. Every attack
   is a real builder transaction with one thing tampered. It must be rejected
   with "Script reduced to false", and the untampered original must then pass.
 - `modes.test.ts`: the same approach across all five asset modes (LIT/LIT,
@@ -84,6 +88,11 @@ npx vitest run src/lib/lithos/
   divergence:** sigma-rust signs a lock whose position R4 holds the right bytes
   as the wrong type; sigmastate throws, so nodes reject it (confirmed against a
   real testnet node). Nothing bad can reach the chain.
+- `api.test.ts`: `getPositions` against a fake explorer: look-alike positions
+  made with a kept marker are dropped, a lock newer than the history is
+  confirmed from its own transaction, and a failed read never hides a
+  position.
+- `deployments.test.ts`: every pinned deployment recompiles byte for byte.
 
 ## Testnet runner
 
@@ -155,6 +164,17 @@ campaign box, explorer GraphQL submit) was proven separately: a faucet drip, a
 lock chained on the unconfirmed drip, and its unlock (owner received exactly
 principal + reward, marker burned).
 
+### Contract v3 on testnet, 2026-10-01: passed
+
+The same scenario on v3 (slot 6, tLIT → tLIT): deploy, three locks, a
+top-up, the refusals, three exact unlocks and a third-party sweep, confirmed by
+real nodes. Before the sweep, sigma-rust refused a v3 sweep that spends the
+campaign second ("tx input index 1: Script reduced to false"). Campaign
+[dc788571](https://testnet.ergoplatform.com/en/transactions/dc7885716350de7955b6956bdbf845209180fec212d053815d2a89ebe01d41aa),
+sweep [3cfb46fb](https://testnet.ergoplatform.com/en/transactions/3cfb46fb9d00e977c49ee50875116abe41481aa5825b90569635e3e4b048fd1e)
+(leftover 1,008,096.287047632 tLIT to the fee address, NFT and every marker
+burned). Its tree is the one `campaign.es` compiles today.
+
 ## Audit, 2026-09-30
 
 An external quick review (EKB two-pass method, no testing) of v2 found one
@@ -165,17 +185,22 @@ real bug. Our response, finding by finding:
 | F-1 HIGH: two expired campaigns sharing a fee address can be swept in one tx that pays the fee address only the larger | Confirmed: on the mock chain against v2, the fee address got 1,000,000 LIT and the builder kept the other campaign's 400,000 | v3 pins the sweep to `INPUTS(0)`; the fee address must be a wallet (P2PK), which also stops a variant the pin alone does not (a contract fee address whose own box, spent in the same tx, accepts the same output) |
 | F-2 LOW: when B is its own token, a zero-reward lock cannot be built | Confirmed: v2 refuses it in exactly the LIT/MEOW and ERG/LIT modes | v3 drops the B slot when the reward is 0; the page's parser now reads such positions |
 | F-3 INFO: the last marker can never leave | Correct | none: 1e9 markers per campaign |
-| F-4 LOW: 1-nanoERG top-ups can keep invalidating pending locks | Correct, inherent to one shared box | none on chain: the page builds on the newest mempool state and re-quotes; griefing costs ~0.0011 ERG a block |
+| F-4 LOW: 1-nanoERG top-ups can keep invalidating pending locks | Correct, inherent to one shared box | none on chain: every lock re-reads the newest state (following the mempool) right before it is built, and a lost race refreshes the page and says to try again; griefing costs ~0.0011 ERG a block |
 | F-5 LOW: deploy-time checklist | Correct | already enforced by the deploy page, `validateParams`, the builders and the recompile test; only the base APR (V) is a judgment call |
 | NV-1: are untaken branches evaluated? | Already tested on the compiled tree (sigmastate and sigma-rust) | the compiler does hoist `OUTPUTS.getOrElse(1, SELF)` and token lookups to the top of the tree; harmless because they are total, and every typed register read stays in its branch. Comment corrected |
-| P-1 INFO: anyone with a marker can make look-alike positions | Partly: our unlock burns the marker, but the contract does not force it | none yet (no funds at risk); a UI check that only counts positions created by a lock of this campaign is the follow-up |
+| P-1 INFO: anyone with a marker can make look-alike positions | Partly: our unlock burns the marker, but the contract does not force it | the page now counts only positions created as `OUTPUTS(1)` of a lock of this campaign (`api.test.ts`) |
 | P-2 INFO: stale position header | Correct | comment fixed; the tree is unchanged |
 | P-3 INFO: R4 is locker-supplied | Correct | the page always uses the connected wallet's key |
 
 The attack needs two campaigns funded by others with one fee address: pairing
 ours with a campaign the attacker funds returns them at most what they put
-in. The v2 mainnet test campaign is the only campaign paying its address, and
-it should be swept as soon as the sweep opens.
+in. The auditor's MockChain retest of v3 agreed on F-1 and F-2 and added one
+operational item (V3-1): a v3 campaign at `INPUTS(0)` can still be swept
+together with a v2 campaign that pays the same address, because v2 never
+checks its input index (the other way round, v3 refuses). The only v2
+campaign on mainnet is the test campaign, paying HQ's wallet, so a v3 campaign
+must not pay that wallet until the test campaign is swept (sweep it as soon
+as the sweep opens, after #1,886,712).
 
 ## Deploying a campaign
 
@@ -186,7 +211,17 @@ browser with the leftover going to the address you choose (default: your
 wallet), then asks for three signatures: markers, NFT, campaign box. If the
 page reloads midway, it offers Resume instead of minting again. At the end it
 shows the deployment JSON; pin it as `deployments/<network>.json` and redeploy
-the site for the page to show the campaign. Keep routes top-level
+the site for the page to show the campaign. Before pinning, check it against
+the chain (read-only):
+
+```
+npx vite-node scripts/lithos/verify-deployment.ts src/lib/lithos/deployments/mainnet.json
+```
+
+It recompiles both trees, and checks that the leftover address is a wallet,
+that the NFT's supply is exactly 1 (two boxes sharing one NFT could share one
+successor and leak a budget), and that the genesis box held every marker, the
+pinned budget and the pinned V. Keep routes top-level
 (`/lithos-deploy`, `/lithos-locks`): a nested route (`/lithos/deploy`) makes the
 build emit a `lithos/` directory and Apache then answers `/lithos` with a 301
 to a 403.
@@ -213,17 +248,16 @@ Pinned in `deployments/mainnet.json` and shown at `lock.mewfinance.com/lithos`.
 
 Checked before pinning: every genesis input came from the leftover address,
 the box on chain holds the NFT, every marker and 1,000 LIT with R4 = 5.256e21,
-and its tree equals the pinned tree and the recompile. Still to prove with
-Nautilus: a lock (spends the campaign box) and an unlock (spends a position).
+and its tree equals the pinned tree and the recompile. Nautilus locks and
+unlocks work on mainnet: by 2026-10-01 five wallets (HQ's and four others)
+had locked six times and three positions were unlocked, each paying back
+exactly principal + reward with its marker burned.
 
 ## Before mainnet
 
-- The mainnet test campaign above must show a Nautilus lock and unlock before
-  the real one goes up.
 - For the real launch decide: budget, campaign length, tiers and boosts (agreed
   30/90/180/365 days at 1.0/1.25/1.5/2.0x), minimum lock, starting base APR.
 - The real campaign's leftover goes to the Mew devs' fee address: get the
   exact address before deploying.
-- Ship contract v3 (branch `fix/campaign-audit`) before the real campaign;
-  every campaign the deploy page makes until then is v2.
-- Sweep the v2 mainnet test campaign right after #1,886,712.
+- Sweep the v2 mainnet test campaign right after #1,886,712 (audit V3-1).
+- Run `verify-deployment.ts` on the real campaign's JSON before pinning it.
