@@ -3,6 +3,9 @@
 //
 //   npx vite-node scripts/lithos/testnet.ts wallet     addresses and balances
 //   npx vite-node scripts/lithos/testnet.ts deploy     mint test LIT (once), markers, NFT, 30-block campaign
+//   npx vite-node scripts/lithos/testnet.ts deploy --demo   week-long campaign with the mainnet tiers in blocks
+//   npx vite-node scripts/lithos/testnet.ts send <address> <tLIT> [tERG]   fund a tester
+//   npx vite-node scripts/lithos/testnet.ts faucet [boxes]   fill the page's public test faucet
 //   npx vite-node scripts/lithos/testnet.ts scenario   locks, top-up, refusals, then finish
 //   npx vite-node scripts/lithos/testnet.ts finish     unlocks + sweep (resumable)
 //   npx vite-node scripts/lithos/testnet.ts status     campaign and positions
@@ -143,21 +146,31 @@ async function deploy() {
 	const campaignNftId = nftTx.inputs[0].boxId;
 	await submit('mint campaign NFT', nftTx, [main]);
 
-	// Testnet blocks come every ~30-60 s, so tiers are 10 and 20 blocks and locks
-	// stay open for 30 blocks; mainnet tiers would be days to a year.
+	// --demo: the mainnet tiers (30/90/180/365 days at 1.0/1.25/1.5/2.0x) scaled to
+	// one testnet block per day, open for about a week, for clicking through the
+	// page with Nautilus Testnet. Default: a 30-block campaign for the scripted
+	// scenario (testnet blocks come every ~30-60 s).
+	const demo = process.argv.includes('--demo');
 	const h = await chain.height();
 	const params: CampaignParams = {
 		network: 'testnet',
 		litId,
 		feeAddress: keys.fee.address,
 		start: h,
-		end: h + 30,
-		grace: 3,
+		end: demo ? h + 10_080 : h + 30,
+		grace: demo ? 60 : 3,
 		slack: 60,
-		tiers: [
-			{ blocks: 10, boostBps: 10_000, label: '10 blocks' },
-			{ blocks: 20, boostBps: 15_000, label: '20 blocks' }
-		],
+		tiers: demo
+			? [
+					{ blocks: 30, boostBps: 10_000, label: '30 days (demo)' },
+					{ blocks: 90, boostBps: 12_500, label: '90 days (demo)' },
+					{ blocks: 180, boostBps: 15_000, label: '180 days (demo)' },
+					{ blocks: 365, boostBps: 20_000, label: '365 days (demo)' }
+			  ]
+			: [
+					{ blocks: 10, boostBps: 10_000, label: '10 blocks' },
+					{ blocks: 20, boostBps: 15_000, label: '20 blocks' }
+			  ],
 		minLock: UNIT
 	};
 	const positionTree = compilePosition('testnet');
@@ -182,7 +195,7 @@ async function deploy() {
 
 	const deployment: LithosDeployment = {
 		network: 'testnet',
-		label: 'MewLock x Lithos, testnet dry run',
+		label: demo ? 'Lithos Lock, testnet demo' : 'Lithos Lock, testnet dry run',
 		params: pinParams(params),
 		positionTree,
 		campaignTree,
@@ -386,6 +399,43 @@ async function finish() {
 	log('\nAll testnet checks passed.');
 }
 
+/** Give a tester tLIT and/or tERG: send <address> <tLIT> [tERG] */
+async function send() {
+	const [, to, litArg = '0', ergArg = '0.1'] = process.argv.slice(2);
+	if (!to) throw new Error('usage: send <testnet address> <tLIT> [tERG]');
+	const litId = loadState().litId;
+	if (!litId) throw new Error('no tLIT minted yet: run deploy first');
+	const lit = BigInt(Math.round(Number(litArg))) * UNIT;
+	const nanoErg = BigInt(Math.round(Number(ergArg) * 1e9));
+	const out = new OutputBuilder(nanoErg, to);
+	if (lit > 0n) out.addTokens({ tokenId: litId, amount: lit });
+	const tx = new TransactionBuilder(await chain.height())
+		.from(await boxesOf(keys.main))
+		.to(out)
+		.sendChangeTo(keys.main.address)
+		.payFee(TX_FEE)
+		.build();
+	await submit(`send ${fmt(lit)} tLIT + ${Number(nanoErg) / 1e9} tERG to ${to}`, tx, [keys.main]);
+}
+
+/** Fill the page's test faucet: faucet [boxes], each 20 tERG + 2,000,000 tLIT. */
+async function faucet() {
+	const { FAUCET_ADDRESS } = await import('../../src/lib/lithos/testWallet.ts');
+	const litId = loadState().litId;
+	if (!litId) throw new Error('no tLIT minted yet: run deploy first');
+	const count = Number(process.argv[3] ?? 20);
+	const outputs = Array.from({ length: count }, () =>
+		new OutputBuilder(20n * UNIT, FAUCET_ADDRESS).addTokens({ tokenId: litId, amount: 2_000_000n * UNIT })
+	);
+	const tx = new TransactionBuilder(await chain.height())
+		.from(await boxesOf(keys.main))
+		.to(outputs)
+		.sendChangeTo(keys.main.address)
+		.payFee(TX_FEE)
+		.build();
+	await submit(`fill faucet ${FAUCET_ADDRESS} with ${count} boxes`, tx, [keys.main]);
+}
+
 async function status() {
 	const d = loadDeployment();
 	const h = await chain.height();
@@ -401,7 +451,7 @@ async function status() {
 	}
 }
 
-const commands: Record<string, () => Promise<void>> = { wallet, deploy, scenario, finish, status };
+const commands: Record<string, () => Promise<void>> = { wallet, deploy, scenario, finish, send, faucet, status };
 const [command = 'wallet'] = process.argv.slice(2);
 const run = commands[command];
 if (!run) {
