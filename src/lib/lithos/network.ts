@@ -4,6 +4,7 @@ import { type LithosDeployment, readDeployment } from './deployment.ts';
 import mainnetDeployment from './deployments/mainnet.json';
 import testnetDeployment from './deployments/testnet.json';
 import type { Network } from './params.ts';
+import { EXPLORER_URL } from '../api-explorer/chain.ts';
 
 export type NetworkConfig = {
 	network: Network;
@@ -23,7 +24,7 @@ export type NetworkConfig = {
 const NETWORKS: Record<Network, NetworkConfig> = {
 	mainnet: {
 		network: 'mainnet',
-		explorerApi: 'https://api.ergoplatform.com/api/v1',
+		explorerApi: `${EXPLORER_URL}/api/v1`,
 		graphqlApi: 'https://gql.ergoplatform.com/',
 		txUrl: (id) => `https://ergexplorer.com/transactions/${id}`,
 		addressUrl: (a) => `https://ergexplorer.com/addresses/${a}`,

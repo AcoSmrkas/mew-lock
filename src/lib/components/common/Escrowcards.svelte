@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { EXPLORER_URL } from '$lib/api-explorer/chain';
 	import { buyTx } from '$lib/contract/buyTx.js';
 	import { cancelTx } from '$lib/contract/cancelTx.js';
 	import { get } from 'svelte/store';
@@ -109,7 +110,7 @@
 			try {
 				let rData = (
 					await axios.get(
-						`https://api.ergoplatform.com/api/v1/transactions/${offer.assets[0].mintTx}`
+						`${EXPLORER_URL}/api/v1/transactions/${offer.assets[0].mintTx}`
 					)
 				).data;
 				const rInput = rData.inputs[0];

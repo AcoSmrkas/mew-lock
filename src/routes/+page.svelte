@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CHAIN_URL, chainFetch } from '$lib/api-explorer/chain';
 	import { onMount } from 'svelte';
 	import { nFormatter } from '$lib/utils/utils.js';
 	import Navigation from '$lib/components/common/Navigation.svelte';
@@ -48,7 +49,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		loading = true;
 		try {
 			// Get current height first
-			const heightResponse = await fetch('https://api.ergoplatform.com/api/v1/info');
+			const heightResponse = await chainFetch(`${CHAIN_URL}/info`);
 			const heightData = await heightResponse.json();
 			currentHeight = heightData.fullHeight || 0;
 

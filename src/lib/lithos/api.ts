@@ -1,6 +1,7 @@
-// Chain reads for the Lithos Lock page, through the public explorer API of the
-// selected network. Everything returned is authenticated against the
-// deployment by boxes.ts before the page uses it.
+// Chain reads for the Lithos Lock page, through the explorer API of the selected
+// network (on mainnet, chain-gateway: see api-explorer/chain.ts). Everything
+// returned is authenticated against the deployment by boxes.ts before the page
+// uses it.
 import type { Box } from '@fleet-sdk/common';
 import { ErgoAddress } from '@fleet-sdk/core';
 import { parse as parseBig } from 'json-bigint-native';
@@ -8,10 +9,11 @@ import { type CampaignState, parseCampaignBox, parsePositionBox, type PositionSt
 import type { LithosDeployment } from './deployment.ts';
 import type { NetworkConfig } from './network.ts';
 import { fleetNetwork } from './params.ts';
+import { chainFetch } from '../api-explorer/chain.ts';
 
 export async function getJson(url: string): Promise<any> {
 	// No custom headers: they trigger a CORS preflight some of our APIs reject.
-	const res = await fetch(url, { cache: 'no-store' });
+	const res = await chainFetch(url, { cache: 'no-store' });
 	if (!res.ok) throw new Error(`${res.status} ${url}`);
 	// Token amounts go past 2^53, so never JSON.parse chain data directly.
 	return parseBig(await res.text());

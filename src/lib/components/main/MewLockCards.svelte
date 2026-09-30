@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CHAIN_URL, chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 	import { onMount } from 'svelte';
 	import { connected_wallet_address } from '$lib/store/store';
 	import { nFormatter, showCustomToast } from '$lib/utils/utils.js';
@@ -48,8 +49,8 @@
 			const currentHeight = await getCurrentHeight();
 
 			// Search for boxes at the MewLock contract address
-			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+			const response = await chainFetch(
+				`${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
 			);
 			const data = await response.json();
 
@@ -86,7 +87,7 @@
 
 	async function getCurrentHeight() {
 		try {
-			const response = await fetch('https://ergo-node.zoomout.io/info');
+			const response = await chainFetch(`${CHAIN_URL}/info`);
 			const data = await response.json();
 			return data.fullHeight;
 		} catch (error) {

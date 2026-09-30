@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { EXPLORER_URL } from '$lib/api-explorer/chain';
 	import { ErgoAddress } from '@fleet-sdk/core';
 	import { buyTx } from '$lib/contract/buyTx.js';
 	import { buyOfferTx } from '$lib/contract/buyOfferTx.js';
@@ -202,7 +203,7 @@
 				}
 
 				let rData = (
-					await axios.get(`https://api.ergoplatform.com/api/v1/transactions/${royaltyAsset.mintTx}`)
+					await axios.get(`${EXPLORER_URL}/api/v1/transactions/${royaltyAsset.mintTx}`)
 				).data;
 				const rInput = rData.inputs[0];
 				if (

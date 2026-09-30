@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import { onMount } from 'svelte';
 	import { connected_wallet_address, selected_wallet_ergo } from '$lib/store/store';
@@ -67,8 +68,8 @@
 			const currentHeightValue = await getCurrentBlockHeight();
 
 			// Search for boxes at the MewLock contract address
-			const response = await fetch(
-				`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
+			const response = await chainFetch(
+				`${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/${MEWLOCK_CONTRACT_ADDRESS}`
 			);
 			const data = await response.json();
 

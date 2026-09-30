@@ -8,6 +8,7 @@ import {
 	ErgoUnsignedInput
 } from '@fleet-sdk/core';
 import { SGroupElement, SInt, SSigmaProp, SByte, SColl, SByte as SByteType } from '@fleet-sdk/serializer';
+import { chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 
 // MewLockV2 smart contract address
 export const MEWLOCK_CONTRACT_ADDRESS =
@@ -33,8 +34,8 @@ export async function fetchMewLockBoxes(limit = 500): Promise<Array<any>> {
 	const results = await Promise.all(
 		ALL_MEWLOCK_CONTRACT_ADDRESSES.map(async (address) => {
 			try {
-				const response = await fetch(
-					`https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${address}?limit=${limit}`
+				const response = await chainFetch(
+					`${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/${address}?limit=${limit}`
 				);
 				const data = await response.json();
 				return data.items || [];
@@ -155,7 +156,7 @@ export async function createMewLockWithdrawalTx(
 
 	// Fetch the complete box data from the API
 	try {
-		const response = await fetch(`https://api.ergoplatform.com/api/v1/boxes/${mewLockBox.boxId}`);
+		const response = await chainFetch(`${EXPLORER_URL}/api/v1/boxes/${mewLockBox.boxId}`);
 		const fullBoxData = await response.json();
 		console.log('Full box data from API:', fullBoxData);
 

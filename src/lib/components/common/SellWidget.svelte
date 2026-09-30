@@ -934,7 +934,7 @@
 			try {
 				const fallbackResponse = await fetch('https://api.ergoplatform.com/api/v1/info');
 				const data = await fallbackResponse.json();
-				currentHeight = data.fullHeight;
+				currentHeight = data.height;
 				if (lockDuration) {
 					updateUnlockHeight();
 				}

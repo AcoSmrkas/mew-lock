@@ -27,6 +27,7 @@ import {
 } from '../common/const.ts';
 import { hexToBytes } from '$lib/utils/utils.js';
 import { fetchBoxes } from '$lib/api-explorer/explorer.ts';
+import { chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 
 export const DEV_PK = LENDING_DEV_PK;
 
@@ -1067,7 +1068,7 @@ export async function findBorrowerFromHistory(contractBoxId: string): Promise<st
 		console.log('🔍 Analyzing transaction history to find borrower for box:', contractBoxId);
 
 		// Get the transaction that created this contract box
-		const boxInfo = await fetch(`https://api.ergoplatform.com/api/v1/boxes/${contractBoxId}`);
+		const boxInfo = await chainFetch(`${EXPLORER_URL}/api/v1/boxes/${contractBoxId}`);
 		if (!boxInfo.ok) {
 			console.warn(`Failed to fetch box info: ${boxInfo.status}`);
 			return null;
@@ -1087,8 +1088,8 @@ export async function findBorrowerFromHistory(contractBoxId: string): Promise<st
 		}
 
 		// Get the transaction that spent this box (the borrow transaction)
-		const spendingTxResponse = await fetch(
-			`https://api.ergoplatform.com/api/v1/transactions/${boxData.spentTransactionId}`
+		const spendingTxResponse = await chainFetch(
+			`${EXPLORER_URL}/api/v1/transactions/${boxData.spentTransactionId}`
 		);
 		if (!spendingTxResponse.ok) {
 			throw new Error(`Failed to fetch spending transaction: ${spendingTxResponse.status}`);
@@ -1225,8 +1226,8 @@ export async function parseLending(box: any) {
 			if (!borrowerAddress && box.spentTransactionId) {
 				console.log('🔍 Box has spentTransactionId, analyzing transaction...');
 				try {
-					const spendingTxResponse = await fetch(
-						`https://api.ergoplatform.com/api/v1/transactions/${box.spentTransactionId}`
+					const spendingTxResponse = await chainFetch(
+						`${EXPLORER_URL}/api/v1/transactions/${box.spentTransactionId}`
 					);
 					if (spendingTxResponse.ok) {
 						const spendingTx = await spendingTxResponse.json();

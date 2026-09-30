@@ -3,6 +3,7 @@ import { totalBoxes } from '$lib/store/store';
 import { ITEMS_PER_PAGE } from '$lib/common//const.ts';
 import { fetchMempoolTxs } from '$lib/api-explorer/mempool.ts';
 import axios from 'axios';
+import { CHAIN_URL, chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 
 var lastOutputBoxes: Record<string, any> = {};
 var lastInputBoxes: Record<string, any> = {};
@@ -55,7 +56,7 @@ async function checkTempOutBoxes(address) {
 
 		let boxStatus = null;
 		try {
-			boxStatus = await axios.get('https://api.ergoplatform.com/api/v1/boxes/' + boxId);
+			boxStatus = await axios.get(`${EXPLORER_URL}/api/v1/boxes/` + boxId);
 		} catch {
 			// its ok
 		}
@@ -91,8 +92,8 @@ function nautilusfFriendlyBox(box) {
 }
 
 export async function fetchContractBoxFromTx(txid) {
-	const url = `https://api.ergoplatform.com/api/v1/transactions/${txid}`;
-	const response = await fetch(url);
+	const url = `${EXPLORER_URL}/api/v1/transactions/${txid}`;
+	const response = await chainFetch(url);
 
 	if (response.status == 200) {
 		const data = await response.arrayBuffer();
@@ -107,8 +108,8 @@ export async function fetchContractBoxFromTx(txid) {
 }
 
 export async function fetchContractBoxes(contract: string, offset: number): Promise<Array<any>> {
-	const url = `https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/${contract}?offset=${offset}&limit=${ITEMS_PER_PAGE}`;
-	const response = await fetch(url);
+	const url = `${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/${contract}?offset=${offset}&limit=${ITEMS_PER_PAGE}`;
+	const response = await chainFetch(url);
 
 	if (response.status == 200) {
 		const data = await response.arrayBuffer();
@@ -125,8 +126,8 @@ export async function fetchContractBoxes(contract: string, offset: number): Prom
 }
 
 export async function fetchConfirmedBalance(address) {
-	const url = `https://api.ergoplatform.com/api/v1/addresses/${address}/balance/confirmed`;
-	const response = await fetch(url);
+	const url = `${EXPLORER_URL}/api/v1/addresses/${address}/balance/confirmed`;
+	const response = await chainFetch(url);
 
 	if (response.status == 200) {
 		const data = await response.arrayBuffer();
@@ -145,7 +146,7 @@ export async function fetchBoxes(address) {
 		await checkTempOutBoxes(address);
 
 		let response = await axios.get(
-			'https://api.ergoplatform.com/api/v1/boxes/unspent/byAddress/' +
+			`${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/` +
 				address +
 				'?limit=500&offset=0&includeUnconfirmed=true',
 			{
@@ -242,7 +243,7 @@ export async function fetchBoxes(address) {
 
 export async function getBlockHeight() {
 	try {
-		const response = await axios.get(`https://ergo-node.zoomout.io/info`);
+		const response = await axios.get(`${CHAIN_URL}/info`);
 
 		return response.data.fullHeight;
 	} catch (error) {
