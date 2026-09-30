@@ -63,6 +63,7 @@
 		"@fleet-sdk/core": "^0.10.0",
 		"@fleet-sdk/serializer": "^0.10.0",
 		"@fleet-sdk/wallet": "0.10.0",
+		"@noble/curves": "^1.9.7",
 		"@scure/base": "^1.2.6",
 		"@sveltejs/kit": "^1.30.4",
 		"all": "^0.0.0",

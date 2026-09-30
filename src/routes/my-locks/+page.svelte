@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { connected_wallet_address, selected_wallet_ergo } from '$lib/store/store';
+	import {
+		connected_wallet_address,
+		connected_wallet_addresses,
+		selected_wallet_ergo
+	} from '$lib/store/store';
 	import { nFormatter, showCustomToast } from '$lib/utils/utils.js';
 	import { fade, fly } from 'svelte/transition';
 	import { ErgoAddress } from '@fleet-sdk/core';
@@ -9,6 +13,11 @@
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
+	import { networkConfig } from '$lib/lithos/network.ts';
+	import { getHeight, getPositions } from '$lib/lithos/api.ts';
+	import { fmtAmount, fmtBlocks } from '$lib/lithos/format.ts';
+	import type { PositionState } from '$lib/lithos/boxes.ts';
+	import { positionsOwnedBy, walletOwnerAddresses } from '$lib/lithos/ownership.ts';
 
 	// MewLock variables
 	let mewLockBoxes = [];
@@ -18,6 +27,11 @@
 	let showErgopayModal = false;
 	let isAuth = false;
 	let unsignedTx = null;
+	let lithosPositions: PositionState[] = [];
+	let lithosHeight = 0;
+	let lithosLoading = false;
+	const lithosNetwork = networkConfig('mainnet');
+	const lithosDeployment = lithosNetwork.deployment;
 
 	// Stats
 	let totalValueLocked = 0;
@@ -40,11 +54,11 @@
 	let optimisticallySpent = new Map();
 	const OPTIMISTIC_SPENT_TTL = 4 * 60 * 1000;
 
-import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
+	import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
-		await loadMewLockBoxes();
+		await Promise.all([loadMewLockBoxes(), loadLithosPositions()]);
 		loadedForAddress = $connected_wallet_address;
 		mounted = true;
 	});
@@ -53,6 +67,36 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	$: if (mounted && $connected_wallet_address !== loadedForAddress) {
 		loadedForAddress = $connected_wallet_address;
 		loadMewLockBoxes();
+		loadLithosPositions();
+	}
+
+	async function loadLithosPositions() {
+		if (!lithosDeployment || !$connected_wallet_address) {
+			lithosPositions = [];
+			return;
+		}
+		const addressAtStart = $connected_wallet_address;
+		lithosLoading = true;
+		try {
+			const [height, positions] = await Promise.all([
+				getHeight(lithosNetwork),
+				getPositions(lithosNetwork, lithosDeployment)
+			]);
+			if ($connected_wallet_address !== addressAtStart) return;
+			lithosHeight = height;
+			const ownerAddresses = await walletOwnerAddresses([
+				addressAtStart,
+				...($connected_wallet_addresses ?? [])
+			]);
+			if ($connected_wallet_address !== addressAtStart) return;
+			lithosPositions = positionsOwnedBy(positions, ownerAddresses)
+				.sort((a, b) => a.unlockAt - b.unlockAt);
+		} catch (error) {
+			console.error('Error loading Lithos positions:', error);
+			lithosPositions = [];
+		} finally {
+			if ($connected_wallet_address === addressAtStart) lithosLoading = false;
+		}
 	}
 
 	// Convert public key to address using ErgoAddress
@@ -125,7 +169,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 				const canWithdraw = currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
 				const isOwnBox = depositorAddress === $connected_wallet_address;
-				
+
 				// Extract lock name and description from R7 and R8 (NEW)
 				const lockName = decodeStringFromRegister(box.additionalRegisters.R7);
 				const lockDescription = decodeStringFromRegister(box.additionalRegisters.R8);
@@ -150,14 +194,17 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 			// Debug logging for address filtering
 			console.log('Connected wallet address:', $connected_wallet_address);
 			console.log('Total boxes before filtering:', mewLockBoxes.length);
-			console.log('Sample depositor addresses:', mewLockBoxes.slice(0, 5).map(box => box.depositorAddress));
-			
+			console.log(
+				'Sample depositor addresses:',
+				mewLockBoxes.slice(0, 5).map((box) => box.depositorAddress)
+			);
+
 			// Filter to only user's boxes
 			mewLockBoxes = mewLockBoxes.filter((box) => {
 				const matches = box.depositorAddress === $connected_wallet_address;
 				return matches && !optimisticallySpent.has(box.boxId);
 			});
-			
+
 			console.log('Boxes after filtering:', mewLockBoxes.length);
 
 			// Calculate stats
@@ -244,6 +291,9 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	$: unlockableBoxes = ownLocks.filter((box) => box.canWithdraw);
 	$: personalERGLocked = ownLocks.reduce((sum, box) => sum + box.value / 1e9, 0);
 	$: personalLockCount = ownLocks.length;
+	$: lithosReadyCount = lithosPositions.filter(
+		(position) => lithosHeight >= position.unlockAt
+	).length;
 
 	// Calculate personal token summaries
 	$: personalTokenSummaries = ownLocks.reduce((summaries, box) => {
@@ -440,6 +490,54 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 					</div>
 				</div>
 			</section>
+
+			{#if lithosDeployment}
+				<section class="lithos-shortcut" aria-labelledby="lithos-shortcut-title">
+					<div>
+						<p class="lithos-kicker">MewLock × Lithos</p>
+						<h2 id="lithos-shortcut-title">Your LIT locks</h2>
+						{#if lithosLoading}
+							<p>Checking your LIT positions on the chain…</p>
+						{:else if lithosPositions.length}
+							<p>
+								{lithosPositions.length} open lock{lithosPositions.length === 1 ? '' : 's'} · {lithosReadyCount}
+								ready to unlock
+							</p>
+						{:else}
+							<p>No LIT positions yet. The event lock is ready when you are.</p>
+						{/if}
+					</div>
+					<a class="lithos-manage" href="/lithos/locks"
+						>{lithosPositions.length ? 'Manage & unlock LIT' : 'Add a LIT lock'}
+						<span aria-hidden="true">→</span></a
+					>
+				</section>
+
+				{#if !lithosLoading && lithosPositions.length}
+					<div class="lithos-position-preview">
+						{#each lithosPositions.slice(0, 3) as position (position.box.boxId)}
+							<div>
+								<strong
+									>{fmtAmount(position.principal, lithosDeployment.assets.stake.decimals)}
+									{lithosDeployment.assets.stake.ticker}</strong
+								>
+								<span
+									>+{fmtAmount(position.reward, lithosDeployment.assets.reward.decimals)}
+									{lithosDeployment.assets.reward.ticker} gain</span
+								>
+								<small
+									>{lithosHeight >= position.unlockAt
+										? 'Ready to unlock'
+										: `${fmtBlocks(
+												position.unlockAt - lithosHeight,
+												lithosNetwork.blockSeconds
+										  )} left`}</small
+								>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{/if}
 
 			<!-- Your Tokens Section -->
 			{#if personalTokenList.length > 0}
@@ -891,6 +989,73 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		font-weight: 700;
 		color: white;
 		margin: 0 0 2rem 0;
+	}
+
+	.lithos-shortcut {
+		margin: 0 0 1rem;
+		padding: 1.35rem 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		border: 1px solid #f9d72d80;
+		border-radius: 14px;
+		background: linear-gradient(110deg, #f9d72d14, #04dfff0e);
+	}
+	.lithos-kicker {
+		margin: 0 0 0.35rem;
+		color: #04dfff;
+		font-size: 0.75rem;
+		font-weight: 800;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+	.lithos-shortcut h2 {
+		margin: 0;
+		color: #f9d72d;
+		font-size: 1.5rem;
+	}
+	.lithos-shortcut p:not(.lithos-kicker) {
+		margin: 0.4rem 0 0;
+		color: rgba(255, 255, 255, 0.72);
+	}
+	.lithos-manage {
+		flex-shrink: 0;
+		border-radius: 8px;
+		padding: 0.75rem 1rem;
+		background: #f9d72d;
+		color: #1b1030;
+		font-weight: 800;
+		text-decoration: none;
+	}
+	.lithos-position-preview {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+		gap: 0.75rem;
+		margin: 0 0 3rem;
+	}
+	.lithos-position-preview > div {
+		padding: 1rem;
+		border: 1px solid rgba(4, 223, 255, 0.25);
+		border-radius: 10px;
+		background: rgba(28, 18, 48, 0.78);
+	}
+	.lithos-position-preview strong,
+	.lithos-position-preview span,
+	.lithos-position-preview small {
+		display: block;
+	}
+	.lithos-position-preview strong {
+		color: white;
+	}
+	.lithos-position-preview span {
+		margin-top: 0.35rem;
+		color: #04dfff;
+		font-size: 0.85rem;
+	}
+	.lithos-position-preview small {
+		margin-top: 0.5rem;
+		color: rgba(255, 255, 255, 0.62);
 	}
 
 	.tokens-grid {

@@ -43,6 +43,11 @@ const NETWORKS: Record<Network, NetworkConfig> = {
 	}
 };
 
+/** The pinned configuration for a specific chain, for dashboard-style views. */
+export function networkConfig(network: Network): NetworkConfig {
+	return NETWORKS[network];
+}
+
 const SESSION_KEY = 'lithos_network';
 
 export function pickNetwork(url: URL): NetworkConfig {

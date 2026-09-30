@@ -43,6 +43,7 @@
 		usingErgoPay,
 		walletBoxes
 	} from '$lib/lithos/wallet.ts';
+	import { positionsOwnedBy, walletOwnerAddresses } from '$lib/lithos/ownership.ts';
 	import {
 		createTestWallet,
 		drip,
@@ -74,13 +75,17 @@
 	$: rateOf = (reward: bigint, principal: bigint, blocks: number) =>
 		sameAsset
 			? fmtApr(Number((reward * 10_000n * BigInt(BLOCKS_PER_YEAR)) / (principal * BigInt(blocks))))
-			: `${fmtRate(yearlyRate(reward, B.decimals, principal, A.decimals, blocks, BLOCKS_PER_YEAR))} ${B.ticker} per ${A.ticker} / yr`;
+			: `${fmtRate(
+					yearlyRate(reward, B.decimals, principal, A.decimals, blocks, BLOCKS_PER_YEAR)
+			  )} ${B.ticker} per ${A.ticker} / yr`;
 	$: marginalRate = (boostBps: number) => {
 		if (!campaign) return '—';
 		const bps = marginalAprBps(campaign.budget, campaign.v, boostBps);
 		return sameAsset
 			? fmtApr(bps)
-			: `${fmtRate((bps / 10_000) * 10 ** (A.decimals - B.decimals))} ${B.ticker} per ${A.ticker} / yr`;
+			: `${fmtRate((bps / 10_000) * 10 ** (A.decimals - B.decimals))} ${B.ticker} per ${
+					A.ticker
+			  } / yr`;
 	};
 	/** nanoERG kept aside for fees and the deposit when the staked asset is ERG. */
 	const ERG_HEADROOM = 10_000_000n;
@@ -108,10 +113,13 @@
 			: 0n
 		: balanceOf(d.params.stakeId);
 	$: rewardBalance = !d ? 0n : balanceOf(d.params.rewardId);
-	$: mine = testWallet
-		? new Set([testWallet.address])
-		: new Set([$connected_wallet_address, ...($connected_wallet_addresses ?? [])].filter(Boolean));
-	$: myPositions = positions.filter((p) => mine.has(p.owner)).sort((a, b) => a.unlockAt - b.unlockAt);
+	let ownerAddresses: string[] = [];
+	$: myPositions = positionsOwnedBy(positions, ownerAddresses).sort((a, b) => a.unlockAt - b.unlockAt);
+	$: myPositionIds = new Set(myPositions.map((position) => position.box.boxId));
+	let positionFilter: 'mine' | 'all' = 'mine';
+	$: visiblePositions = (positionFilter === 'mine' ? myPositions : positions).slice().sort(
+		(a, b) => a.unlockAt - b.unlockAt
+	);
 	// Testnet P2PK addresses start with 3, mainnet ones with 9.
 	$: wrongNetwork =
 		!testWallet &&
@@ -215,9 +223,16 @@
 	async function loadWallet() {
 		if (!net || !activeAddress) {
 			boxes = [];
+			ownerAddresses = [];
 			return;
 		}
 		try {
+			ownerAddresses = testWallet
+				? [testWallet.address]
+				: await walletOwnerAddresses([
+						$connected_wallet_address,
+						...($connected_wallet_addresses ?? [])
+					]);
 			boxes = testWallet ? await testBoxes(net, testWallet.address) : await walletBoxes(net);
 		} catch (e) {
 			console.error('wallet boxes', e);
@@ -247,7 +262,9 @@
 		}
 		submitted = [{ txId, what }, ...submitted].slice(0, 6);
 		showCustomToast(
-			`${what} submitted.<br><a target="_blank" rel="noopener" href="${net!.txUrl(txId)}">View transaction</a>`,
+			`${what} submitted.<br><a target="_blank" rel="noopener" href="${net!.txUrl(
+				txId
+			)}">View transaction</a>`,
 			10_000,
 			'success'
 		);
@@ -289,7 +306,9 @@
 			const txId = await drip(net, d, testWallet.address);
 			submitted = [{ txId, what: 'Test tokens from the faucet' }, ...submitted].slice(0, 6);
 			showCustomToast(
-				`Test tokens are on the way. You can lock right away.<br><a target="_blank" rel="noopener" href="${net.txUrl(txId)}">View transaction</a>`,
+				`Test tokens are on the way. You can lock right away.<br><a target="_blank" rel="noopener" href="${net.txUrl(
+					txId
+				)}">View transaction</a>`,
 				8_000,
 				'success'
 			);
@@ -318,7 +337,9 @@
 			if (shown && plan.quote.reward < shown.reward) {
 				campaign = fresh;
 				showCustomToast(
-					`Rates just moved: your reward is now ${fmtB(plan.quote.reward, B.decimals)} ${B.ticker}. Check it and press Lock again.`,
+					`Rates just moved: your reward is now ${fmtB(plan.quote.reward, B.decimals)} ${
+						B.ticker
+					}. Check it and press Lock again.`,
 					8_000,
 					'info'
 				);
@@ -333,7 +354,8 @@
 		run(`unlock:${p.box.boxId}`, async () => {
 			if (!d || !net) return;
 			const h = await myHeight();
-			if (h < p.unlockAt) throw new Error(`Locked until block ${p.unlockAt.toLocaleString('en-US')}.`);
+			if (h < p.unlockAt)
+				throw new Error(`Locked until block ${p.unlockAt.toLocaleString('en-US')}.`);
 			// Nautilus signs with keys whose boxes are among the inputs, so put
 			// the owner's own boxes first.
 			const ownerTree = ErgoAddress.fromBase58(p.owner).ergoTree;
@@ -382,7 +404,8 @@
 
 	// Reactive so every date in the template re-renders when the height updates.
 	$: blockDate = (h: number) => (net && height ? estimateDate(h, height, net.blockSeconds) : '');
-	const boost = (bps: number) => `${(bps / 10_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}×`;
+	const boost = (bps: number) =>
+		`${(bps / 10_000).toLocaleString('en-US', { maximumFractionDigits: 2 })}×`;
 </script>
 
 <svelte:head>
@@ -398,8 +421,8 @@
 <main class="ll">
 	{#if testnet}
 		<div class="ll-testnet" role="status">
-			<strong>TESTNET</strong> These are test tokens on the Ergo testnet. Use the test wallet below, or
-			Nautilus Wallet (Testnet).
+			<strong>TESTNET</strong> These are test tokens on the Ergo testnet. Use the test wallet below,
+			or Nautilus Wallet (Testnet).
 			<a href="/lithos?network=mainnet">Switch to mainnet</a>
 		</div>
 	{/if}
@@ -408,8 +431,9 @@
 		<p class="ll-kicker">MewLock × Lithos <span>·</span> PoW-Fi</p>
 		<h1>Lithos Lock</h1>
 		<p class="ll-lede">
-			Lock {A.ticker} for a fixed number of blocks. Your {B.ticker} reward is set the moment you lock and comes
-			back with your {A.ticker} when the lock ends. No keys, no admins: only you can open your lock.
+			Lock {A.ticker} for a fixed number of blocks. Your {B.ticker} reward is set the moment you lock
+			and comes back with your {A.ticker} when the lock ends. No keys, no admins: only you can open your
+			lock.
 		</p>
 		{#if d}
 			<p class="ll-term" aria-live="polite">
@@ -435,7 +459,9 @@
 		<section class="ll-card ll-soon">
 			<h2>Opens soon</h2>
 			<p>The Lithos Lock campaign is not live on {net.network} yet.</p>
-			{#if !testnet}<a class="ll-btn ll-btn-ghost" href="/lithos?network=testnet">Try it on testnet</a>{/if}
+			{#if !testnet}<a class="ll-btn ll-btn-ghost" href="/lithos?network=testnet"
+					>Try it on testnet</a
+				>{/if}
 		</section>
 	{:else}
 		{#if loadError}<p class="ll-error">{loadError}</p>{/if}
@@ -459,7 +485,10 @@
 							<button type="button" class="ll-link" on:click={copyAddress} title="Copy address">
 								{testWallet.address.slice(0, 10)}…{testWallet.address.slice(-6)}
 							</button>
-							· {fmtErg(ergBalance)} tERG{#if d.params.stakeId !== null}{` · ${fmtA(balanceOf(d.params.stakeId), 2)} ${A.ticker}`}{/if}
+							· {fmtErg(ergBalance)} tERG{#if d.params.stakeId !== null}{` · ${fmtA(
+									balanceOf(d.params.stakeId),
+									2
+								)} ${A.ticker}`}{/if}
 						</p>
 						<p class="ll-muted ll-small">
 							The key is stored only in this browser. Test tokens have no value.
@@ -471,9 +500,13 @@
 								? 'Sending…'
 								: d.params.stakeId === null
 								? `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG`
-								: `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG + ${fmtA(FAUCET_DRIP.tokens, 0)} ${A.ticker}`}
+								: `Get ${fmtErg(FAUCET_DRIP.nanoErg)} tERG + ${fmtA(FAUCET_DRIP.tokens, 0)} ${
+										A.ticker
+								  }`}
 						</button>
-						<button class="ll-btn ll-btn-small ll-btn-ghost" on:click={dropTestWallet}>Forget</button>
+						<button class="ll-btn ll-btn-small ll-btn-ghost" on:click={dropTestWallet}
+							>Forget</button
+						>
 					</div>
 				{/if}
 			</section>
@@ -516,7 +549,8 @@
 						Amount
 						{#if activeAddress}
 							<button type="button" class="ll-link" on:click={setMax}>
-								Balance {fmtA(stakeBalance, 4)} {A.ticker} · Max
+								Balance {fmtA(stakeBalance, 4)}
+								{A.ticker} · Max
 							</button>
 						{/if}
 					</span>
@@ -555,7 +589,10 @@
 
 				{#if quote && principal && tierDef}
 					<dl class="ll-quote">
-						<div><dt>You lock</dt><dd>{fmtA(principal, A.decimals)} {A.ticker}</dd></div>
+						<div>
+							<dt>You lock</dt>
+							<dd>{fmtA(principal, A.decimals)} {A.ticker}</dd>
+						</div>
 						<div>
 							<dt>Reward, fixed now</dt>
 							<dd class="ll-hot">+{fmtB(quote.reward, B.decimals)} {B.ticker}</dd>
@@ -566,11 +603,16 @@
 								{#if sameAsset}
 									{fmtA(principal + quote.reward, A.decimals)} {A.ticker}
 								{:else}
-									{fmtA(principal, A.decimals)} {A.ticker} + {fmtB(quote.reward, B.decimals)} {B.ticker}
+									{fmtA(principal, A.decimals)}
+									{A.ticker} + {fmtB(quote.reward, B.decimals)}
+									{B.ticker}
 								{/if}
 							</dd>
 						</div>
-						<div><dt>{sameAsset ? 'APR' : 'Rate'}</dt><dd>{rateOf(quote.reward, principal, tierDef.blocks)}</dd></div>
+						<div>
+							<dt>{sameAsset ? 'APR' : 'Rate'}</dt>
+							<dd>{rateOf(quote.reward, principal, tierDef.blocks)}</dd>
+						</div>
 						<div>
 							<dt>Unlocks at</dt>
 							<dd>block #{unlockPreview.toLocaleString('en-US')} · {blockDate(unlockPreview)}</dd>
@@ -585,8 +627,11 @@
 					<label class="ll-check">
 						<input type="checkbox" bind:checked={understood} />
 						<span>
-							I understand my {A.ticker} is locked until block #{unlockPreview.toLocaleString('en-US')}
-							({fmtBlocks(tierDef.blocks + UNLOCK_BUFFER, net.blockSeconds)}) and nobody can release it early.
+							I understand my {A.ticker} is locked until block #{unlockPreview.toLocaleString(
+								'en-US'
+							)}
+							({fmtBlocks(tierDef.blocks + UNLOCK_BUFFER, net.blockSeconds)}) and nobody can release
+							it early.
 						</span>
 					</label>
 				{/if}
@@ -597,23 +642,43 @@
 			</form>
 
 			<section class="ll-card ll-mine" aria-labelledby="mine-title">
-				<h2 id="mine-title">Your locks</h2>
-				{#if !activeAddress}
+				<div class="ll-mine-title">
+					<h2 id="mine-title">Campaign locks</h2>
+					<a href="/lithos/locks">Full LIT dashboard →</a>
+				</div>
+				<div class="ll-positions-area">
+					<nav class="ll-lock-filter" aria-label="Filter campaign locks">
+						<button
+							type="button"
+							class:active={positionFilter === 'mine'}
+							on:click={() => (positionFilter = 'mine')}
+						>My locks <span>{myPositions.length}</span></button>
+						<button
+							type="button"
+							class:active={positionFilter === 'all'}
+							on:click={() => (positionFilter = 'all')}
+						>All locks <span>{positions.length}</span></button>
+					</nav>
+					<div class="ll-positions-content">
+				{#if positionFilter === 'mine' && !activeAddress}
 					<p class="ll-muted">Connect a wallet to see your locks.</p>
-				{:else if myPositions.length === 0}
-					<p class="ll-muted">No locks yet. New locks show up here once they are in a block.</p>
+				{:else if visiblePositions.length === 0}
+					<p class="ll-muted">{positionFilter === 'mine' ? 'No locks yet. New locks show up here once they are in a block.' : 'No open campaign locks yet.'}</p>
 				{:else}
 					<ul class="ll-positions">
-						{#each myPositions as p (p.box.boxId)}
+						{#each visiblePositions as p (p.box.boxId)}
 							<li>
 								<div>
 									<b>{fmtA(p.principal, 4)} {A.ticker}</b>
 									<span class="ll-hot">+{fmtB(p.reward, 4)} {sameAsset ? '' : B.ticker}</span>
 									<small>{d.params.tiers[p.tier]?.label ?? `tier ${p.tier}`}</small>
+									{#if myPositionIds.has(p.box.boxId)}<small class="ll-owned">YOUR LOCK</small>{/if}
 								</div>
 								<div class="ll-when">
 									{#if height >= p.unlockAt}
-										<span class="ll-ready">Unlocked since #{p.unlockAt.toLocaleString('en-US')}</span>
+										<span class="ll-ready"
+											>Unlocked since #{p.unlockAt.toLocaleString('en-US')}</span
+										>
 									{:else}
 										<span>
 											#{p.unlockAt.toLocaleString('en-US')} ·
@@ -621,17 +686,19 @@
 										</span>
 									{/if}
 								</div>
-								<button
-									class="ll-btn ll-btn-small"
-									disabled={height < p.unlockAt || busy !== '' || wrongNetwork}
-									on:click={() => unlock(p)}
-								>
-									{busy === `unlock:${p.box.boxId}` ? 'Waiting…' : 'Unlock'}
-								</button>
+								{#if myPositionIds.has(p.box.boxId)}
+									<button class="ll-btn ll-btn-small" disabled={height < p.unlockAt || busy !== '' || wrongNetwork} on:click={() => unlock(p)}>
+										{busy === `unlock:${p.box.boxId}` ? 'Waiting…' : 'Unlock'}
+									</button>
+								{:else}
+									<a class="ll-btn ll-btn-small ll-btn-ghost" href={net.txUrl(p.box.transactionId)} target="_blank" rel="noopener">View</a>
+								{/if}
 							</li>
 						{/each}
 					</ul>
 				{/if}
+					</div>
+				</div>
 				{#if submitted.length}
 					<h3>Submitted this session</h3>
 					<ul class="ll-submitted">
@@ -653,31 +720,32 @@
 				<article class="ll-card">
 					<h3>What is Lithos?</h3>
 					<p>
-						Lithos is a decentralized mining pool protocol on Ergo. Smart contracts check miners' work
-						with non-interactive share proofs and pay them directly, so no pool operator holds anyone's
-						rewards. LIT is its token, with a supply of one billion.
+						Lithos is a decentralized mining pool protocol on Ergo. Smart contracts check miners'
+						work with non-interactive share proofs and pay them directly, so no pool operator holds
+						anyone's rewards. LIT is its token, with a supply of one billion.
 					</p>
 				</article>
 				<article class="ll-card">
 					<h3>Why lock at launch?</h3>
 					<p>
-						Locked LIT cannot be sold, which steadies the first weeks of trading, and the reward budget
-						goes to the people who commit to Lithos the longest.
+						Locked LIT cannot be sold, which steadies the first weeks of trading, and the reward
+						budget goes to the people who commit to Lithos the longest.
 					</p>
 				</article>
 				<article class="ll-card">
 					<h3>How rewards work</h3>
 					<p>
-						When you lock, your reward is worked out from your amount, your lock length and how much is
-						already locked, then set aside in your own lock box. Each new lock lowers the rate a little
-						for the next one; top-ups to the budget raise it. Nothing you already locked ever changes.
+						When you lock, your reward is worked out from your amount, your lock length and how much
+						is already locked, then set aside in your own lock box. Each new lock lowers the rate a
+						little for the next one; top-ups to the budget raise it. Nothing you already locked ever
+						changes.
 					</p>
 				</article>
 				<article class="ll-card">
 					<h3>Blocks, not dates</h3>
 					<p>
-						Ergo aims for a block every two minutes, 720 a day, but real block times vary. Your lock ends
-						at an exact block; the date shown is an estimate and can drift by hours.
+						Ergo aims for a block every two minutes, 720 a day, but real block times vary. Your lock
+						ends at an exact block; the date shown is an estimate and can drift by hours.
 					</p>
 				</article>
 			</div>
@@ -687,24 +755,25 @@
 			<h2 id="risks-title">Before you lock</h2>
 			<ul>
 				<li>
-					Your {A.ticker} stays locked until its unlock block. Nobody can release it early: not you, not Mew,
-					not Lithos.
+					Your {A.ticker} stays locked until its unlock block. Nobody can release it early: not you,
+					not Mew, not Lithos.
 				</li>
 				<li>
-					Your reward is fixed in {B.ticker}, but prices can move a lot, and the ERG/LIT market is thin.
+					Your reward is fixed in {B.ticker}, but prices can move a lot, and the ERG/LIT market is
+					thin.
 				</li>
 				<li>
-					The rate shown is for the next lock. It falls as more {A.ticker} locks and rises when the budget is
-					topped up. Your own reward never changes after you lock.
+					The rate shown is for the next lock. It falls as more {A.ticker} locks and rises when the budget
+					is topped up. Your own reward never changes after you lock.
 				</li>
 				<li>
-					These contracts are new. They were attack-tested and run end to end on testnet. Only lock what
-					you can afford to leave locked.
+					These contracts are new. They were attack-tested and run end to end on testnet. Only lock
+					what you can afford to leave locked.
 				</li>
 				<li>
 					After locks close and a short grace period passes, any unused budget goes to
-					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>. That
-					address is fixed in the contract.
+					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>.
+					That address is fixed in the contract.
 				</li>
 				<li>
 					You need a little ERG: {fmtErg(TX_FEE)} for the network fee, plus a {fmtErg(deposit)}
@@ -717,8 +786,9 @@
 			<form class="ll-card" on:submit|preventDefault={topUp}>
 				<h2>Add to the reward pool</h2>
 				<p class="ll-muted">
-					Anyone can add {B.ticker} to the budget until block #{d.params.end.toLocaleString('en-US')}. It
-					raises the rate for every lock after it.
+					Anyone can add {B.ticker} to the budget until block #{d.params.end.toLocaleString(
+						'en-US'
+					)}. It raises the rate for every lock after it.
 				</p>
 				<div class="ll-input">
 					<input inputmode="decimal" autocomplete="off" placeholder="0.0" bind:value={topUpInput} />
@@ -740,17 +810,21 @@
 			<div class="ll-card">
 				<h2>Close the campaign</h2>
 				<p class="ll-muted">
-					After block #{(d.params.end + d.params.grace).toLocaleString('en-US')}, anyone can send what is
-					left of the budget to
-					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>, as the
-					contract requires. Open locks are not affected.
+					After block #{(d.params.end + d.params.grace).toLocaleString('en-US')}, anyone can send
+					what is left of the budget to
+					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>, as
+					the contract requires. Open locks are not affected.
 				</p>
 				<button
 					class="ll-btn ll-btn-ghost"
 					disabled={!sweepOpen || !activeAddress || wrongNetwork || busy !== ''}
 					on:click={sweep}
 				>
-					{swept ? 'Already swept' : busy === 'sweep' ? 'Waiting for the wallet…' : 'Sweep leftover'}
+					{swept
+						? 'Already swept'
+						: busy === 'sweep'
+						? 'Waiting for the wallet…'
+						: 'Sweep leftover'}
 				</button>
 			</div>
 		</section>
@@ -1071,6 +1145,18 @@
 		font-family: var(--ll-mono);
 		overflow-wrap: anywhere;
 	}
+	.ll-lock-filter button {
+		border: 1px solid var(--ll-line);
+		border-radius: 8px;
+		background: transparent;
+		color: var(--ll-muted);
+		cursor: pointer;
+	}
+	.ll-lock-filter button.active {
+		border-color: var(--ll-live);
+		background: #04dfff14;
+		color: var(--ll-text);
+	}
 	.ll-check {
 		display: flex;
 		gap: 10px;
@@ -1163,6 +1249,49 @@
 		font-size: 0.85rem;
 		color: var(--ll-muted);
 	}
+	.ll-mine-title {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+	}
+	.ll-mine-title a {
+		color: var(--ll-live);
+		font-size: 0.8rem;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.ll-positions-area {
+		display: grid;
+		grid-template-columns: 116px minmax(0, 1fr);
+		gap: 14px;
+	}
+	.ll-lock-filter {
+		display: flex;
+		flex-direction: column;
+		gap: 7px;
+	}
+	.ll-lock-filter button {
+		display: flex;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 8px 9px;
+		font-size: 0.72rem;
+		text-align: left;
+	}
+	.ll-lock-filter span {
+		color: var(--ll-live);
+		font-family: var(--ll-mono);
+	}
+	.ll-owned {
+		padding: 2px 5px;
+		border: 1px solid var(--ll-live);
+		border-radius: 4px;
+		color: var(--ll-live) !important;
+		font-size: 0.61rem !important;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+	}
 	.ll-submitted a {
 		color: var(--ll-live);
 		font-size: 0.88rem;
@@ -1250,6 +1379,15 @@
 		}
 		.ll-grid {
 			grid-template-columns: minmax(0, 1fr);
+		}
+		.ll-positions-area {
+			grid-template-columns: 1fr;
+		}
+		.ll-lock-filter {
+			flex-direction: row;
+		}
+		.ll-lock-filter button {
+			flex: 1;
 		}
 	}
 </style>

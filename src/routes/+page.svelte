@@ -4,6 +4,9 @@
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import LockedAssetCard from '$lib/components/common/LockedAssetCard.svelte';
 	import { ErgoAddress } from '@fleet-sdk/core';
+	import { networkConfig } from '$lib/lithos/network.ts';
+	import { getHeight, getPositions, statsOf, type CampaignStats } from '$lib/lithos/api.ts';
+	import { fmtAmount } from '$lib/lithos/format.ts';
 
 	// Platform data variables
 	let loading = true;
@@ -13,12 +16,33 @@
 	let readyToUnlock = 0;
 	let mewLockBoxes = [];
 	let currentHeight = 0;
+	let lithosStats: CampaignStats | null = null;
+	let lithosLoading = true;
+	let lithosEventOpen = false;
+	const lithosNetwork = networkConfig('mainnet');
+	const lithosDeployment = lithosNetwork.deployment;
 
 import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
-		await loadPlatformStats();
+		await Promise.all([loadPlatformStats(), loadLithosEvent()]);
 	});
+
+	async function loadLithosEvent() {
+		if (!lithosDeployment) return;
+		try {
+			const [height, positions] = await Promise.all([
+				getHeight(lithosNetwork),
+				getPositions(lithosNetwork, lithosDeployment)
+			]);
+			lithosStats = statsOf(positions);
+			lithosEventOpen = height + 1 >= lithosDeployment.params.start && height + 1 <= lithosDeployment.params.end;
+		} catch (error) {
+			console.error('Error loading Lithos event:', error);
+		} finally {
+			lithosLoading = false;
+		}
+	}
 
 	async function loadPlatformStats() {
 		loading = true;
@@ -130,6 +154,25 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 			<!-- Simple Two-Row Layout -->
 			<div class="simple-layout">
+				{#if lithosDeployment}
+					<section class="lithos-ad" aria-labelledby="lithos-ad-title">
+						<div class="lithos-ad-copy">
+							<p>MEW LOCK × LITHOS</p>
+							<h2 id="lithos-ad-title">Lock LIT. Earn LIT. Keep the keys.</h2>
+							<a href="/lithos">{lithosEventOpen ? 'Lock LIT now' : 'Explore Lithos'} <span>→</span></a>
+						</div>
+						<div class="lithos-ad-stats">
+							{#if lithosLoading}
+								<span>Checking campaign…</span>
+							{:else if lithosStats}
+								<div><b>{fmtAmount(lithosStats.totalLocked, lithosDeployment.assets.stake.decimals)}</b><small>LIT locked</small></div>
+								<div><b>{lithosStats.lockers}</b><small>lockers</small></div>
+								<div><b>{lithosStats.positions}</b><small>open locks</small></div>
+							{/if}
+						</div>
+					</section>
+				{/if}
+
 				<!-- Top Row: Brand Info + Stats -->
 				<div class="top-row">
 					<div class="brand-section">
@@ -591,6 +634,77 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+
+	/* Compact campaign promotion: live numbers without turning the home page into a second dashboard. */
+	.lithos-ad {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 18px;
+		align-items: center;
+		padding: 13px 16px;
+		border: 1px solid rgba(249, 215, 45, 0.55);
+		border-radius: 13px;
+		background: linear-gradient(100deg, rgba(249, 215, 45, 0.11), rgba(4, 223, 255, 0.06));
+	}
+	.lithos-ad-copy {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+	.lithos-ad-copy p {
+		margin: 0;
+		color: #04dfff;
+		font-size: 0.66rem;
+		font-weight: 800;
+		letter-spacing: 0.1em;
+		white-space: nowrap;
+	}
+	.lithos-ad-copy h2 {
+		margin: 0;
+		color: #f9d72d;
+		font-size: clamp(1rem, 1.8vw, 1.25rem);
+		line-height: 1.1;
+	}
+	.lithos-ad-copy a {
+		padding: 7px 10px;
+		border-radius: 7px;
+		background: #f9d72d;
+		color: #1b1030;
+		font-size: 0.76rem;
+		font-weight: 800;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.lithos-ad-stats {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(66px, 1fr));
+		gap: 6px;
+	}
+	.lithos-ad-stats > div {
+		min-width: 0;
+		padding: 7px 9px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 7px;
+		background: rgba(10, 10, 20, 0.35);
+		text-align: center;
+	}
+	.lithos-ad-stats b,
+	.lithos-ad-stats small {
+		display: block;
+	}
+	.lithos-ad-stats b {
+		color: white;
+		font-size: 0.85rem;
+		overflow-wrap: anywhere;
+	}
+	.lithos-ad-stats small,
+	.lithos-ad-stats > span {
+		margin-top: 3px;
+		color: rgba(255, 255, 255, 0.58);
+		font-size: 0.62rem;
+		white-space: nowrap;
 	}
 
 	.simple-stats {
@@ -1070,6 +1184,13 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		.cta-actions {
 			justify-content: center;
 		}
+
+		.lithos-ad {
+			grid-template-columns: 1fr;
+		}
+		.lithos-ad-copy {
+			flex-wrap: wrap;
+		}
 	}
 
 	@media (max-width: 640px) {
@@ -1111,6 +1232,23 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		.cta-btn {
 			padding: 0.625rem 1.25rem;
 			font-size: 0.875rem;
+		}
+
+		.lithos-ad {
+			padding: 12px;
+		}
+		.lithos-ad-copy {
+			display: grid;
+			grid-template-columns: 1fr auto;
+		}
+		.lithos-ad-copy p {
+			grid-column: 1 / -1;
+		}
+		.lithos-ad-copy h2 {
+			font-size: 1rem;
+		}
+		.lithos-ad-stats {
+			grid-template-columns: repeat(3, 1fr);
 		}
 
 		.footer-content {
