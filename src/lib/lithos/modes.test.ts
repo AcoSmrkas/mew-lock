@@ -180,6 +180,46 @@ for (const mode of MODES) {
 			});
 		});
 
+		// Audit F-2: a lock may waive its reward. When B is its own token that
+		// leaves no B slot in the position (a box cannot hold 0 of a token).
+		const waive = (reward: bigint) => (t: EIP12UnsignedTransaction) => {
+			const [succ, pos] = t.outputs;
+			shift(pos, B, -reward);
+			shift(succ, B, reward);
+			pos.assets = pos.assets.filter((a) => a.amount !== '0');
+			pos.additionalRegisters.R7 = SLong(0n).toHex();
+		};
+		const ownToken = B !== null && B !== A;
+
+		it(`a lock may take a zero reward and the page still reads it${ownToken ? ' (v2 refused this)' : ''}`, () => {
+			for (const contract of [3, 2]) {
+				const c = setup(mode, contract);
+				const plan = lock(c, c.alice, PRINCIPAL, 0);
+				expect(plan.quote.reward).toBeGreaterThan(0n);
+				const zero = tamper(plan.tx, waive(plan.quote.reward));
+				if (contract === 2 && ownToken) {
+					expect(() => c.chain.execute(zero, { signers: [c.alice] })).toThrow(/Script reduced to false/);
+					continue;
+				}
+				expect(run(c, zero, [c.alice])).toBe(true);
+				expect(positionsOf(c).map((p) => [p.principal, p.reward])).toEqual([[PRINCIPAL, 0n]]);
+				expect(state(c).budget).toBe(BUDGET);
+			}
+		});
+
+		const unrelated = [idOf('LIT'), idOf('MEOW')].find((id) => id !== A && id !== B);
+		if (unrelated) {
+			it('v3 refuses a zero-reward position padded with an unrelated token', () => {
+				const c = setup(mode);
+				const plan = lock(c, c.alice, PRINCIPAL, 0);
+				expectOnlyTamperFails(c, plan.tx, [c.alice], (t) => {
+					waive(plan.quote.reward)(t);
+					shift(t.outputs[1], unrelated, 1n);
+					shift(changeOf(t, c.alice), unrelated, -1n);
+				});
+			});
+		}
+
 		it('rejects a top-up that takes budget out', () => {
 			const c = setup(mode);
 			const tx = buildTopUpTx({

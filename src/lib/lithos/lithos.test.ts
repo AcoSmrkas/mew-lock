@@ -2,8 +2,8 @@
 // (sigmastate interpreter). Every attack is a real transaction from the
 // builders with one thing tampered; each is also run untampered to prove the
 // rejection comes from the contract and not from a broken harness.
-import type { EIP12UnsignedTransaction } from '@fleet-sdk/common';
-import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
+import { type EIP12UnsignedTransaction, Network } from '@fleet-sdk/common';
+import { ErgoAddress, type ErgoUnsignedTransaction } from '@fleet-sdk/core';
 import { type KeyedMockChainParty, MockChain } from '@fleet-sdk/mock-chain';
 import { SBigInt, SByte, SColl, SGroupElement, SInt, SLong } from '@fleet-sdk/serializer';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -11,11 +11,19 @@ import { parseCampaignBox, type PositionState } from './boxes.ts';
 import { compileCampaign } from './compile.ts';
 import { type LithosDeployment, pinParams } from './deployment.ts';
 import { BLOCKS_PER_YEAR, initialVirtualWeight, lockAprBps, marginalAprBps, maxReward, quoteLock } from './math.ts';
-import { CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT, validateParams } from './params.ts';
+import {
+	CAMPAIGN_RESERVE,
+	CAMPAIGN_VERSION,
+	type CampaignParams,
+	POSITION_DEPOSIT,
+	validateParams
+} from './params.ts';
 import {
 	add,
+	balanceOf,
 	BUDGET,
 	changeOf,
+	coSweep,
 	type Ctx,
 	END,
 	ERG,
@@ -30,6 +38,7 @@ import {
 	positionTree,
 	run,
 	setup,
+	SMALL_BUDGET,
 	START,
 	state,
 	tamper,
@@ -525,6 +534,42 @@ describe('sweep', () => {
 	});
 });
 
+describe('sweep: two campaigns sharing a fee address (audit F-1)', () => {
+	it('v2, as deployed, let one transaction sweep both and keep the smaller budget', () => {
+		const c = setup(undefined, 2);
+		const before = balanceOf(c.mallory, 'LIT');
+		expect(run(c, coSweep(c), [c.mallory])).toBe(true);
+		expect(balanceOf(c.mallory, 'LIT') - before).toBe(SMALL_BUDGET);
+		expect(c.fee.balance.tokens.find((t) => t.tokenId === LIT)?.amount).toBe(BUDGET);
+	});
+
+	it('v3 refuses that transaction: only the campaign in INPUTS(0) can pass', () => {
+		const c = setup();
+		expect(() => c.chain.execute(coSweep(c), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
+	});
+
+	it('v3 refuses even a joint sweep that pays both in full: one campaign per sweep', () => {
+		const c = setup();
+		expect(() => c.chain.execute(coSweep(c, true), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
+	});
+
+	it('v3 refuses a sweep that does not spend the campaign first', () => {
+		const c = setup();
+		c.chain.jumpTo(END + GRACE);
+		const tx = buildSweepTx({
+			deployment: c.d,
+			campaign: state(c),
+			inputs: c.mallory.utxos.toArray(),
+			changeAddress: c.mallory.address.encode(),
+			height: c.chain.height
+		});
+		expect(tx.inputs[0].boxId).toBe(state(c).box.boxId);
+		expectOnlyTamperFails(c, tx, [c.mallory], (t) => {
+			t.inputs.push(t.inputs.shift()!);
+		});
+	});
+});
+
 describe('authenticity', () => {
 	it('a counterfeit campaign box with a fake NFT is never parsed as the campaign, nor its positions', () => {
 		const c = setup();
@@ -643,6 +688,7 @@ describe('genesis', () => {
 
 		const d: LithosDeployment = {
 			network: 'mainnet',
+			contract: CAMPAIGN_VERSION,
 			label: 'genesis',
 			params: pinParams(params),
 			assets: { stake: { ticker: 'LIT', decimals: 9 }, reward: { ticker: 'LIT', decimals: 9 } },
@@ -683,5 +729,10 @@ describe('params', () => {
 		expect(() => validateParams({ ...base, tiers: [{ blocks: BLOCKS_PER_YEAR + 1, boostBps: 1, label: '' }] })).toThrow(/one year/);
 		expect(() => validateParams({ ...base, network: 'testnet' })).toThrow(/wrong network/);
 		expect(() => validateParams({ ...base, slack: 5 })).toThrow(/slack/);
+	});
+
+	it('refuses a fee address that is a contract: its own boxes could claim the sweep payout', () => {
+		const contract = ErgoAddress.fromErgoTree(positionTree, Network.Mainnet).encode(Network.Mainnet);
+		expect(() => validateParams({ ...base, feeAddress: contract })).toThrow(/P2PK/);
 	});
 });

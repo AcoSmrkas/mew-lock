@@ -22,7 +22,13 @@ import { type CampaignState, parseCampaignBox, parsePositionBox, type PositionSt
 import { compileCampaign, compilePosition } from '../../src/lib/lithos/compile.ts';
 import { type LithosDeployment, pinParams, readDeployment } from '../../src/lib/lithos/deployment.ts';
 import { initialVirtualWeight } from '../../src/lib/lithos/math.ts';
-import { type AssetId, CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT } from '../../src/lib/lithos/params.ts';
+import {
+	type AssetId,
+	CAMPAIGN_RESERVE,
+	CAMPAIGN_VERSION,
+	type CampaignParams,
+	POSITION_DEPOSIT
+} from '../../src/lib/lithos/params.ts';
 import {
 	buildCampaignCreateTx,
 	buildLockTx,
@@ -267,6 +273,7 @@ async function deploy() {
 
 	const deployment: LithosDeployment = {
 		network: 'testnet',
+		contract: CAMPAIGN_VERSION,
 		label: demo ? 'Lithos Lock, testnet demo' : `testnet ${tickerOf(stake)}/${tickerOf(reward)} scenario`,
 		params: pinParams(params),
 		assets: {
@@ -464,17 +471,20 @@ async function finish() {
 	log(`\n5. Sweep (opens at block ${sweepAt}; now ${await chain.height()})`);
 	await chain.waitForHeight(sweepAt + 1);
 	const last = await campaignOf(d);
-	const step = await submit(
-		'sweep by a third party (other)',
-		buildSweepTx({
-			deployment: d,
-			campaign: last,
-			inputs: await boxesOf(keys.other),
-			changeAddress: keys.other.address,
-			height: await chain.height()
-		}),
-		[keys.other]
-	);
+	const sweep = buildSweepTx({
+		deployment: d,
+		campaign: last,
+		inputs: await boxesOf(keys.other),
+		changeAddress: keys.other.address,
+		height: await chain.height()
+	});
+	if (d.contract >= 3) {
+		// Audit F-1: v3 only sweeps as INPUTS(0), so two campaigns can never share one payout.
+		const reordered = sweep.toEIP12Object();
+		reordered.inputs.push(reordered.inputs.shift()!);
+		await expectRefused('sweep that does not spend the campaign first (v3)', reordered, [keys.other]);
+	}
+	const step = await submit('sweep by a third party (other)', sweep, [keys.other]);
 	const feeErg = await gained(step.txId, keys.fee.address, null);
 	if (feeErg !== BigInt(last.box.value)) throw new Error(`FAIL: fee address got ${feeErg} nanoERG`);
 	if (rewardId !== null) {

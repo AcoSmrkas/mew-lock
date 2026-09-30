@@ -3,14 +3,21 @@
 // A mode picks what is locked and what is paid: LIT, MEOW (a second token) or ERG.
 import type { EIP12UnsignedTransaction } from '@fleet-sdk/common';
 import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
+import { OutputBuilder, TransactionBuilder } from '@fleet-sdk/core';
 import { KeyedMockChainParty, MockChain, type NonKeyedMockChainParty } from '@fleet-sdk/mock-chain';
 import { SBigInt } from '@fleet-sdk/serializer';
 import { parseCampaignBox, parsePositionBox, type PositionState } from './boxes.ts';
 import { compileCampaign, compilePosition } from './compile.ts';
-import { type AssetInfo, type LithosDeployment, pinParams } from './deployment.ts';
+import { type AssetInfo, type LithosDeployment, paramsOf, pinParams } from './deployment.ts';
 import { initialVirtualWeight } from './math.ts';
-import { type AssetId, CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT } from './params.ts';
-import { buildLockTx } from './txs.ts';
+import {
+	type AssetId,
+	CAMPAIGN_RESERVE,
+	CAMPAIGN_VERSION,
+	type CampaignParams,
+	POSITION_DEPOSIT
+} from './params.ts';
+import { buildLockTx, TX_FEE } from './txs.ts';
 
 export const LIT = 'c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7';
 export const MEOW = 'ee'.repeat(32);
@@ -56,7 +63,8 @@ export type Ctx = {
 	positions: NonKeyedMockChainParty;
 };
 
-export function setup(mode: Mode = { stake: 'LIT', reward: 'LIT' }): Ctx {
+/** `contract` picks the campaign contract version (default: the one new deployments get). */
+export function setup(mode: Mode = { stake: 'LIT', reward: 'LIT' }, contract = CAMPAIGN_VERSION): Ctx {
 	const chain = new MockChain({ height: START + 10 });
 	const alice = chain.newParty('alice');
 	const bob = chain.newParty('bob');
@@ -76,10 +84,11 @@ export function setup(mode: Mode = { stake: 'LIT', reward: 'LIT' }): Ctx {
 		deposit: POSITION_DEPOSIT,
 		reserve: CAMPAIGN_RESERVE
 	};
-	const campaignTree = compileCampaign(params, positionTree);
+	const campaignTree = compileCampaign(params, positionTree, contract);
 	const v0 = initialVirtualWeight(BUDGET, 5_000);
 	const d: LithosDeployment = {
 		network: 'mainnet',
+		contract,
 		label: 'mock',
 		params: pinParams(params),
 		assets: { stake: infoOf(mode.stake), reward: infoOf(mode.reward) },
@@ -162,3 +171,50 @@ export const changeOf = (t: EIP12UnsignedTransaction, who: KeyedMockChainParty) 
 	if (!box) throw new Error(`no change box for ${who.name}`);
 	return box;
 };
+
+export const SMALL_BUDGET = 400_000n * LIT_UNIT;
+
+/**
+ * Audit F-1 (LIT/LIT only): a second, smaller campaign with its own contract
+ * (an earlier end) and the same fee address, both past end + grace, swept in
+ * one transaction. The fee address gets only the larger budget and the
+ * builder's change keeps the smaller one, unless `payBoth`.
+ */
+export function coSweep(c: Ctx, payBoth = false) {
+	const tree = compileCampaign({ ...paramsOf(c.d), end: END - 10 }, positionTree, c.d.contract);
+	const nft = 'a2'.repeat(32);
+	const marker = 'b2'.repeat(32);
+	const second = c.chain.addParty(tree, 'campaign 2');
+	second.addBalance(
+		{
+			nanoergs: CAMPAIGN_RESERVE,
+			tokens: [
+				{ tokenId: nft, amount: 1n },
+				{ tokenId: marker, amount: 1_000n },
+				{ tokenId: LIT, amount: SMALL_BUDGET }
+			]
+		},
+		{ R4: SBigInt(initialVirtualWeight(SMALL_BUDGET, 5_000)).toHex() }
+	);
+	c.chain.jumpTo(END + GRACE);
+	const big = state(c);
+	const small = second.utxos.toArray()[0];
+	return new TransactionBuilder(c.chain.height)
+		.from([big.box, small, ...c.mallory.utxos.toArray()])
+		.configureSelector((s) => s.ensureInclusion([big.box.boxId, small.boxId]))
+		.to(
+			new OutputBuilder(payBoth ? 2n * CAMPAIGN_RESERVE : CAMPAIGN_RESERVE, c.fee.address.encode()).addTokens({
+				tokenId: LIT,
+				amount: big.budget + (payBoth ? SMALL_BUDGET : 0n)
+			})
+		)
+		.burnTokens([
+			{ tokenId: NFT, amount: 1n },
+			{ tokenId: MARKER, amount: big.markersLeft },
+			{ tokenId: nft, amount: 1n },
+			{ tokenId: marker, amount: 1_000n }
+		])
+		.sendChangeTo(c.mallory.address.encode())
+		.payFee(TX_FEE)
+		.build();
+}

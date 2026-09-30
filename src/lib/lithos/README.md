@@ -7,7 +7,10 @@ with the locked A, when the lock ends. There are no admin keys anywhere.
 
 ## Contracts (`contracts/`, compiled as ErgoTree v1)
 
-**campaign.es**: one singleton box per campaign.
+**campaign.es** (contract v3): one singleton box per campaign.
+`campaign-v2.es` is the v2 source the mainnet test campaign and the testnet
+demo were deployed with, kept verbatim so their pinned trees still recompile;
+deployment files record `contract` (missing = 2).
 
 - tokens: `[campaign NFT, position markers]`, plus the budget token when B is
   a token. When B is ERG the budget is the box value minus `reserve`.
@@ -21,7 +24,9 @@ with the locked A, when the lock ends. There are no admin keys anywhere.
 - **Top-up** (until `end`, anyone): adds budget and/or ERG; nothing else
   changes.
 - **Sweep** (after `end + grace`, anyone): all ERG and every B token go to the
-  fee address baked in at compile time; the NFT and markers are burned.
+  fee address baked in at compile time; the NFT and markers are burned. v3
+  requires the campaign to be `INPUTS(0)`, so each sweep handles exactly one
+  campaign (see the audit below). The fee address must be a wallet (P2PK).
 
 **position.es**: `proveDlog(R4) && HEIGHT >= R5`. Nothing else, so a position
 can never get stuck. R6..R8 hold principal, reward and tier. The position
@@ -51,7 +56,7 @@ sweep, and it grows when participation is low.
 |---|---|
 | `math.ts` | the curve in BigInt, identical to the contract |
 | `params.ts` | campaign parameters + validation (mainnet tiers capped at one year) |
-| `compile.ts` | compiles both contracts; tests and scripts only, the app reads pinned trees |
+| `compile.ts` | compiles the contracts (v3, and v2 for pinned deployments); tests, runner and the deploy page (lazy); the lock page reads pinned trees |
 | `boxes.ts` | parse and authenticate campaign/position boxes against a deployment |
 | `txs.ts` | builders: mint, create, lock, unlock, top-up, sweep |
 | `deployment.ts` | the pinned result of a genesis (`deployments/<network>.json`) |
@@ -66,13 +71,14 @@ Anyone can create boxes at either address, so never trust the address alone.
 npx vitest run src/lib/lithos/
 ```
 
-- `lithos.test.ts`: 35 mock-chain (sigmastate) cases on LIT/LIT. Every attack
+- `lithos.test.ts`: 40 mock-chain (sigmastate) cases on LIT/LIT. Every attack
   is a real builder transaction with one thing tampered. It must be rejected
   with "Script reduced to false", and the untampered original must then pass.
 - `modes.test.ts`: the same approach across all five asset modes (LIT/LIT,
   LIT/MEOW, ERG/LIT, LIT/ERG, ERG/ERG): exact lock, unlock payout, top-up and
   sweep, plus mode-specific attacks (over-curve reward, short A, drained
-  budget, smuggled token, draining "top-up").
+  budget, smuggled token, draining "top-up") and zero-reward locks, on v3 and
+  on v2.
 - `sigmaRust.test.ts`: the same transactions signed by sigma-rust 0.28, the
   engine in Nautilus and the ErgoPay relay, in every mode. **Known
   divergence:** sigma-rust signs a lock whose position R4 holds the right bytes
@@ -149,6 +155,28 @@ campaign box, explorer GraphQL submit) was proven separately: a faucet drip, a
 lock chained on the unconfirmed drip, and its unlock (owner received exactly
 principal + reward, marker burned).
 
+## Audit, 2026-09-30
+
+An external quick review (EKB two-pass method, no testing) of v2 found one
+real bug. Our response, finding by finding:
+
+| ID | Verdict | What we did |
+|---|---|---|
+| F-1 HIGH: two expired campaigns sharing a fee address can be swept in one tx that pays the fee address only the larger | Confirmed: on the mock chain against v2, the fee address got 1,000,000 LIT and the builder kept the other campaign's 400,000 | v3 pins the sweep to `INPUTS(0)`; the fee address must be a wallet (P2PK), which also stops a variant the pin alone does not (a contract fee address whose own box, spent in the same tx, accepts the same output) |
+| F-2 LOW: when B is its own token, a zero-reward lock cannot be built | Confirmed: v2 refuses it in exactly the LIT/MEOW and ERG/LIT modes | v3 drops the B slot when the reward is 0; the page's parser now reads such positions |
+| F-3 INFO: the last marker can never leave | Correct | none: 1e9 markers per campaign |
+| F-4 LOW: 1-nanoERG top-ups can keep invalidating pending locks | Correct, inherent to one shared box | none on chain: the page builds on the newest mempool state and re-quotes; griefing costs ~0.0011 ERG a block |
+| F-5 LOW: deploy-time checklist | Correct | already enforced by the deploy page, `validateParams`, the builders and the recompile test; only the base APR (V) is a judgment call |
+| NV-1: are untaken branches evaluated? | Already tested on the compiled tree (sigmastate and sigma-rust) | the compiler does hoist `OUTPUTS.getOrElse(1, SELF)` and token lookups to the top of the tree; harmless because they are total, and every typed register read stays in its branch. Comment corrected |
+| P-1 INFO: anyone with a marker can make look-alike positions | Partly: our unlock burns the marker, but the contract does not force it | none yet (no funds at risk); a UI check that only counts positions created by a lock of this campaign is the follow-up |
+| P-2 INFO: stale position header | Correct | comment fixed; the tree is unchanged |
+| P-3 INFO: R4 is locker-supplied | Correct | the page always uses the connected wallet's key |
+
+The attack needs two campaigns funded by others with one fee address: pairing
+ours with a campaign the attacker funds returns them at most what they put
+in. The v2 mainnet test campaign is the only campaign paying its address, and
+it should be swept as soon as the sweep opens.
+
 ## Deploying a campaign
 
 `lock.mewfinance.com/lithos-deploy` (mainnet; `?network=testnet` for testnet,
@@ -196,4 +224,6 @@ Nautilus: a lock (spends the campaign box) and an unlock (spends a position).
   30/90/180/365 days at 1.0/1.25/1.5/2.0x), minimum lock, starting base APR.
 - The real campaign's leftover goes to the Mew devs' fee address: get the
   exact address before deploying.
-- External review of `campaign.es` before any real budget goes in.
+- Ship contract v3 (branch `fix/campaign-audit`) before the real campaign;
+  every campaign the deploy page makes until then is v2.
+- Sweep the v2 mainnet test campaign right after #1,886,712.

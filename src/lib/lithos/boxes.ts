@@ -63,13 +63,15 @@ export function parseCampaignBox(box: Box<Amount>, d: LithosDeployment): Campaig
 /**
  * What a position must hold for a given principal and reward, exactly as the
  * campaign contract checks it: nanoERG, plus token amounts (marker excluded).
+ * A box cannot hold 0 of a token, so a zero reward in its own token has no
+ * entry (contract v3 checks it that way; v2 could not create such a lock).
  */
 export function positionContents(d: LithosDeployment, principal: bigint, reward: bigint) {
 	const { stakeId, rewardId } = d.params;
 	const same = stakeId === rewardId;
 	const tokens: { tokenId: string; amount: bigint }[] = [];
 	if (stakeId !== null) tokens.push({ tokenId: stakeId, amount: principal + (same ? reward : 0n) });
-	if (rewardId !== null && !same) tokens.push({ tokenId: rewardId, amount: reward });
+	if (rewardId !== null && !same && reward > 0n) tokens.push({ tokenId: rewardId, amount: reward });
 	const nanoErg =
 		BigInt(d.params.deposit) + (stakeId === null ? principal : 0n) + (rewardId === null ? reward : 0n);
 	return { nanoErg, tokens };

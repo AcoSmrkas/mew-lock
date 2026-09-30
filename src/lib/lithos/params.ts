@@ -1,6 +1,6 @@
 // Campaign parameters. Everything here is compiled into the campaign contract
 // and can never change after deploy; a different value means a new campaign.
-import { Network as FleetNetwork } from '@fleet-sdk/common';
+import { AddressType, Network as FleetNetwork } from '@fleet-sdk/common';
 import { ErgoAddress } from '@fleet-sdk/core';
 import { BLOCKS_PER_YEAR } from './math.ts';
 
@@ -35,6 +35,12 @@ export type CampaignParams = {
 	reserve: bigint;
 };
 
+/**
+ * The campaign contract new deployments get (contracts/campaign.es). v2 is the
+ * deployed test contract (campaign-v2.es); v1 was LIT-only.
+ */
+export const CAMPAIGN_VERSION = 3;
+
 /** Extra blocks the UI adds to each lock so it stays valid while it waits for a block. */
 export const UNLOCK_BUFFER = 20;
 
@@ -68,6 +74,11 @@ export function validateParams(p: CampaignParams): void {
 		return fail('feeAddress is not a valid address');
 	}
 	if (fee.network !== fleetNetwork(p.network)) fail('feeAddress is on the wrong network');
+	// The sweep only checks that OUTPUTS(0) pays the fee address at least this
+	// campaign's leftover. A contract there, if one of its own boxes is spent in
+	// the same transaction, could accept that same output as its successor and
+	// let the builder keep the leftover, so the fee address must be a wallet.
+	if (fee.type !== AddressType.P2PK) fail('feeAddress must be a wallet (P2PK) address');
 	if (!Number.isInteger(p.start) || !Number.isInteger(p.end) || p.start < 0 || p.end <= p.start)
 		fail('need 0 <= start < end');
 	if (!Number.isInteger(p.grace) || p.grace < 0) fail('grace must be >= 0');

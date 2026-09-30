@@ -155,7 +155,7 @@ export function buildLockTx(o: {
 	const unlockAt = o.height + t.blocks + buffer;
 	const holds = positionContents(d, o.principal, quote.reward);
 	const position = new OutputBuilder(holds.nanoErg, d.positionTree)
-		.addTokens([{ tokenId: d.markerId, amount: 1n }, ...holds.tokens.filter((x) => x.amount > 0n)])
+		.addTokens([{ tokenId: d.markerId, amount: 1n }, ...holds.tokens])
 		.setAdditionalRegisters({
 			R4: SGroupElement(pkOf(o.owner ?? o.changeAddress)).toHex(),
 			R5: SInt(unlockAt).toHex(),
@@ -230,7 +230,9 @@ export function buildTopUpTx(o: {
 
 /**
  * After end + grace, send everything left in the campaign to the fee address
- * and burn the NFT and markers. Anyone can run it; `inputs` pay the fee.
+ * and burn the NFT and markers. Anyone can run it; `inputs` pay the fee. The
+ * campaign box goes first: contract v3 refuses a sweep where it is not
+ * INPUTS(0), and v2 does not mind.
  */
 export function buildSweepTx(o: {
 	deployment: LithosDeployment;
@@ -247,7 +249,7 @@ export function buildSweepTx(o: {
 	if (d.params.rewardId !== null && o.campaign.budget > 0n) {
 		toFee.addTokens({ tokenId: d.params.rewardId, amount: o.campaign.budget });
 	}
-	return new TransactionBuilder(o.height)
+	const tx = new TransactionBuilder(o.height)
 		.from([o.campaign.box, ...o.inputs])
 		.configureSelector((s) => s.ensureInclusion(o.campaign.box.boxId))
 		.to(toFee)
@@ -258,4 +260,6 @@ export function buildSweepTx(o: {
 		.sendChangeTo(o.changeAddress)
 		.payFee(TX_FEE)
 		.build();
+	if (tx.inputs[0]?.boxId !== o.campaign.box.boxId) throw new Error('the campaign box must be the first input');
+	return tx;
 }

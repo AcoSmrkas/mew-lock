@@ -1,8 +1,11 @@
 {
-  // MewLock campaign, contract v3: lock asset A, earn asset B. One singleton
-  // box per campaign. (v2, the deployed test contract, is campaign-v2.es; v3
-  // pins the sweep to INPUTS(0) and lets a lock take a zero reward when B is
-  // its own token.)
+  // CONTRACT v2, AS DEPLOYED (2026-09-30: the mainnet test campaign and the
+  // testnet demo). Kept only so those pinned deployments still recompile byte
+  // for byte; never deploy it again and never edit its code. campaign.es (v3)
+  // supersedes it: here two expired campaigns sharing a fee address can be
+  // swept in one transaction that pays the fee address only the larger one.
+  //
+  // MewLock campaign: lock asset A, earn asset B. One singleton box per campaign.
   //
   // A and B are each a token or ERG (an empty id means ERG), and may be the
   // same asset. Users lock A for one of a fixed set of lengths. At lock time the
@@ -39,14 +42,11 @@
   //   _deposit      Long        nanoERG each position carries besides any ERG it locks or earns
   //   _reserve      Long        nanoERG kept in this box that is never budget (B = ERG only)
   //
-  // Token and register lookups on other boxes use getOrElse, never .get, so
-  // evaluating one path cannot throw on a transaction built for another. The
-  // compiler may hoist such lookups out of their if-branch (it moves
-  // OUTPUTS.getOrElse(1, SELF) to the top of the tree), which is harmless
-  // because they cannot fail. A register holding an unexpected type does throw
-  // when read, so every typed register read stays inside the branch that
-  // needs it; tests run the compiled tree to prove a top-up ignores odd
-  // registers on OUTPUTS(1) and a sweep ignores an odd R4 on its fee output.
+  // Token and register lookups on other boxes use getOrElse, never .get, and
+  // each spending path lives in its own lazy if-branch, so evaluating one path
+  // cannot throw on a transaction built for another. (A register holding an
+  // unexpected type still throws when read, which only ever rejects a lock
+  // whose own position box is malformed.)
 
   val stakeIsErg  = _stakeId.size == 0
   val rewardIsErg = _rewardId.size == 0
@@ -73,15 +73,10 @@
   if (HEIGHT > _end + _grace) {
     // Sweep: every nanoERG and every B token goes to the fee address, and the
     // NFT and the markers are burned so this campaign can never reappear.
-    // The campaign must be the first input. Only one box can be, so two
-    // campaigns that share a fee address can never be swept together: each
-    // would accept the same payout and the fee address would get only the
-    // larger one.
     val burned = OUTPUTS.forall({ (b: Box) =>
       b.tokens.forall({ (t: (Coll[Byte], Long)) => t._1 != nft._1 && t._1 != markers._1 })
     })
     sigmaProp(
-      SELF.id == INPUTS(0).id &&
       out.propositionBytes == _feeTree &&
       out.value >= SELF.value &&
       (rewardIsErg || rewardIn(out) >= rewardIn(SELF)) &&
@@ -105,7 +100,7 @@
       (if (rewardIsErg) out.tokens.size == 2
        else out.tokens.size == 3 && out.tokens.getOrElse(2, noToken)._1 == _rewardId)
 
-    // Only a lock releases a marker. Every register read on OUTPUTS(1) stays
+    // Only a lock releases a marker. Everything that reads OUTPUTS(1) stays
     // inside the lock branch, so a top-up never evaluates it: a register of an
     // unexpected type there would make the read throw.
     val isLock = outMarkers._2 == markers._2 - 1L
@@ -128,9 +123,7 @@
       val ergB      = if (rewardIsErg) reward else 0L
       val tokA      = if (stakeIsErg) 0L else principal + (if (sameAsset) reward else 0L)
       val tokB      = if (rewardOwnToken) reward else 0L
-      // A box cannot hold 0 of a token, so a zero reward in B has no slot.
-      val rewardSlot = rewardOwnToken && reward > 0L
-      val posTokens = 1 + (if (stakeIsErg) 0 else 1) + (if (rewardSlot) 1 else 0)
+      val posTokens = 1 + (if (stakeIsErg) 0 else 1) + (if (rewardOwnToken) 1 else 0)
 
       HEIGHT >= _start && HEIGHT <= _end &&
       v > 0.toBigInt &&

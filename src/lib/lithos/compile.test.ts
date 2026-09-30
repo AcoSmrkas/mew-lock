@@ -40,4 +40,12 @@ describe('compile', () => {
 		).not.toBe(a);
 		expect(a).toContain(position.slice(2));
 	});
+
+	it('keeps v2 (deployed) compilable, gives new campaigns v3, and refuses unknown versions', () => {
+		const position = compilePosition('testnet');
+		const v3 = compileCampaign(params, position);
+		expect(compileCampaign(params, position, 3)).toBe(v3);
+		expect(compileCampaign(params, position, 2)).not.toBe(v3);
+		expect(() => compileCampaign(params, position, 1)).toThrow(/v1/);
+	});
 });

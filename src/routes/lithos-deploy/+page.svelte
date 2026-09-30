@@ -13,7 +13,13 @@
 	import { getHeight, getJson, normalizeBox, tokenTotal } from '$lib/lithos/api.ts';
 	import { buildCampaignCreateTx, buildMintTx } from '$lib/lithos/txs.ts';
 	import { initialVirtualWeight } from '$lib/lithos/math.ts';
-	import { CAMPAIGN_RESERVE, POSITION_DEPOSIT, type CampaignParams, type Tier } from '$lib/lithos/params.ts';
+	import {
+		CAMPAIGN_RESERVE,
+		CAMPAIGN_VERSION,
+		POSITION_DEPOSIT,
+		type CampaignParams,
+		type Tier
+	} from '$lib/lithos/params.ts';
 	import { type LithosDeployment, pinParams } from '$lib/lithos/deployment.ts';
 	import { fmtAmount, parseAmount } from '$lib/lithos/format.ts';
 	import { loadTestWallet, signLocally, submitSigned, testBoxes, type TestWallet } from '$lib/lithos/testWallet.ts';
@@ -226,6 +232,7 @@
 			saveProgress({
 				draft: {
 					network,
+					contract: CAMPAIGN_VERSION,
 					label,
 					note,
 					params: pinParams(params),

@@ -16,7 +16,7 @@ describe('pinned deployments', () => {
 			expect(d.network).toBe(name);
 			const position = compilePosition(d.network);
 			expect(d.positionTree).toBe(position);
-			expect(d.campaignTree).toBe(compileCampaign(paramsOf(d), position));
+			expect(d.campaignTree).toBe(compileCampaign(paramsOf(d), position, d.contract));
 		});
 	}
 });

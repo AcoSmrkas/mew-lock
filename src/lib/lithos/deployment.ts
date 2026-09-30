@@ -17,6 +17,8 @@ export type AssetInfo = { ticker: string; decimals: number };
 
 export type LithosDeployment = {
 	network: Network;
+	/** Campaign contract version (see CAMPAIGN_VERSION); files pinned before it was recorded are v2. */
+	contract: number;
 	label: string;
 	/** Shown as a banner on the page (e.g. for a test campaign). */
 	note?: string;
@@ -61,18 +63,20 @@ export function pinParams(p: CampaignParams): LithosDeployment['params'] {
 }
 
 /**
- * Read a deployment file. The first testnet campaigns were LIT-only (a single
- * `litId`); their contract is the lock-LIT-earn-LIT case of this one and their
- * positions are identical, so they map onto the same shape.
+ * Read a deployment file. Files pinned before `contract` was recorded are v2
+ * (generic), or v1 when they carry a single `litId`: the first testnet
+ * campaigns were LIT-only, the lock-LIT-earn-LIT case of the same design with
+ * identical positions, so they map onto the same shape.
  */
 export function readDeployment(raw: any): LithosDeployment | null {
 	if (!raw?.campaignNftId) return null;
-	if (raw.params.stakeId !== undefined) return raw as LithosDeployment;
+	if (raw.params.stakeId !== undefined) return { contract: 2, ...raw } as LithosDeployment;
 	const lit = raw.params.litId as string;
 	const info: AssetInfo = { ticker: raw.network === 'testnet' ? 'tLIT' : 'LIT', decimals: 9 };
 	const { litId: _lit, ...params } = raw.params;
 	return {
 		...raw,
+		contract: 1,
 		params: {
 			...params,
 			stakeId: lit,

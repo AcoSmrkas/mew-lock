@@ -1,9 +1,12 @@
 {
-  // MewLock x Lithos: one lock position.
+  // MewLock: one lock position, shared by every campaign.
   //
-  // Holds the owner's LIT plus the reward the campaign reserved for it at lock
-  // time (tokens(0) is the campaign's position marker). Only the owner can
-  // spend it, and only once the unlock height is reached.
+  // Holds the owner's locked asset (A) plus the reward (B) the campaign set
+  // aside for it at lock time, each a token or ERG (tokens(0) is the
+  // campaign's position marker). Only the owner can spend it, and only once
+  // the unlock height is reached. The marker is not checked here: the app
+  // burns it at unlock, but only a box the campaign's lock created is a
+  // genuine position, whatever it holds.
   //
   // Deliberately arithmetic-free: nothing here can overflow or fail on a
   // well-formed box, so a position can never get stuck. The campaign's lock

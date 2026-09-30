@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	add,
 	changeOf,
+	coSweep,
 	END,
 	GRACE,
 	LIT_UNIT,
@@ -194,6 +195,15 @@ describe('sigma-rust (Nautilus) agrees with sigmastate', () => {
 				h
 			)
 		).toBe(true);
+	});
+
+	it('co-sweep of two campaigns sharing a fee address (audit F-1): v2 signs it, v3 refuses', () => {
+		const h = END + GRACE + 1;
+		const v2 = setup(undefined, 2);
+		expect(rustSign(coSweep(v2), [v2.mallory], h)).toBe(true);
+		const v3 = setup();
+		expect(rustSign(coSweep(v3), [v3.mallory], h)).not.toBe(true);
+		expect(rustSign(coSweep(setup(), true), [v3.mallory], h)).not.toBe(true);
 	});
 
 	it('every asset mode: lock, top-up, unlock and sweep all sign under sigma-rust', () => {
