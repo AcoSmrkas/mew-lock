@@ -30,6 +30,7 @@
 	let lithosPositions: PositionState[] = [];
 	let lithosHeight = 0;
 	let lithosLoading = false;
+	let lithosError = false;
 	const lithosNetwork = networkConfig('mainnet');
 	const lithosDeployment = lithosNetwork.deployment;
 
@@ -58,9 +59,11 @@
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
-		await Promise.all([loadMewLockBoxes(), loadLithosPositions()]);
+		// Mounted before the first loads, so a switch while they run reloads below.
 		loadedForAddress = $connected_wallet_address;
 		mounted = true;
+		loadLithosPositions();
+		await loadMewLockBoxes();
 	});
 
 	// Reload + recompute ownership whenever the connected address changes.
@@ -73,10 +76,12 @@
 	async function loadLithosPositions() {
 		if (!lithosDeployment || !$connected_wallet_address) {
 			lithosPositions = [];
+			lithosError = false;
 			return;
 		}
 		const addressAtStart = $connected_wallet_address;
 		lithosLoading = true;
+		lithosError = false;
 		try {
 			const [height, positions] = await Promise.all([
 				getHeight(lithosNetwork),
@@ -93,7 +98,9 @@
 				.sort((a, b) => a.unlockAt - b.unlockAt);
 		} catch (error) {
 			console.error('Error loading Lithos positions:', error);
+			if ($connected_wallet_address !== addressAtStart) return;
 			lithosPositions = [];
+			lithosError = true;
 		} finally {
 			if ($connected_wallet_address === addressAtStart) lithosLoading = false;
 		}
@@ -498,6 +505,8 @@
 						<h2 id="lithos-shortcut-title">Your LIT locks</h2>
 						{#if lithosLoading}
 							<p>Checking your LIT positions on the chain…</p>
+						{:else if lithosError}
+							<p>Could not read your LIT positions from the explorer. Reload to try again.</p>
 						{:else if lithosPositions.length}
 							<p>
 								{lithosPositions.length} open lock{lithosPositions.length === 1 ? '' : 's'} · {lithosReadyCount}
@@ -507,7 +516,7 @@
 							<p>No LIT positions yet. The event lock is ready when you are.</p>
 						{/if}
 					</div>
-					<a class="lithos-manage" href="/lithos/locks"
+					<a class="lithos-manage" href={lithosPositions.length ? '/lithos-locks' : '/lithos'}
 						>{lithosPositions.length ? 'Manage & unlock LIT' : 'Add a LIT lock'}
 						<span aria-hidden="true">→</span></a
 					>

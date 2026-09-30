@@ -151,15 +151,17 @@ principal + reward, marker burned).
 
 ## Deploying a campaign
 
-`lock.mewfinance.com/lithos-deploy` (add `?network=mainnet` to be sure) creates
+`lock.mewfinance.com/lithos-deploy` (mainnet; `?network=testnet` for testnet,
+which every page uses only when its own URL asks for it) creates
 a campaign from a connected Nautilus wallet: it compiles the contract in the
 browser with the leftover going to the address you choose (default: your
 wallet), then asks for three signatures: markers, NFT, campaign box. If the
 page reloads midway, it offers Resume instead of minting again. At the end it
 shows the deployment JSON; pin it as `deployments/<network>.json` and redeploy
-the site for the page to show the campaign. Keep routes top-level: a nested
-route (`/lithos/deploy`) makes the build emit a `lithos/` directory and Apache
-then answers `/lithos` with a 301 to a 403.
+the site for the page to show the campaign. Keep routes top-level
+(`/lithos-deploy`, `/lithos-locks`): a nested route (`/lithos/deploy`) makes the
+build emit a `lithos/` directory and Apache then answers `/lithos` with a 301
+to a 403.
 
 `deployments.test.ts` recompiles every pinned deployment from its params and
 fails unless the trees match byte for byte, so a pinned file can never point

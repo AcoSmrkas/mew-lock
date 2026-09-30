@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import type { Box } from '@fleet-sdk/common';
-	import { ErgoAddress, type ErgoUnsignedTransaction } from '@fleet-sdk/core';
+	import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
 	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store.ts';
@@ -39,6 +39,7 @@
 		changeAddress,
 		currentHeight,
 		describeError,
+		ownerBoxesFirst,
 		signAndSubmit,
 		usingErgoPay,
 		walletBoxes
@@ -220,20 +221,27 @@
 		loadWallet();
 	}
 
+	// Bumped by every load (and by a disconnect) so a slower, older load never
+	// brings back a previous wallet's boxes or "your lock" buttons.
+	let walletRun = 0;
 	async function loadWallet() {
+		const run = ++walletRun;
 		if (!net || !activeAddress) {
 			boxes = [];
 			ownerAddresses = [];
 			return;
 		}
 		try {
-			ownerAddresses = testWallet
+			const owners = testWallet
 				? [testWallet.address]
 				: await walletOwnerAddresses([
 						$connected_wallet_address,
 						...($connected_wallet_addresses ?? [])
 					]);
-			boxes = testWallet ? await testBoxes(net, testWallet.address) : await walletBoxes(net);
+			const found = testWallet ? await testBoxes(net, testWallet.address) : await walletBoxes(net);
+			if (run !== walletRun) return;
+			ownerAddresses = owners;
+			boxes = found;
 		} catch (e) {
 			console.error('wallet boxes', e);
 		}
@@ -356,12 +364,7 @@
 			const h = await myHeight();
 			if (h < p.unlockAt)
 				throw new Error(`Locked until block ${p.unlockAt.toLocaleString('en-US')}.`);
-			// Nautilus signs with keys whose boxes are among the inputs, so put
-			// the owner's own boxes first.
-			const ownerTree = ErgoAddress.fromBase58(p.owner).ergoTree;
-			const inputs = [...boxes].sort(
-				(a, b) => Number(b.ergoTree === ownerTree) - Number(a.ergoTree === ownerTree)
-			);
+			const inputs = ownerBoxesFirst(boxes, p.owner);
 			await submit(
 				buildUnlockTx({ deployment: d, position: p, inputs, height: h }),
 				`Unlock of ${fmtA(p.principal)} ${A.ticker} + ${fmtB(p.reward)} ${B.ticker}`
@@ -644,7 +647,7 @@
 			<section class="ll-card ll-mine" aria-labelledby="mine-title">
 				<div class="ll-mine-title">
 					<h2 id="mine-title">Campaign locks</h2>
-					<a href="/lithos/locks">Full LIT dashboard →</a>
+					{#if !testnet}<a href="/lithos-locks">Full LIT dashboard →</a>{/if}
 				</div>
 				<div class="ll-positions-area">
 					<nav class="ll-lock-filter" aria-label="Filter campaign locks">

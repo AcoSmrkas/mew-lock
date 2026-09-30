@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { ErgoAddress } from '@fleet-sdk/core';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
 	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store.ts';
@@ -14,6 +13,7 @@
 	import {
 		currentHeight,
 		describeError,
+		ownerBoxesFirst,
 		signAndSubmit,
 		usingErgoPay,
 		walletBoxes
@@ -33,6 +33,15 @@
 	let timer: ReturnType<typeof setInterval> | undefined;
 
 	let ownerAddresses: string[] = [];
+	// Re-read the wallet's addresses as soon as it connects or switches, not on the next poll;
+	// a slower lookup for an address that is no longer connected is dropped.
+	let ownersRun = 0;
+	$: loadOwners($connected_wallet_address, $connected_wallet_addresses);
+	async function loadOwners(address: string, addresses: string[] | undefined) {
+		const run = ++ownersRun;
+		const owners = address ? await walletOwnerAddresses([address, ...(addresses ?? [])]) : [];
+		if (run === ownersRun) ownerAddresses = owners;
+	}
 	$: myPositions = positionsOwnedBy(positions, ownerAddresses).sort(
 		(a, b) => a.unlockAt - b.unlockAt
 	);
@@ -56,10 +65,6 @@
 			const [nextHeight, list] = await Promise.all([getHeight(net), getPositions(net, deployment)]);
 			height = nextHeight;
 			positions = list;
-			ownerAddresses = await walletOwnerAddresses([
-				$connected_wallet_address,
-				...($connected_wallet_addresses ?? [])
-			]);
 			error = '';
 		} catch (cause) {
 			console.error('Unable to load Lithos positions:', cause);
@@ -91,9 +96,7 @@
 			const current = await currentHeight(net);
 			if (current < position.unlockAt)
 				throw new Error(`Locked until block ${position.unlockAt.toLocaleString('en-US')}.`);
-			const inputs = await walletBoxes(net);
-			const ownerTree = ErgoAddress.fromBase58(position.owner).ergoTree;
-			inputs.sort((a, b) => Number(b.ergoTree === ownerTree) - Number(a.ergoTree === ownerTree));
+			const inputs = ownerBoxesFirst(await walletBoxes(net), position.owner);
 			const tx = buildUnlockTx({ deployment, position, inputs, height: current }).toEIP12Object();
 			if (usingErgoPay()) {
 				unsignedTx = tx;
@@ -142,6 +145,11 @@
 
 	{#if !$connected_wallet_address}
 		<div class="state-card">Connect your mainnet wallet to see and unlock your LIT positions.</div>
+	{:else if $connected_wallet_address.startsWith('3')}
+		<!-- Testnet P2PK addresses start with 3; these locks are on mainnet. -->
+		<div class="state-card">
+			This is a testnet wallet. Connect a mainnet wallet to see and unlock your LIT positions.
+		</div>
 	{:else if loading}
 		<div class="state-card">Reading your positions from the chain…</div>
 	{:else if error}
@@ -161,7 +169,10 @@
 					<article class:ready={blocksLeft === 0} class="position-card">
 						<div class="position-head">
 							<div>
-								<p class="position-label">LIT lock · tier {position.tier + 1}</p>
+								<p class="position-label">
+									{asset.ticker} lock · {deployment?.params.tiers[position.tier]?.label ??
+										`tier ${position.tier + 1}`}
+								</p>
 								<h2>{fmtAmount(position.principal, asset.decimals)} {asset.ticker}</h2>
 							</div>
 							<span class:ready={blocksLeft === 0} class="status"
@@ -170,7 +181,7 @@
 						</div>
 						<div class="position-metrics">
 							<div>
-								<span>Estimated gain</span><strong
+								<span>Fixed reward</span><strong
 									>+{fmtAmount(position.reward, rewardAsset.decimals)} {rewardAsset.ticker}</strong
 								>
 							</div>

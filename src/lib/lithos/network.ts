@@ -1,5 +1,5 @@
-// Which chain the Lithos Lock page talks to. Mainnet by default; `?network=testnet`
-// switches (and sticks for the tab) so the flow can be tried with Nautilus Testnet.
+// Which chain the Lithos Lock page talks to. Always mainnet, except on a URL
+// with `?network=testnet`, where the flow can be tried with Nautilus Testnet.
 import { type LithosDeployment, readDeployment } from './deployment.ts';
 import mainnetDeployment from './deployments/mainnet.json';
 import testnetDeployment from './deployments/testnet.json';
@@ -48,16 +48,7 @@ export function networkConfig(network: Network): NetworkConfig {
 	return NETWORKS[network];
 }
 
-const SESSION_KEY = 'lithos_network';
-
+/** Mainnet unless this URL itself asks for testnet: a visit never inherits testnet from an earlier one. */
 export function pickNetwork(url: URL): NetworkConfig {
-	const asked = url.searchParams.get('network');
-	let network: Network = 'mainnet';
-	try {
-		if (asked === 'testnet' || asked === 'mainnet') sessionStorage.setItem(SESSION_KEY, asked);
-		if (sessionStorage.getItem(SESSION_KEY) === 'testnet') network = 'testnet';
-	} catch {
-		if (asked === 'testnet') network = 'testnet';
-	}
-	return NETWORKS[network];
+	return NETWORKS[url.searchParams.get('network') === 'testnet' ? 'testnet' : 'mainnet'];
 }

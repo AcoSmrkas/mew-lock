@@ -29,8 +29,8 @@
 		showLockModal = false;
 	}
 
-	// Lithos Lock is live at /lithos but unlisted until launch; flip to show it in the menu.
-	const SHOW_LITHOS_LOCK = false;
+	// Lithos Lock at /lithos; set to false to take it out of the menu again.
+	const SHOW_LITHOS_LOCK = true;
 
 	// Navigation items
 	const navItems = [
@@ -53,6 +53,9 @@
 	];
 
 	$: currentPath = $page.url.pathname;
+	// The Lithos dashboard belongs to the Lithos Lock menu item.
+	$: isActive = (href: string) =>
+		currentPath === href || (href === '/lithos' && currentPath === '/lithos-locks');
 
 	onMount(() => {
 		calculateTVL();
@@ -117,7 +120,7 @@
 				<a
 					href={item.href}
 					class="nav-link"
-					class:active={currentPath === item.href}
+					class:active={isActive(item.href)}
 					on:click={closeMobileMenu}
 				>
 					<svg
@@ -212,7 +215,7 @@
 						<a
 							href={item.href}
 							class="mobile-nav-link"
-							class:active={currentPath === item.href}
+							class:active={isActive(item.href)}
 							on:click={closeMobileMenu}
 						>
 							<svg
