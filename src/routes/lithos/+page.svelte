@@ -64,6 +64,9 @@
 	$: B = d?.assets.reward ?? { ticker: 'LIT', decimals: 9 };
 	$: sameAsset = !!d && d.params.stakeId === d.params.rewardId;
 	$: deposit = d ? BigInt(d.params.deposit) : 0n;
+	// Where the leftover budget goes, as baked into this campaign's contract.
+	$: leftover = d?.params.feeAddress ?? '';
+	$: leftoverShort = `${leftover.slice(0, 6)}…${leftover.slice(-4)}`;
 	// Reactive so the template re-renders when the deployment (and its decimals) load.
 	$: fmtA = (raw: bigint, max = 4) => fmtAmount(raw, A.decimals, max);
 	$: fmtB = (raw: bigint, max = 4) => fmtAmount(raw, B.decimals, max);
@@ -699,8 +702,9 @@
 					you can afford to leave locked.
 				</li>
 				<li>
-					After locks close and a short grace period passes, any unused budget goes to the Mew Finance
-					developers' fee address. That address is fixed in the contract.
+					After locks close and a short grace period passes, any unused budget goes to
+					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>. That
+					address is fixed in the contract.
 				</li>
 				<li>
 					You need a little ERG: {fmtErg(TX_FEE)} for the network fee, plus a {fmtErg(deposit)}
@@ -737,8 +741,9 @@
 				<h2>Close the campaign</h2>
 				<p class="ll-muted">
 					After block #{(d.params.end + d.params.grace).toLocaleString('en-US')}, anyone can send what is
-					left of the budget to the Mew Finance fee address, as the contract requires. Open locks are not
-					affected.
+					left of the budget to
+					<a href={net.addressUrl(leftover)} target="_blank" rel="noopener">{leftoverShort}</a>, as the
+					contract requires. Open locks are not affected.
 				</p>
 				<button
 					class="ll-btn ll-btn-ghost"

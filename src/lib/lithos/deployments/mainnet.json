@@ -1,7 +1,7 @@
 {
 	"network": "mainnet",
 	"label": "Lithos Lock, mainnet test",
-	"note": "Mainnet test campaign: short locks and a small budget, run by the Mew team. Locks are real LIT.",
+	"note": "Mainnet test campaign: short locks and a small budget, run by the Mew team. Locks are real LIT. Leftover budget goes back to the Mew wallet that funded it.",
 	"params": {
 		"stakeId": "c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7",
 		"rewardId": "c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7",

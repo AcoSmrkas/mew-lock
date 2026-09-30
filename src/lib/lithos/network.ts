@@ -12,6 +12,7 @@ export type NetworkConfig = {
 	/** Explorer GraphQL, used to submit test-wallet txs (what Nautilus uses too). */
 	graphqlApi: string;
 	txUrl: (txId: string) => string;
+	addressUrl: (address: string) => string;
 	/** Rough block time used only to turn block counts into dates. */
 	blockSeconds: number;
 	/** ErgoPay goes through our mainnet relay only. */
@@ -25,6 +26,7 @@ const NETWORKS: Record<Network, NetworkConfig> = {
 		explorerApi: 'https://api.ergoplatform.com/api/v1',
 		graphqlApi: 'https://gql.ergoplatform.com/',
 		txUrl: (id) => `https://ergexplorer.com/transactions/${id}`,
+		addressUrl: (a) => `https://ergexplorer.com/addresses/${a}`,
 		blockSeconds: 120,
 		ergoPay: true,
 		deployment: readDeployment(mainnetDeployment)
@@ -34,6 +36,7 @@ const NETWORKS: Record<Network, NetworkConfig> = {
 		explorerApi: 'https://api-testnet.ergoplatform.com/api/v1',
 		graphqlApi: 'https://gql-testnet.ergoplatform.com/',
 		txUrl: (id) => `https://testnet.ergoplatform.com/en/transactions/${id}`,
+		addressUrl: (a) => `https://testnet.ergoplatform.com/en/addresses/${a}`,
 		blockSeconds: 60,
 		ergoPay: false,
 		deployment: readDeployment(testnetDeployment)
