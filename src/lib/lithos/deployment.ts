@@ -18,6 +18,8 @@ export type AssetInfo = { ticker: string; decimals: number };
 export type LithosDeployment = {
 	network: Network;
 	label: string;
+	/** Shown as a banner on the page (e.g. for a test campaign). */
+	note?: string;
 	params: {
 		stakeId: AssetId;
 		rewardId: AssetId;

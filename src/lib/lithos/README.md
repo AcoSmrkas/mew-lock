@@ -128,6 +128,27 @@ Campaign state matched the maths to the raw unit at every step. After the
 three locks and the top-up, the budget was 1,000,000 − 9,427.961609678 + 10,000
 and V was V0 + 1e19 + 1.5e19 + 5e22.
 
+### Generic contract on testnet, 2026-09-30: all five asset modes passed
+
+Each mode ran its own campaign: three locks (one locked for another user, one
+large), a top-up, the refusals, three unlocks and a third-party sweep, 12
+transactions each. Every unlock paid exactly principal + reward in the right
+assets, every sweep paid the leftover to the fee address and burned the NFT and
+every marker, and a real node rejected the mistyped-owner lock in every mode.
+
+| mode (lock → earn) | campaign | sweep |
+|---|---|---|
+| tLIT → tLIT | [18e18e57](https://testnet.ergoplatform.com/en/transactions/18e18e579346ffc0486a7033abb68c4ac1ae7673eee6f5afa9c6b2d8063385ee) | [40e31311](https://testnet.ergoplatform.com/en/transactions/40e313119eb8ee48503478076913a34127aa149d9fad21bd8d1ae619e274d8f6) |
+| tLIT → tMEOW | [f35d0034](https://testnet.ergoplatform.com/en/transactions/f35d0034afd1c6279fefff0b180edb6553ecfd3c19c94ccd1f5126103190f985) | [71482ec8](https://testnet.ergoplatform.com/en/transactions/71482ec82edb90c220d01fa49d9c6e96bea840972a953c4918eccb81d1a75e47) |
+| tERG → tLIT | [11274f50](https://testnet.ergoplatform.com/en/transactions/11274f50b3459a759a125d74f00b522a17544b67ccabf3588a3746e29318b4a4) | [3c565a2c](https://testnet.ergoplatform.com/en/transactions/3c565a2c30b538ea41e1a01dee211406ad0d2ac8ff74732de1efde4a937094af) |
+| tLIT → tERG | [a249ddda](https://testnet.ergoplatform.com/en/transactions/a249ddda3227d3043ad7999284f2e96643fb2a948c6981b0ab4d9cf04164ecd6) | [f2c16f31](https://testnet.ergoplatform.com/en/transactions/f2c16f31f1fb1e30ebbaee35ea333f81659914f8dea9d7011fe4dfb79ac05d18) |
+| tERG → tERG | [3a851621](https://testnet.ergoplatform.com/en/transactions/3a85162160bf1371364b216a58d65f3ae21e589555ccd666dbfdeea4905a4ead) | [f3add13c](https://testnet.ergoplatform.com/en/transactions/f3add13c09d682fdde6e35b5c6b66973d52b6b30f35b4ec2eaba5521d99cd3a5) |
+
+The page's in-browser test wallet (Fleet Schnorr signing, empty proof for the
+campaign box, explorer GraphQL submit) was proven separately: a faucet drip, a
+lock chained on the unconfirmed drip, and its unlock (owner received exactly
+principal + reward, marker burned).
+
 ## Before mainnet
 
 - Decide: budget, campaign length (`start`/`end`/`grace`), tiers and boosts,

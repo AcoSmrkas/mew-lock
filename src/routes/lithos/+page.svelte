@@ -436,6 +436,7 @@
 		</section>
 	{:else}
 		{#if loadError}<p class="ll-error">{loadError}</p>{/if}
+		{#if d.note}<p class="ll-note-banner" role="note">{d.note}</p>{/if}
 
 		{#if testnet}
 			<section class="ll-card ll-testwallet" aria-label="Test wallet">
@@ -537,7 +538,11 @@
 						<label class="ll-tier" class:active={tier === i}>
 							<input type="radio" name="tier" value={i} bind:group={tier} />
 							<b>{t.label}</b>
-							<span>{t.blocks.toLocaleString('en-US')} blocks · {boost(t.boostBps)}</span>
+							<span>
+								{t.label.includes('block')
+									? fmtBlocks(t.blocks, net.blockSeconds)
+									: `${t.blocks.toLocaleString('en-US')} blocks`} · {boost(t.boostBps)}
+							</span>
 							<span class="ll-hot">
 								{marginalRate(t.boostBps)}{sameAsset ? ' APR' : ''} now
 							</span>
@@ -1191,7 +1196,17 @@
 	.ll-admin .ll-input {
 		margin-bottom: 0;
 	}
-.ll-testwallet {
+
+	.ll-note-banner {
+		border: 1px solid #f9d72d66;
+		background: #f9d72d12;
+		color: var(--ll-accent);
+		border-radius: 10px;
+		padding: 10px 14px;
+		margin: 0 0 20px;
+		font-size: 0.92rem;
+	}
+	.ll-testwallet {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
