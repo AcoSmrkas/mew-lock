@@ -6,7 +6,7 @@ import { KeyedMockChainParty, MockChain, type NonKeyedMockChainParty } from '@fl
 import { SBigInt } from '@fleet-sdk/serializer';
 import { parseCampaignBox, parsePositionBox, type PositionState } from './boxes.ts';
 import { compileCampaign, compilePosition } from './compile.ts';
-import type { LithosDeployment } from './deployment.ts';
+import { type LithosDeployment, pinParams } from './deployment.ts';
 import { initialVirtualWeight } from './math.ts';
 import type { CampaignParams } from './params.ts';
 import { buildLockTx, CAMPAIGN_BOX_VALUE } from './txs.ts';
@@ -63,7 +63,7 @@ export function setup(): Ctx {
 	const d: LithosDeployment = {
 		network: 'mainnet',
 		label: 'mock',
-		params: { ...params, minLock: params.minLock.toString() },
+		params: pinParams(params),
 		positionTree,
 		campaignTree,
 		campaignNftId: NFT,

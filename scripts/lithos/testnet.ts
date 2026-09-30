@@ -2,8 +2,9 @@
 // with sigma-rust (Nautilus's engine) and validated by public testnet nodes.
 //
 //   npx vite-node scripts/lithos/testnet.ts wallet     addresses and balances
-//   npx vite-node scripts/lithos/testnet.ts deploy     mint test LIT (once), markers, NFT, short campaign
-//   npx vite-node scripts/lithos/testnet.ts scenario   locks, top-up, refusals, unlocks, sweep
+//   npx vite-node scripts/lithos/testnet.ts deploy     mint test LIT (once), markers, NFT, 30-block campaign
+//   npx vite-node scripts/lithos/testnet.ts scenario   locks, top-up, refusals, then finish
+//   npx vite-node scripts/lithos/testnet.ts finish     unlocks + sweep (resumable)
 //   npx vite-node scripts/lithos/testnet.ts status     campaign and positions
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -12,7 +13,7 @@ import { type ErgoUnsignedTransaction, OutputBuilder, TransactionBuilder } from 
 import { SByte, SColl, SLong } from '@fleet-sdk/serializer';
 import { type CampaignState, parseCampaignBox, parsePositionBox, type PositionState } from '../../src/lib/lithos/boxes.ts';
 import { compileCampaign, compilePosition } from '../../src/lib/lithos/compile.ts';
-import type { LithosDeployment } from '../../src/lib/lithos/deployment.ts';
+import { type LithosDeployment, pinParams } from '../../src/lib/lithos/deployment.ts';
 import { initialVirtualWeight, lockAprBps } from '../../src/lib/lithos/math.ts';
 import type { CampaignParams } from '../../src/lib/lithos/params.ts';
 import {
@@ -31,13 +32,20 @@ const STATE_FILE = resolve(process.cwd(), '.testnet/state.json');
 const DEPLOYMENT_FILE = resolve(process.cwd(), 'src/lib/lithos/deployments/testnet.json');
 const EXPLORER_TX = 'https://testnet.ergoplatform.com/en/transactions/';
 const UNIT = 1_000_000_000n; // test LIT has 9 decimals, like LIT
+// We broadcast at once, so a few blocks of headroom is plenty (the UI uses 20).
+const TESTNET_UNLOCK_BUFFER = 5;
 
 type Step = { label: string; txId: string; height: number };
 type RunnerState = { litId?: string; steps: Step[] };
 
 const { keys } = loadOrCreateWallet();
 const log = (...a: unknown[]) => console.log(...a);
-const fmt = (raw: bigint) => (Number(raw) / 1e9).toLocaleString('en-US', { maximumFractionDigits: 9 });
+/** Exact decimal for 9-decimal raw amounts (Number would round at this scale). */
+const fmt = (raw: bigint) => {
+	const v = raw < 0n ? -raw : raw;
+	const frac = (v % UNIT).toString().padStart(9, '0').replace(/0+$/, '');
+	return `${raw < 0n ? '-' : ''}${(v / UNIT).toLocaleString('en-US')}${frac ? `.${frac}` : ''}`;
+};
 
 function loadState(): RunnerState {
 	return existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, 'utf8')) : { steps: [] };
@@ -52,9 +60,6 @@ function loadDeployment(): LithosDeployment {
 
 const boxesOf = (k: TestKey) => chain.unspentByAddress(k.address);
 
-async function tokenBalance(k: TestKey, tokenId: string): Promise<bigint> {
-	return chain.balanceOf(await boxesOf(k)).tokens.get(tokenId) ?? 0n;
-}
 
 /** Sign with sigma-rust, broadcast, wait for a block and for the index to catch up. */
 async function submit(label: string, tx: ErgoUnsignedTransaction, signers: TestKey[]): Promise<Step> {
@@ -138,16 +143,16 @@ async function deploy() {
 	const campaignNftId = nftTx.inputs[0].boxId;
 	await submit('mint campaign NFT', nftTx, [main]);
 
-	// Testnet makes blocks every ~20-40 s, so tiers are 10 and 20 blocks and the
-	// whole campaign runs ~45 blocks; mainnet tiers would be days to a year.
+	// Testnet blocks come every ~30-60 s, so tiers are 10 and 20 blocks and locks
+	// stay open for 30 blocks; mainnet tiers would be days to a year.
 	const h = await chain.height();
 	const params: CampaignParams = {
 		network: 'testnet',
 		litId,
 		feeAddress: keys.fee.address,
 		start: h,
-		end: h + 45,
-		grace: 5,
+		end: h + 30,
+		grace: 3,
 		slack: 60,
 		tiers: [
 			{ blocks: 10, boostBps: 10_000, label: '10 blocks' },
@@ -178,7 +183,7 @@ async function deploy() {
 	const deployment: LithosDeployment = {
 		network: 'testnet',
 		label: 'MewLock x Lithos, testnet dry run',
-		params: { ...params, minLock: params.minLock.toString() },
+		params: pinParams(params),
 		positionTree,
 		campaignTree,
 		campaignNftId,
@@ -215,7 +220,8 @@ async function lock(d: LithosDeployment, who: TestKey, principal: bigint, tier: 
 		owner: owner?.address,
 		principal,
 		tier,
-		height: await chain.height()
+		height: await chain.height(),
+		unlockBuffer: TESTNET_UNLOCK_BUFFER
 	});
 	await submit(
 		`lock ${fmt(principal)} tLIT, tier ${tier}${owner ? ` for ${owner.role}` : ''} -> reward ${fmt(plan.quote.reward)} (${(
@@ -229,8 +235,7 @@ async function lock(d: LithosDeployment, who: TestKey, principal: bigint, tier: 
 
 async function scenario() {
 	const d = loadDeployment();
-	const { main, other, fee } = keys;
-	const lit = d.params.litId;
+	const { main, other } = keys;
 
 	if (chain.balanceOf(await boxesOf(other)).nanoErg < 50_000_000n) {
 		log('Funding the second test user for its own fees...');
@@ -273,7 +278,8 @@ async function scenario() {
 		changeAddress: main.address,
 		principal: 1_000n * UNIT,
 		tier: 0,
-		height: await chain.height()
+		height: await chain.height(),
+		unlockBuffer: TESTNET_UNLOCK_BUFFER
 	});
 	const greedy = clone(probe.tx);
 	greedy.outputs[1].assets[1].amount = (BigInt(greedy.outputs[1].assets[1].amount) + 1n).toString();
@@ -306,59 +312,78 @@ async function scenario() {
 		[other]
 	);
 
-	log(`\n4. Unlocks (position A unlocks at ${pa.unlockAt}; now ${await chain.height()})`);
-	await chain.waitForHeight(pa.unlockAt);
-	await expectRefused(
-		'someone else unlocking A after its unlock height',
-		buildUnlockTx({ deployment: d, position: pa, inputs: await boxesOf(other), height: await chain.height() }).toEIP12Object(),
-		[other]
-	);
-	const litBefore = await tokenBalance(main, lit);
-	await submit(
-		'unlock A (owner)',
-		buildUnlockTx({ deployment: d, position: pa, inputs: await boxesOf(main), height: await chain.height() }),
-		[main]
-	);
-	const gained = (await tokenBalance(main, lit)) - litBefore;
-	if (gained !== pa.principal + pa.reward) throw new Error(`FAIL: unlock paid ${gained}, expected ${pa.principal + pa.reward}`);
-	log(`  owner got back ${fmt(gained)} tLIT = principal ${fmt(pa.principal)} + reward ${fmt(pa.reward)}`);
+	await finish();
+}
 
-	const pb = (await positionsOf(d)).find((p) => p.owner === other.address)!;
-	await chain.waitForHeight(pb.unlockAt);
-	await submit(
-		'unlock B (locked for other; other unlocks)',
-		buildUnlockTx({ deployment: d, position: pb, inputs: await boxesOf(other), height: await chain.height() }),
-		[other]
-	);
-	const pw = (await positionsOf(d)).find((p) => p.principal === 500_000_000n * UNIT)!;
-	await chain.waitForHeight(pw.unlockAt);
-	await submit(
-		'unlock whale',
-		buildUnlockTx({ deployment: d, position: pw, inputs: await boxesOf(main), height: await chain.height() }),
-		[main]
-	);
+/** LIT `address` gained in a mined tx: what its outputs got minus what its inputs spent. */
+async function litGained(txId: string, address: string, litId: string): Promise<bigint> {
+	const tx = await chain.minedTx(txId);
+	const sum = (boxes: any[]) =>
+		boxes
+			.filter((b) => b.address === address)
+			.flatMap((b) => b.assets as { tokenId: string; amount: bigint }[])
+			.filter((a) => a.tokenId === litId)
+			.reduce((acc, a) => acc + BigInt(a.amount), 0n);
+	return sum(tx.outputs) - sum(tx.inputs);
+}
+
+/**
+ * Unlock every open position we own (after one theft attempt), then sweep.
+ * Safe to re-run: it starts from whatever is still on chain.
+ */
+async function finish() {
+	const d = loadDeployment();
+	const lit = d.params.litId;
+	const open = (await positionsOf(d)).sort((a, b) => a.unlockAt - b.unlockAt);
+	log(`\n4. Unlocks (${open.length} open position(s); now ${await chain.height()})`);
+	let theftTried = false;
+	for (const p of open) {
+		const owner = Object.values(keys).find((k) => k.address === p.owner);
+		if (!owner) {
+			log(`  skipping ${p.box.boxId}: not one of our keys`);
+			continue;
+		}
+		await chain.waitForHeight(p.unlockAt);
+		if (!theftTried) {
+			const thief = owner.role === 'other' ? keys.main : keys.other;
+			await expectRefused(
+				`${thief.role} unlocking ${owner.role}'s position after its unlock height`,
+				buildUnlockTx({ deployment: d, position: p, inputs: await boxesOf(thief), height: await chain.height() }).toEIP12Object(),
+				[thief]
+			);
+			theftTried = true;
+		}
+		const step = await submit(
+			`unlock ${fmt(p.principal)} tLIT position (owner: ${owner.role})`,
+			buildUnlockTx({ deployment: d, position: p, inputs: await boxesOf(owner), height: await chain.height() }),
+			[owner]
+		);
+		const gained = await litGained(step.txId, owner.address, lit);
+		if (gained !== p.principal + p.reward) throw new Error(`FAIL: unlock paid ${gained}, expected ${p.principal + p.reward}`);
+		log(`  ${owner.role} got back ${fmt(gained)} tLIT = principal ${fmt(p.principal)} + reward ${fmt(p.reward)}`);
+	}
 
 	const sweepAt = d.params.end + d.params.grace + 1;
 	log(`\n5. Sweep (opens at block ${sweepAt}; now ${await chain.height()})`);
 	await chain.waitForHeight(sweepAt + 1);
 	const last = await campaignOf(d);
-	const feeLitBefore = await tokenBalance(fee, lit);
-	await submit(
+	const step = await submit(
 		'sweep by a third party (other)',
 		buildSweepTx({
 			deployment: d,
 			campaign: last,
-			inputs: await boxesOf(other),
-			changeAddress: other.address,
+			inputs: await boxesOf(keys.other),
+			changeAddress: keys.other.address,
 			height: await chain.height()
 		}),
-		[other]
+		[keys.other]
 	);
-	const feeGot = (await tokenBalance(fee, lit)) - feeLitBefore;
+	const feeGot = await litGained(step.txId, keys.fee.address, lit);
 	if (feeGot !== last.budget) throw new Error(`FAIL: fee address got ${feeGot}, expected ${last.budget}`);
 	if ((await chain.unspentByTokenId(d.campaignNftId)).length !== 0) throw new Error('FAIL: campaign NFT survived');
-	log(`  fee address received the leftover ${fmt(feeGot)} tLIT; NFT and markers burned`);
-	log(`\nAll testnet checks passed. Rewards paid: A ${fmt(pa.reward)}, B ${fmt(pb.reward)}, whale ${fmt(pw.reward)} tLIT.`);
+	if ((await chain.unspentByTokenId(d.markerId)).length !== 0) throw new Error('FAIL: markers survived');
+	log(`  fee address received the leftover ${fmt(feeGot)} tLIT; campaign NFT and every marker burned`);
+	log('\nAll testnet checks passed.');
 }
 
 async function status() {
@@ -376,7 +401,7 @@ async function status() {
 	}
 }
 
-const commands: Record<string, () => Promise<void>> = { wallet, deploy, scenario, status };
+const commands: Record<string, () => Promise<void>> = { wallet, deploy, scenario, finish, status };
 const [command = 'wallet'] = process.argv.slice(2);
 const run = commands[command];
 if (!run) {

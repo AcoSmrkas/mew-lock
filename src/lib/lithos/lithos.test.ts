@@ -9,7 +9,7 @@ import { SBigInt, SByte, SColl, SGroupElement, SInt, SLong } from '@fleet-sdk/se
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseCampaignBox, type PositionState } from './boxes.ts';
 import { compileCampaign } from './compile.ts';
-import type { LithosDeployment } from './deployment.ts';
+import { type LithosDeployment, pinParams } from './deployment.ts';
 import { BLOCKS_PER_YEAR, initialVirtualWeight, lockAprBps, marginalAprBps, maxReward, quoteLock } from './math.ts';
 import { type CampaignParams, validateParams } from './params.ts';
 import {
@@ -641,7 +641,7 @@ describe('genesis', () => {
 		const d: LithosDeployment = {
 			network: 'mainnet',
 			label: 'genesis',
-			params: { ...params, minLock: params.minLock.toString() },
+			params: pinParams(params),
 			positionTree,
 			campaignTree,
 			campaignNftId: nftId,

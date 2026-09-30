@@ -30,3 +30,9 @@ export type LithosDeployment = {
 export function paramsOf(d: LithosDeployment): CampaignParams {
 	return { ...d.params, network: d.network, minLock: BigInt(d.params.minLock) };
 }
+
+/** The JSON-safe `params` block of a deployment (network lives on the deployment itself). */
+export function pinParams(p: CampaignParams): LithosDeployment['params'] {
+	const { network: _network, minLock, ...rest } = p;
+	return { ...rest, minLock: minLock.toString() };
+}

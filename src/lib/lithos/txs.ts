@@ -109,16 +109,22 @@ export function buildLockTx(o: {
 	principal: bigint;
 	tier: number;
 	height: number;
+	/** Blocks added so the lock stays valid while it waits for a block (default UNLOCK_BUFFER). */
+	unlockBuffer?: number;
 }): LockPlan {
 	const d = o.deployment;
 	const t = d.params.tiers[o.tier];
 	if (!t) throw new Error(`no tier ${o.tier}`);
+	const buffer = o.unlockBuffer ?? UNLOCK_BUFFER;
+	if (!Number.isInteger(buffer) || buffer < 1 || buffer > d.params.slack) {
+		throw new Error(`unlock buffer must be 1..${d.params.slack} blocks`);
+	}
 	if (o.principal < BigInt(d.params.minLock)) throw new Error('below the minimum lock');
 	if (o.height + 1 < d.params.start) throw new Error('campaign has not started');
 	if (o.height + 1 > d.params.end) throw new Error('campaign has ended');
 
 	const quote = quoteLock(o.campaign.budget, o.campaign.v, o.principal, t.blocks, t.boostBps);
-	const unlockAt = o.height + t.blocks + UNLOCK_BUFFER;
+	const unlockAt = o.height + t.blocks + buffer;
 	const position = new OutputBuilder(POSITION_BOX_VALUE, d.positionTree)
 		.addTokens([
 			{ tokenId: d.markerId, amount: 1n },

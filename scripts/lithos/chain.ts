@@ -149,15 +149,37 @@ export async function broadcast(signed: wasm.Transaction): Promise<string> {
 	throw lastError;
 }
 
-/** Wait until the tx's first output is in the UTXO set (i.e. the tx is in a block). */
-export async function waitForConfirmation(signed: wasm.Transaction, timeoutMs = 15 * 60_000): Promise<number> {
-	const firstOutput = signed.outputs().get(0).box_id().to_str();
+/** A mined transaction from the node's index (inputs and outputs carry addresses). */
+export async function minedTx(txId: string): Promise<any> {
+	return request(`${INDEXED_NODE}/blockchain/transaction/byId/${txId}`);
+}
+
+/** Block height the tx was mined in, or null while it is not in a block. */
+export async function inclusionHeight(txId: string): Promise<number | null> {
+	try {
+		const tx = await request(`${INDEXED_NODE}/blockchain/transaction/byId/${txId}`);
+		return tx.inclusionHeight === undefined ? null : Number(tx.inclusionHeight);
+	} catch (e) {
+		if (String(e).startsWith('Error: 404')) return null;
+		throw e;
+	}
+}
+
+/**
+ * Wait until the tx is in a block. Asks the node's transaction index rather
+ * than looking for an output in the UTXO set: a tx whose first output is the
+ * miner-fee box (an unlock has no other explicit output) never shows one,
+ * because the miner spends that box in the same block.
+ */
+export async function waitForConfirmation(signed: wasm.Transaction, timeoutMs = 20 * 60_000): Promise<number> {
+	const txId = signed.id().to_str();
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		if (await unspentBox(firstOutput)) return height();
+		const h = await inclusionHeight(txId);
+		if (h !== null) return h;
 		await new Promise((r) => setTimeout(r, 5_000));
 	}
-	throw new Error(`tx ${signed.id().to_str()} not confirmed after ${timeoutMs / 1000}s`);
+	throw new Error(`tx ${txId} not confirmed after ${timeoutMs / 1000}s`);
 }
 
 /** Wait until the node's extra index has caught up to `h`, so address/token lookups see a block. */
