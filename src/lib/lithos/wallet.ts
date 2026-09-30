@@ -3,7 +3,7 @@
 import type { Box } from '@fleet-sdk/common';
 import { get } from 'svelte/store';
 import { fetchBoxes } from '$lib/api-explorer/explorer.ts';
-import { connected_wallet_address, selected_wallet_ergo } from '$lib/store/store';
+import { connected_wallet_address, selected_wallet_ergo } from '$lib/store/store.ts';
 import { getHeight, normalizeBox } from './api.ts';
 import type { NetworkConfig } from './network.ts';
 

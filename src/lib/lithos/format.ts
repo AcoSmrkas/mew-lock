@@ -1,27 +1,29 @@
 // Exact amount parsing/formatting for 9-decimal LIT, plus block-time estimates.
 // Amounts never go through floating point.
 
-const DECIMALS = 9;
-const UNIT = 10n ** BigInt(DECIMALS);
-
-/** "1,234.5" -> raw units, or null if it is not a valid non-negative amount. */
-export function parseLit(input: string): bigint | null {
+/** "1,234.5" -> raw units with `decimals`, or null if it is not a valid non-negative amount. */
+export function parseAmount(input: string, decimals: number): bigint | null {
 	const s = input.replace(/[,_\s]/g, '');
 	const m = /^(\d*)(?:\.(\d*))?$/.exec(s);
 	if (!m || (m[1] === '' && !m[2])) return null;
 	const frac = m[2] ?? '';
-	if (frac.length > DECIMALS) return null;
-	return BigInt(m[1] || '0') * UNIT + BigInt(frac.padEnd(DECIMALS, '0') || '0');
+	if (frac.length > decimals) return null;
+	return BigInt(m[1] || '0') * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, '0') || '0');
 }
 
 /** Raw units -> "1,234.5678" with at most `maxDecimals` (truncated, never rounded up). */
-export function fmtLit(raw: bigint, maxDecimals = 4): string {
+export function fmtAmount(raw: bigint, decimals: number, maxDecimals = 4): string {
+	const unit = 10n ** BigInt(decimals);
 	const neg = raw < 0n;
 	const v = neg ? -raw : raw;
-	const whole = (v / UNIT).toLocaleString('en-US');
-	const frac = (v % UNIT).toString().padStart(DECIMALS, '0').slice(0, maxDecimals).replace(/0+$/, '');
+	const whole = (v / unit).toLocaleString('en-US');
+	const frac = (v % unit).toString().padStart(decimals, '0').slice(0, maxDecimals).replace(/0+$/, '');
 	return `${neg ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`;
 }
+
+/** 9-decimal shorthands (LIT, ERG). */
+export const parseLit = (input: string) => parseAmount(input, 9);
+export const fmtLit = (raw: bigint, maxDecimals = 4) => fmtAmount(raw, 9, maxDecimals);
 
 export function fmtApr(bps: number): string {
 	return `${(bps / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
@@ -43,4 +45,26 @@ export function fmtBlocks(blocks: number, blockSeconds: number): string {
 export function estimateDate(height: number, current: number, blockSeconds: number): string {
 	const d = new Date(Date.now() + (height - current) * blockSeconds * 1000);
 	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Yearly rate of a lock when stake and reward differ: reward units of B per one
+ * whole A per year, e.g. 0.0125 (ERG per LIT per year). Same-asset campaigns
+ * show an APR instead.
+ */
+export function yearlyRate(
+	reward: bigint,
+	rewardDecimals: number,
+	principal: bigint,
+	stakeDecimals: number,
+	blocks: number,
+	blocksPerYear: number
+): number {
+	if (principal <= 0n || blocks <= 0) return 0;
+	const perUnit = Number(reward) / 10 ** rewardDecimals / (Number(principal) / 10 ** stakeDecimals);
+	return (perUnit * blocksPerYear) / blocks;
+}
+
+export function fmtRate(x: number): string {
+	return x.toLocaleString('en-US', { maximumSignificantDigits: 4 });
 }

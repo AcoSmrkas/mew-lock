@@ -1,6 +1,6 @@
 // Which chain the Lithos Lock page talks to. Mainnet by default; `?network=testnet`
 // switches (and sticks for the tab) so the flow can be tried with Nautilus Testnet.
-import type { LithosDeployment } from './deployment.ts';
+import { type LithosDeployment, readDeployment } from './deployment.ts';
 import mainnetDeployment from './deployments/mainnet.json';
 import testnetDeployment from './deployments/testnet.json';
 import type { Network } from './params.ts';
@@ -27,9 +27,7 @@ const NETWORKS: Record<Network, NetworkConfig> = {
 		txUrl: (id) => `https://ergexplorer.com/transactions/${id}`,
 		blockSeconds: 120,
 		ergoPay: true,
-		deployment: (mainnetDeployment as { campaignNftId?: string }).campaignNftId
-			? (mainnetDeployment as LithosDeployment)
-			: null
+		deployment: readDeployment(mainnetDeployment)
 	},
 	testnet: {
 		network: 'testnet',
@@ -38,9 +36,7 @@ const NETWORKS: Record<Network, NetworkConfig> = {
 		txUrl: (id) => `https://testnet.ergoplatform.com/en/transactions/${id}`,
 		blockSeconds: 60,
 		ergoPay: false,
-		deployment: (testnetDeployment as { campaignNftId?: string }).campaignNftId
-			? (testnetDeployment as LithosDeployment)
-			: null
+		deployment: readDeployment(testnetDeployment)
 	}
 };
 

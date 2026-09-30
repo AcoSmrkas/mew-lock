@@ -8,12 +8,12 @@ import { ErgoHDKey } from '@fleet-sdk/wallet';
 import { Network } from '@fleet-sdk/common';
 import { ErgoAddress } from '@fleet-sdk/core';
 import { getCampaign, getHeight, getJson, getPositions } from '../../src/lib/lithos/api.ts';
-import type { LithosDeployment } from '../../src/lib/lithos/deployment.ts';
+import { type LithosDeployment, readDeployment } from '../../src/lib/lithos/deployment.ts';
 import type { NetworkConfig } from '../../src/lib/lithos/network.ts';
 import { drip, lithosKeys, signLocally, submitSigned, testBoxes, type TestWallet } from '../../src/lib/lithos/testWallet.ts';
 import { buildLockTx, buildUnlockTx } from '../../src/lib/lithos/txs.ts';
 
-const d: LithosDeployment = JSON.parse(readFileSync('src/lib/lithos/deployments/testnet.json', 'utf8'));
+const d = readDeployment(JSON.parse(readFileSync('src/lib/lithos/deployments/testnet.json', 'utf8'))) as LithosDeployment;
 const net: NetworkConfig = {
 	network: 'testnet',
 	explorerApi: 'https://api-testnet.ergoplatform.com/api/v1',

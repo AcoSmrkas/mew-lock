@@ -1,5 +1,6 @@
-// Transaction builders for the MewLock x Lithos campaign. They return Fleet
-// unsigned transactions; call .toEIP12Object() to hand one to a wallet.
+// Transaction builders for MewLock campaigns (lock asset A, earn asset B; each
+// a token or ERG). They return Fleet unsigned transactions; call
+// .toEIP12Object() to hand one to a wallet.
 import { type Amount, type Box, first } from '@fleet-sdk/common';
 import {
 	ErgoAddress,
@@ -10,16 +11,12 @@ import {
 	TransactionBuilder
 } from '@fleet-sdk/core';
 import { SBigInt, SGroupElement, SInt, SLong } from '@fleet-sdk/serializer';
-import type { CampaignState, PositionState } from './boxes.ts';
+import { type CampaignState, type PositionState, positionContents } from './boxes.ts';
 import type { LithosDeployment } from './deployment.ts';
 import { type LockQuote, quoteLock } from './math.ts';
-import { UNLOCK_BUFFER } from './params.ts';
+import { type AssetId, UNLOCK_BUFFER } from './params.ts';
 
 export const TX_FEE = RECOMMENDED_MIN_FEE_VALUE;
-/** nanoERG carried by each position box; it comes back at unlock. */
-export const POSITION_BOX_VALUE = SAFE_MIN_BOX_VALUE;
-/** nanoERG the campaign box starts with. It can only grow until the sweep. */
-export const CAMPAIGN_BOX_VALUE = 10n * SAFE_MIN_BOX_VALUE;
 
 type Inputs = Box<Amount>[];
 
@@ -54,6 +51,28 @@ export function buildMintTx(o: {
 		.build();
 }
 
+/** A campaign box: NFT, markers and, when the reward is a token, the budget; ERG budgets ride in the value. */
+function campaignOutput(o: {
+	tree: string;
+	nftId: string;
+	markerId: string;
+	markers: bigint;
+	rewardId: AssetId;
+	budget: bigint;
+	reserve: bigint;
+	v: bigint;
+	/** nanoERG when the reward is a token (defaults to the reserve). */
+	value?: bigint;
+}) {
+	const tokens = [
+		{ tokenId: o.nftId, amount: 1n },
+		{ tokenId: o.markerId, amount: o.markers }
+	];
+	if (o.rewardId !== null) tokens.push({ tokenId: o.rewardId, amount: o.budget });
+	const value = o.rewardId === null ? o.reserve + o.budget : (o.value ?? o.reserve);
+	return new OutputBuilder(value, o.tree).addTokens(tokens).setAdditionalRegisters({ R4: SBigInt(o.v).toHex() });
+}
+
 /** Creates the campaign box. `inputs` must hold the NFT, every marker and the starting budget. */
 export function buildCampaignCreateTx(o: {
 	height: number;
@@ -63,18 +82,22 @@ export function buildCampaignCreateTx(o: {
 	campaignNftId: string;
 	markerId: string;
 	markerSupply: bigint;
-	litId: string;
+	rewardId: AssetId;
+	reserve: bigint;
 	budget: bigint;
 	v0: bigint;
 }): ErgoUnsignedTransaction {
 	if (o.v0 <= 0n || o.budget <= 0n || o.markerSupply < 2n) throw new Error('bad genesis state');
-	const campaign = new OutputBuilder(CAMPAIGN_BOX_VALUE, o.campaignTree)
-		.addTokens([
-			{ tokenId: o.campaignNftId, amount: 1n },
-			{ tokenId: o.markerId, amount: o.markerSupply },
-			{ tokenId: o.litId, amount: o.budget }
-		])
-		.setAdditionalRegisters({ R4: SBigInt(o.v0).toHex() });
+	const campaign = campaignOutput({
+		tree: o.campaignTree,
+		nftId: o.campaignNftId,
+		markerId: o.markerId,
+		markers: o.markerSupply,
+		rewardId: o.rewardId,
+		budget: o.budget,
+		reserve: o.reserve,
+		v: o.v0
+	});
 	return new TransactionBuilder(o.height)
 		.from(o.inputs)
 		.to(campaign)
@@ -83,22 +106,27 @@ export function buildCampaignCreateTx(o: {
 		.build();
 }
 
-function successor(d: LithosDeployment, c: CampaignState, markers: bigint, budget: bigint, v: bigint, value?: bigint) {
-	return new OutputBuilder(value ?? BigInt(c.box.value), d.campaignTree)
-		.addTokens([
-			{ tokenId: d.campaignNftId, amount: 1n },
-			{ tokenId: d.markerId, amount: markers },
-			{ tokenId: d.params.litId, amount: budget }
-		])
-		.setAdditionalRegisters({ R4: SBigInt(v).toHex() });
+function successor(d: LithosDeployment, c: CampaignState, markers: bigint, budget: bigint, v: bigint) {
+	return campaignOutput({
+		tree: d.campaignTree,
+		nftId: d.campaignNftId,
+		markerId: d.markerId,
+		markers,
+		rewardId: d.params.rewardId,
+		budget,
+		reserve: BigInt(d.params.reserve),
+		v,
+		value: BigInt(c.box.value)
+	});
 }
 
 export type LockPlan = { tx: ErgoUnsignedTransaction; quote: LockQuote; unlockAt: number };
 
 /**
- * Lock `principal` LIT for tier `tier`. The reward is the most the contract
- * allows at the campaign's current state, fixed now and paid out at unlock.
- * `owner` defaults to `changeAddress` (lock-for-someone-else when it differs).
+ * Lock `principal` (raw units of the staked asset) for tier `tier`. The reward
+ * is the most the contract allows at the campaign's current state, fixed now
+ * and paid out at unlock. `owner` defaults to `changeAddress` (lock-for when it
+ * differs).
  */
 export function buildLockTx(o: {
 	deployment: LithosDeployment;
@@ -125,11 +153,9 @@ export function buildLockTx(o: {
 
 	const quote = quoteLock(o.campaign.budget, o.campaign.v, o.principal, t.blocks, t.boostBps);
 	const unlockAt = o.height + t.blocks + buffer;
-	const position = new OutputBuilder(POSITION_BOX_VALUE, d.positionTree)
-		.addTokens([
-			{ tokenId: d.markerId, amount: 1n },
-			{ tokenId: d.params.litId, amount: o.principal + quote.reward }
-		])
+	const holds = positionContents(d, o.principal, quote.reward);
+	const position = new OutputBuilder(holds.nanoErg, d.positionTree)
+		.addTokens([{ tokenId: d.markerId, amount: 1n }, ...holds.tokens.filter((x) => x.amount > 0n)])
 		.setAdditionalRegisters({
 			R4: SGroupElement(pkOf(o.owner ?? o.changeAddress)).toHex(),
 			R5: SInt(unlockAt).toHex(),
@@ -152,9 +178,9 @@ export function buildLockTx(o: {
 }
 
 /**
- * Unlock a position: principal + reward (and the box's nanoERG) go to the
- * owner, the marker is burned. `inputs` must include at least one box from the
- * owner's address so Nautilus knows which key signs; it also pays the fee.
+ * Unlock a position: principal, reward and the deposit go to the owner and the
+ * marker is burned. `inputs` must include at least one box from the owner's
+ * address so Nautilus knows which key signs; it also pays the fee.
  */
 export function buildUnlockTx(o: {
 	deployment: LithosDeployment;
@@ -174,7 +200,7 @@ export function buildUnlockTx(o: {
 		.build();
 }
 
-/** Add `amount` LIT to the campaign budget. Anyone can do it until the end. */
+/** Add `amount` (raw units of the reward asset) to the budget. Anyone can do it until the end. */
 export function buildTopUpTx(o: {
 	deployment: LithosDeployment;
 	campaign: CampaignState;
@@ -217,15 +243,14 @@ export function buildSweepTx(o: {
 	if (o.height + 1 <= d.params.end + d.params.grace) {
 		throw new Error(`sweep opens after block ${d.params.end + d.params.grace}`);
 	}
+	const toFee = new OutputBuilder(BigInt(o.campaign.box.value), d.params.feeAddress);
+	if (d.params.rewardId !== null && o.campaign.budget > 0n) {
+		toFee.addTokens({ tokenId: d.params.rewardId, amount: o.campaign.budget });
+	}
 	return new TransactionBuilder(o.height)
 		.from([o.campaign.box, ...o.inputs])
 		.configureSelector((s) => s.ensureInclusion(o.campaign.box.boxId))
-		.to(
-			new OutputBuilder(BigInt(o.campaign.box.value), d.params.feeAddress).addTokens({
-				tokenId: d.params.litId,
-				amount: o.campaign.budget
-			})
-		)
+		.to(toFee)
 		.burnTokens([
 			{ tokenId: d.campaignNftId, amount: 1n },
 			{ tokenId: d.markerId, amount: o.campaign.markersLeft }

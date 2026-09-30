@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { compileCampaign, compilePosition } from './compile.ts';
-import type { CampaignParams } from './params.ts';
+import { CAMPAIGN_RESERVE, type CampaignParams, POSITION_DEPOSIT } from './params.ts';
 
 const params: CampaignParams = {
 	network: 'testnet',
-	litId: 'c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7',
+	stakeId: 'c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7',
+	rewardId: 'c1980d829988229516430a47a5eca376060b6ce859616db0936e78ab25cb6de7',
 	feeAddress: '3WxwwSHMbvtFfZBbve1ScBsg3J18dx55tQht3AGraHxP6FX7FzcW',
 	start: 100,
 	end: 1_000,
@@ -14,7 +15,9 @@ const params: CampaignParams = {
 		{ blocks: 21_600, boostBps: 10_000, label: '30d' },
 		{ blocks: 262_800, boostBps: 20_000, label: '1y' }
 	],
-	minLock: 1_000_000_000n
+	minLock: 1_000_000_000n,
+	deposit: POSITION_DEPOSIT,
+	reserve: CAMPAIGN_RESERVE
 };
 
 describe('compile', () => {
@@ -30,6 +33,8 @@ describe('compile', () => {
 		const a = compileCampaign(params, position);
 		expect(compileCampaign({ ...params, end: 1_001 }, position)).not.toBe(a);
 		expect(compileCampaign({ ...params, minLock: 2n }, position)).not.toBe(a);
+		expect(compileCampaign({ ...params, rewardId: null }, position)).not.toBe(a);
+		expect(compileCampaign({ ...params, stakeId: null }, position)).not.toBe(a);
 		expect(
 			compileCampaign({ ...params, tiers: [{ blocks: 21_600, boostBps: 10_001, label: '30d' }] }, position)
 		).not.toBe(a);
