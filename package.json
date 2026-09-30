@@ -29,6 +29,7 @@
 		"svelte": "^4.0.0"
 	},
 	"devDependencies": {
+		"@fleet-sdk/mock-chain": "0.10.0",
 		"@sveltejs/adapter-auto": "^2.1.1",
 		"@sveltejs/adapter-static": "^2.0.3",
 		"@sveltejs/kit": "^1.20.4",
@@ -36,6 +37,7 @@
 		"@typescript-eslint/eslint-plugin": "^6.21.0",
 		"@typescript-eslint/parser": "^6.21.0",
 		"autoprefixer": "^10.4.21",
+		"ergo-lib-wasm-nodejs": "0.28.0",
 		"eslint": "^8.28.0",
 		"eslint-config-prettier": "^8.5.0",
 		"eslint-plugin-svelte": "^2.30.0",
