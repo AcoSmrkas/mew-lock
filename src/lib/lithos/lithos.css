@@ -853,6 +853,16 @@
 .ll-resume {
 	border-color: rgba(245, 158, 11, 0.4);
 }
+.ll-checklist {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	margin: 0;
+	padding-left: 1.25rem;
+	color: var(--ml-muted);
+	font-size: 0.9rem;
+	line-height: 1.55;
+}
 .ll-form label {
 	display: flex;
 	flex-direction: column;

@@ -63,6 +63,10 @@
 	let net: NetworkConfig | null = null;
 	$: d = net?.deployment ?? null;
 	$: testnet = net?.network === 'testnet';
+	// A retired campaign (`?campaign=<slug>`) only lets its lockers finish: no new locks or top-ups.
+	$: retired = !!d?.retired;
+	// From the current campaign's page, the way to earlier campaigns that still hold locks.
+	$: earlier = net && !retired ? net.retired : [];
 	// What is locked (A) and what is paid (B); either may be ERG, and they may be the same.
 	$: A = d?.assets.stake ?? { ticker: 'LIT', decimals: 9 };
 	$: B = d?.assets.reward ?? { ticker: 'LIT', decimals: 9 };
@@ -452,6 +456,8 @@
 					<span class="ll-dot" aria-hidden="true" />
 					{#if swept}
 						Campaign ended, leftover swept
+					{:else if retired}
+						Closed to new locks · unlocks still work
 					{:else if notStarted}
 						Locks open at block #{d.params.start.toLocaleString('en-US')}
 					{:else if open}
@@ -476,6 +482,9 @@
 			{#if !testnet}
 				<a class="ll-btn ll-btn-secondary" href="/lithos?network=testnet">Try it on testnet</a>
 			{/if}
+			{#each earlier as e (e.campaignNftId)}
+				<a class="ll-card-link" href="/lithos?campaign={e.slug}">Locked LIT in “{e.label}”? Finish those locks here →</a>
+			{/each}
 		</section>
 	{:else}
 		{#if loadError}
@@ -485,11 +494,19 @@
 			</div>
 		{/if}
 		{#if d.note}
-			<div class="ll-callout ll-callout-info" role="note">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.info} /></svg>
+			<div class="ll-callout" class:ll-callout-info={!retired} class:ll-callout-warning={retired} role="note">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={retired ? ICON.alert : ICON.info} /></svg>
 				<p>{d.note}</p>
+				{#if retired}<a class="ll-callout-action" href="/lithos">Go to the current campaign</a>{/if}
 			</div>
 		{/if}
+		{#each earlier as e (e.campaignNftId)}
+			<div class="ll-callout ll-callout-info" role="note">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.info} /></svg>
+				<p>Locked LIT in “{e.label}”? Those locks live on their own page.</p>
+				<a class="ll-callout-action" href="/lithos?campaign={e.slug}">Finish your test locks</a>
+			</div>
+		{/each}
 
 		{#if testnet}
 			<section class="ll-card ll-testwallet" aria-label="Test wallet">
@@ -578,6 +595,16 @@
 		</section>
 
 		<section class="ll-main">
+			{#if retired}
+				<div class="ll-card ll-lock ll-soon">
+					<h2>Closed to new locks</h2>
+					<p class="ll-card-text">
+						This campaign only lets its lockers finish. Your locks are listed here; each unlocks with its
+						reward once its block is reached.
+					</p>
+					<a class="ll-btn ll-btn-primary" href="/lithos">Lock {A.ticker} in the current campaign</a>
+				</div>
+			{:else}
 			<form class="ll-card ll-lock" on:submit|preventDefault={lock}>
 				<div class="ll-card-head">
 					<h2>Lock {A.ticker}</h2>
@@ -685,6 +712,7 @@
 					{busy === 'lock' ? 'Waiting for the wallet…' : lockBlocker || `Lock ${A.ticker}`}
 				</button>
 			</form>
+			{/if}
 
 			<section class="ll-card ll-positions-card" aria-labelledby="mine-title">
 				<div class="ll-card-head">
@@ -853,6 +881,7 @@
 		</section>
 
 		<section class="ll-actions" aria-label="Reward pool">
+			{#if !retired}
 			<form class="ll-card ll-action-card" on:submit|preventDefault={topUp}>
 				<h2>Add to the reward pool</h2>
 				<p class="ll-card-text">
@@ -877,6 +906,7 @@
 					{busy === 'topup' ? 'Waiting for the wallet…' : 'Add to pool'}
 				</button>
 			</form>
+			{/if}
 			<div class="ll-card ll-action-card">
 				<h2>Close the campaign</h2>
 				<p class="ll-card-text">

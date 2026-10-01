@@ -5,23 +5,25 @@
 	// your choice, baked in), and create the campaign box. Three signatures, no
 	// keys anywhere else. The compiler (several MB) only loads here.
 	import { onMount } from 'svelte';
-	import type { Box } from '@fleet-sdk/common';
-	import type { ErgoUnsignedTransaction } from '@fleet-sdk/core';
+	import { AddressType, type Box } from '@fleet-sdk/common';
+	import { ErgoAddress, type ErgoUnsignedTransaction } from '@fleet-sdk/core';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import { connected_wallet_address } from '$lib/store/store.ts';
-	import { pickNetwork, type NetworkConfig } from '$lib/lithos/network.ts';
+	import { leftoverClash, pickNetwork, type NetworkConfig } from '$lib/lithos/network.ts';
+	import { DEV_PK } from '$lib/common/const.ts';
 	import { getHeight, getJson, normalizeBox, tokenTotal } from '$lib/lithos/api.ts';
 	import { buildCampaignCreateTx, buildMintTx } from '$lib/lithos/txs.ts';
 	import { initialVirtualWeight } from '$lib/lithos/math.ts';
 	import {
 		CAMPAIGN_RESERVE,
 		CAMPAIGN_VERSION,
+		fleetNetwork,
 		POSITION_DEPOSIT,
 		type CampaignParams,
 		type Tier
 	} from '$lib/lithos/params.ts';
 	import { type LithosDeployment, pinParams } from '$lib/lithos/deployment.ts';
-	import { fmtAmount, parseAmount } from '$lib/lithos/format.ts';
+	import { fmtAmount, fmtBlocks, parseAmount } from '$lib/lithos/format.ts';
 	import { loadTestWallet, signLocally, submitSigned, testBoxes, type TestWallet } from '$lib/lithos/testWallet.ts';
 	import { describeError, usingErgoPay } from '$lib/lithos/wallet.ts';
 
@@ -35,20 +37,23 @@
 	let testWallet: TestWallet | null = null;
 	$: signer = testWallet?.address ?? $connected_wallet_address;
 
-	// Defaults: the short mainnet test campaign agreed on 2026-09-30.
-	let label = 'Lithos Lock, mainnet test';
-	let note = 'Mainnet test campaign: short locks and a small budget, run by the Mew team. Locks are real LIT.';
+	// Mainnet defaults: the launch campaign. Tiers are the agreed 30/90/180/365
+	// days at 1.0/1.25/1.5/2.0x (720 blocks a day); how long locks stay open and
+	// the budget are left empty on purpose, so they are chosen, not inherited.
+	let label = 'Lithos Lock';
+	let note = '';
 	let stakeId = LIT_MAINNET;
 	let rewardId = LIT_MAINNET;
 	let ticker = 'LIT';
 	let decimals = 9;
-	let tiersText = '10:1.0, 30:1.25, 60:1.5, 120:2.0';
-	let openBlocks = 2_160;
-	let grace = 30;
-	let budgetInput = '1000';
+	let tiersText = '21600:1.0, 64800:1.25, 129600:1.5, 262800:2.0';
+	let openBlocks = 0;
+	let grace = 720;
+	let budgetInput = '';
 	let minLockInput = '1';
 	let baseAprPct = 50;
-	let leftoverTo = '';
+	// The Mew dev fee wallet (DEV_PK, also paid by MewLock, lending and delegation).
+	let leftoverTo = DEV_PK;
 
 	let log: string[] = [];
 	let busy = false;
@@ -96,7 +101,12 @@
 			if (t) stakeId = rewardId = t;
 			ticker = 'tLIT';
 			label = 'Lithos Lock, testnet deploy rehearsal';
-			note = 'Testnet rehearsal of the mainnet test campaign.';
+			note = 'Testnet rehearsal of a Lithos Lock campaign.';
+			tiersText = '10:1.0, 30:1.25, 60:1.5, 120:2.0';
+			openBlocks = 2_160;
+			grace = 30;
+			budgetInput = '1000';
+			leftoverTo = '';
 		}
 		try {
 			const saved = localStorage.getItem('lithos_last_deploy');
@@ -108,7 +118,9 @@
 		}
 	});
 
-	$: tiers = parseTiers(tiersText);
+	$: tiers = parseTiers(tiersText, net?.network === 'mainnet');
+	$: mainnet = net?.network === 'mainnet';
+	$: leftoverProblem = checkLeftover(leftoverTo, net);
 	$: budget = parseAmount(budgetInput, decimals);
 	$: minLock = parseAmount(minLockInput, decimals);
 	$: problem = !net
@@ -123,20 +135,44 @@
 		? 'Enter a budget'
 		: !minLock || minLock <= 0n
 		? 'Enter a minimum lock'
-		: openBlocks < 10 || grace < 0
-		? 'Check the timing'
+		: !openBlocks || openBlocks < 10
+		? 'Choose how long locks stay open'
+		: grace < 0
+		? 'Check the grace period'
+		: leftoverProblem
+		? leftoverProblem
 		: '';
 	$: stepsDone = progress ? (progress.createTxId ? 3 : progress.nftTxId ? 2 : progress.markerTxId ? 1 : 0) : 0;
 
-	function parseTiers(text: string): Tier[] | null {
+	function parseTiers(text: string, days: boolean): Tier[] | null {
 		const tiers: Tier[] = [];
 		for (const part of text.split(',').map((p) => p.trim()).filter(Boolean)) {
 			const m = /^(\d+)\s*:\s*(\d+(?:\.\d+)?)$/.exec(part);
 			if (!m) return null;
 			const blocks = Number(m[1]);
-			tiers.push({ blocks, boostBps: Math.round(Number(m[2]) * 10_000), label: `${blocks} blocks` });
+			// Mainnet labels whole days (720 blocks); anything else is labelled in blocks.
+			const label = days && blocks % 720 === 0 ? `${blocks / 720} days` : `${blocks} blocks`;
+			tiers.push({ blocks, boostBps: Math.round(Number(m[2]) * 10_000), label });
 		}
 		return tiers.length ? tiers : null;
+	}
+
+	/** Why the leftover address cannot be used, or ''. Empty means the signer's wallet (testnet only). */
+	function checkLeftover(text: string, net: NetworkConfig | null): string {
+		const address = text.trim();
+		if (!net) return '';
+		if (!address) return net.network === 'mainnet' ? 'Enter the leftover address' : '';
+		let parsed: ErgoAddress;
+		try {
+			parsed = ErgoAddress.fromBase58(address);
+		} catch {
+			return 'The leftover address is not a valid address';
+		}
+		if (parsed.network !== fleetNetwork(net.network)) return 'The leftover address is on the wrong network';
+		if (parsed.type !== AddressType.P2PK) return 'The leftover address must be a wallet, not a contract';
+		const clash = leftoverClash(net, address);
+		if (clash) return `The ${clash.label} already pays that address: use another one until it is swept`;
+		return '';
 	}
 
 	const say = (line: string) => (log = [...log, line]);
@@ -204,6 +240,8 @@
 			const network = net.network;
 			const change = testWallet ? testWallet.address : await ergo().get_change_address();
 			const leftover = leftoverTo.trim() || change;
+			const clash = leftoverClash(net, leftover);
+			if (clash) throw new Error(`the ${clash.label} already pays ${leftover}; choose another leftover address`);
 			utxos = await walletUtxos();
 			const have = rewardId ? tokenTotal(utxos, rewardId) : 0n;
 			if (rewardId && have < budget) throw new Error(`The wallet holds ${fmtAmount(have, decimals)} ${ticker}, less than the budget.`);
@@ -389,6 +427,34 @@
 			</section>
 		{/if}
 
+		{#if mainnet}
+			<section class="ll-card ll-form-card">
+				<h2>Before you start</h2>
+				<ol class="ll-checklist">
+					<li>
+						Use Nautilus on mainnet with the whole budget in LIT plus about 0.05 ERG. Keep this tab open
+						for the three signatures (a few minutes); if it reloads, press Resume.
+					</li>
+					<li>
+						Leftover: the Mew dev fee wallet is filled in. Never use the wallet that funded the test
+						campaign while that campaign is unswept: the two could be swept together and pay it once.
+					</li>
+					<li>
+						Choose how long locks stay open (720 blocks ≈ 1 day), the budget, and the starting base APR:
+						at 50%, one lock of as much LIT as the whole budget, for a year at 2×, takes half of it.
+					</li>
+					<li>
+						Everything is permanent once deployed. A mistake means a new campaign, so read the form
+						twice.
+					</li>
+					<li>
+						At the end, copy the deployment JSON and send it to the Mew devs. The campaign shows on
+						lock.mewfinance.com/lithos once they have checked it and published it.
+					</li>
+				</ol>
+			</section>
+		{/if}
+
 		<form class="ll-card ll-form-card ll-form" on:submit|preventDefault={deploy}>
 			<h2>Campaign</h2>
 			<label>Label <input bind:value={label} /></label>
@@ -403,7 +469,10 @@
 			</div>
 			<label>Tiers, blocks:multiplier <input bind:value={tiersText} /></label>
 			<div class="ll-form-row">
-				<label>Locks open for (blocks) <input type="number" bind:value={openBlocks} /></label>
+				<label
+					>Locks open for (blocks{openBlocks > 0 && net ? `, ${fmtBlocks(openBlocks, net.blockSeconds)}` : ''})
+					<input type="number" bind:value={openBlocks} /></label
+				>
 				<label>Grace before sweep (blocks) <input type="number" bind:value={grace} /></label>
 			</div>
 			<div class="ll-form-row">
@@ -412,7 +481,7 @@
 				<label>Starting base APR (%) <input type="number" bind:value={baseAprPct} /></label>
 			</div>
 			<label>
-				Leftover goes to (empty = your wallet)
+				Leftover goes to{mainnet ? ' (a wallet address)' : ' (empty = your wallet)'}
 				<input class="ll-mono" bind:value={leftoverTo} placeholder={signer || 'your wallet address'} />
 			</label>
 			<button

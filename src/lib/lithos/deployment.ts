@@ -22,6 +22,10 @@ export type LithosDeployment = {
 	label: string;
 	/** Shown as a banner on the page (e.g. for a test campaign). */
 	note?: string;
+	/** A campaign kept only so its lockers can finish: `/lithos?campaign=<slug>` shows it. */
+	slug?: string;
+	/** The page offers no new locks or top-ups; unlocks and the sweep still work. */
+	retired?: boolean;
 	params: {
 		stakeId: AssetId;
 		rewardId: AssetId;

@@ -6,7 +6,8 @@
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
 	import { connected_wallet_address, connected_wallet_addresses } from '$lib/store/store.ts';
 	import { showCustomToast } from '$lib/utils/utils.js';
-	import { networkConfig } from '$lib/lithos/network.ts';
+	import { campaignsOf, networkConfig } from '$lib/lithos/network.ts';
+	import type { LithosDeployment } from '$lib/lithos/deployment.ts';
 	import { getHeight, getPositions } from '$lib/lithos/api.ts';
 	import type { PositionState } from '$lib/lithos/boxes.ts';
 	import { BLOCKS_PER_YEAR } from '$lib/lithos/math.ts';
@@ -23,7 +24,11 @@
 	import { positionsOwnedBy, walletOwnerAddresses } from '$lib/lithos/ownership.ts';
 
 	const net = networkConfig('mainnet');
-	const deployment = net.deployment;
+	// The current campaign and any retired one that still holds locks.
+	const campaigns = campaignsOf(net);
+	const deployment = campaigns[0] ?? null;
+	// Which campaign each position belongs to (its unlock burns that campaign's marker).
+	let campaignOf = new Map<string, LithosDeployment>();
 	let height = 0;
 	let positions: PositionState[] = [];
 	let loading = true;
@@ -58,15 +63,19 @@
 	onDestroy(() => timer && clearInterval(timer));
 
 	async function refresh() {
-		if (!deployment) {
+		if (!campaigns.length) {
 			error = 'The Lithos event is not configured.';
 			loading = false;
 			return;
 		}
 		try {
-			const [nextHeight, list] = await Promise.all([getHeight(net), getPositions(net, deployment)]);
+			const [nextHeight, lists] = await Promise.all([
+				getHeight(net),
+				Promise.all(campaigns.map((d) => getPositions(net, d)))
+			]);
 			height = nextHeight;
-			positions = list;
+			campaignOf = new Map(lists.flatMap((list, i) => list.map((p): [string, LithosDeployment] => [p.box.boxId, campaigns[i]])));
+			positions = lists.flat();
 			error = '';
 		} catch (cause) {
 			console.error('Unable to load Lithos positions:', cause);
@@ -80,8 +89,9 @@
 		return Math.max(0, position.unlockAt - height);
 	}
 	function apr(position: PositionState) {
-		if (!deployment || deployment.params.stakeId !== deployment.params.rewardId) return null;
-		const tier = deployment.params.tiers[position.tier];
+		const d = campaignOf.get(position.box.boxId);
+		if (!d || d.params.stakeId !== d.params.rewardId) return null;
+		const tier = d.params.tiers[position.tier];
 		if (!tier || position.principal <= 0n) return null;
 		return fmtApr(
 			Number(
@@ -92,6 +102,7 @@
 	}
 
 	async function unlock(position: PositionState) {
+		const deployment = campaignOf.get(position.box.boxId);
 		if (!deployment || busy) return;
 		busy = position.box.boxId;
 		try {
@@ -204,8 +215,9 @@
 						<div class="ll-lock-card-head">
 							<div>
 								<p class="ll-lock-card-label">
-									{asset.ticker} lock · {deployment?.params.tiers[position.tier]?.label ??
-										`tier ${position.tier + 1}`}
+									{asset.ticker} lock · {campaignOf.get(position.box.boxId)?.params.tiers[position.tier]
+										?.label ?? `tier ${position.tier + 1}`}
+									{#if campaignOf.get(position.box.boxId)?.retired}<span class="ll-pill">Test campaign</span>{/if}
 								</p>
 								<h2>{fmtAmount(position.principal, asset.decimals)} {asset.ticker}</h2>
 							</div>

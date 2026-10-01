@@ -13,7 +13,7 @@
 	import TokenSummaryCard from '$lib/components/common/TokenSummaryCard.svelte';
 	import Navigation from '$lib/components/common/Navigation.svelte';
 	import ErgopayModal from '$lib/components/common/ErgopayModal.svelte';
-	import { networkConfig } from '$lib/lithos/network.ts';
+	import { campaignsOf, networkConfig } from '$lib/lithos/network.ts';
 	import { getHeight, getPositions } from '$lib/lithos/api.ts';
 	import { fmtAmount, fmtBlocks } from '$lib/lithos/format.ts';
 	import type { PositionState } from '$lib/lithos/boxes.ts';
@@ -32,7 +32,9 @@
 	let lithosLoading = false;
 	let lithosError = false;
 	const lithosNetwork = networkConfig('mainnet');
-	const lithosDeployment = lithosNetwork.deployment;
+	// The current Lithos campaign and any retired one that still holds locks.
+	const lithosCampaigns = campaignsOf(lithosNetwork);
+	const lithosDeployment = lithosCampaigns[0] ?? null;
 
 	// Stats
 	let totalValueLocked = 0;
@@ -74,7 +76,7 @@
 	}
 
 	async function loadLithosPositions() {
-		if (!lithosDeployment || !$connected_wallet_address) {
+		if (!lithosCampaigns.length || !$connected_wallet_address) {
 			lithosPositions = [];
 			lithosError = false;
 			return;
@@ -83,10 +85,11 @@
 		lithosLoading = true;
 		lithosError = false;
 		try {
-			const [height, positions] = await Promise.all([
+			const [height, lists] = await Promise.all([
 				getHeight(lithosNetwork),
-				getPositions(lithosNetwork, lithosDeployment)
+				Promise.all(lithosCampaigns.map((d) => getPositions(lithosNetwork, d)))
 			]);
+			const positions = lists.flat();
 			if ($connected_wallet_address !== addressAtStart) return;
 			lithosHeight = height;
 			const ownerAddresses = await walletOwnerAddresses([

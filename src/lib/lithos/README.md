@@ -230,11 +230,39 @@ to a 403.
 fails unless the trees match byte for byte, so a pinned file can never point
 the page at a contract this source does not describe.
 
-### Mainnet test campaign, 2026-09-30: live
+### Campaign slots
+
+`deployments/mainnet.json` is the campaign `/lithos` offers (empty = "Opens
+soon"). Earlier campaigns that still hold locks are **retired**: their file
+carries `"slug"` and `"retired": true` and is listed in `network.ts`
+(`retired`). `/lithos?campaign=<slug>` shows one with no lock form and no
+top-up, only its locks, Unlock and Sweep; `/lithos` links to it. The
+dashboard (`/lithos-locks`) and My Locks list positions from every campaign
+and unlock each against its own deployment. The mainnet test is retired at
+`/lithos?campaign=test` (`mainnet-test.json`).
+
+### Launching the main campaign (v3)
+
+1. Whoever funds it opens `lock.mewfinance.com/lithos-deploy` with Nautilus
+   on mainnet, holding the whole budget in LIT plus about 0.05 ERG. The form
+   starts with the agreed tiers (30/90/180/365 days at 1.0/1.25/1.5/2.0x) and
+   the Mew dev fee wallet (`DEV_PK`) as the leftover address. They choose how
+   long locks stay open (720 blocks ≈ 1 day), the budget, the starting base
+   APR and the minimum lock, sign three times and copy the deployment JSON.
+   The page refuses a leftover address that the v2 test campaign pays (audit
+   V3-1) and any address that is not a wallet.
+2. Save the JSON as `deployments/mainnet.json`, then
+   `npx vite-node scripts/lithos/verify-deployment.ts src/lib/lithos/deployments/mainnet.json`
+   and `npx vitest run src/lib/lithos/` (the recompile test covers it).
+   Commit, push, build and deploy the site.
+3. Sweep the test campaign after block #1,886,712.
+
+### Mainnet test campaign, 2026-09-30: retired
 
 HQ deployed it from `/lithos-deploy` with Nautilus, so the three setup
 signatures (markers, NFT, campaign box) are the first real-Nautilus ones.
-Pinned in `deployments/mainnet.json` and shown at `lock.mewfinance.com/lithos`.
+Pinned in `deployments/mainnet-test.json`, retired at
+`lock.mewfinance.com/lithos?campaign=test` once v3 launched.
 
 | | |
 |---|---|
