@@ -500,13 +500,6 @@
 				{#if retired}<a class="ll-callout-action" href="/lithos">Go to the current campaign</a>{/if}
 			</div>
 		{/if}
-		{#each earlier as e (e.campaignNftId)}
-			<div class="ll-callout ll-callout-info" role="note">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.info} /></svg>
-				<p>Locked LIT in “{e.label}”? Those locks live on their own page.</p>
-				<a class="ll-callout-action" href="/lithos?campaign={e.slug}">Finish your test locks</a>
-			</div>
-		{/each}
 
 		{#if testnet}
 			<section class="ll-card ll-testwallet" aria-label="Test wallet">
