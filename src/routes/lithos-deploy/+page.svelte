@@ -195,11 +195,14 @@
 	async function waitConfirmed(txId: string): Promise<number> {
 		for (let i = 0; i < 180; i++) {
 			try {
-				const tx = await getJson(`${net!.explorerApi}/transactions/${txId}`);
-				return Number(tx.inclusionHeight);
+				// A source that has not indexed the block yet can answer without a height;
+				// only a real one means confirmed (an early answer pinned genesisHeight: null).
+				const height = Number((await getJson(`${net!.explorerApi}/transactions/${txId}`)).inclusionHeight);
+				if (Number.isInteger(height) && height > 0) return height;
 			} catch {
-				await new Promise((r) => setTimeout(r, 10_000));
+				// not found yet
 			}
+			await new Promise((r) => setTimeout(r, 10_000));
 		}
 		throw new Error(`${txId} was not confirmed within 30 minutes`);
 	}

@@ -257,6 +257,28 @@ and unlock each against its own deployment. The mainnet test is retired at
    Commit, push, build and deploy the site.
 3. Sweep the test campaign after block #1,886,712.
 
+### Season 1, 2026-10-01: live (contract v3)
+
+HQ deployed it with Nautilus and funded it; pinned in `deployments/mainnet.json`
+after `verify-deployment.ts` passed.
+
+| | |
+|---|---|
+| Locks / pays | LIT / LIT, 30 / 90 / 180 / 365 days at 1.0 / 1.25 / 1.5 / 2.0x |
+| Open | #1,885,314 to #2,014,914 (about 6 months); sweep after #2,015,634 |
+| Budget | 10,000 LIT, base APR 50%, minimum lock 100 LIT |
+| Leftover | `9hpu8DGHQSE4Myea9DkimHpWBvBu8AMwLBSuNcuS4HNBE2TAQno` (the funding wallet, HQ's choice; not the v2 test's address, so no V3-1 pairing) |
+| Genesis | `6f72f459…1a8973` at #1,885,315 |
+| NFT / marker | `3656912b…a6bff5` / `92b9c627…413d87` (1e9, all in the campaign box) |
+
+The first attempt failed at the markers mint with "Every input of the
+transaction should be in UTXO" while Nautilus used sigmaspace's GraphQL; it
+went through after switching Nautilus to gql.ergoplatform.com. Afterwards
+sigmaspace checked clean (height, unspent boxes, 20/20 `checkTransaction`
+probes), so the cause stayed unproven: a stale box or a passing backend fault.
+The deploy page also pinned `genesisHeight: null` because an early explorer
+answer had no height; it now waits for a real one.
+
 ### Mainnet test campaign, 2026-09-30: retired
 
 HQ deployed it from `/lithos-deploy` with Nautilus, so the three setup
