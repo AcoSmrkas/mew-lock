@@ -101,7 +101,7 @@ function chunkPairs(pairs) {
 
 /**
  * The logged price batch the endpoint snapped `timestamp` to. It takes the closest
- * logged timestamp in its table, so the closest one in its reply is the same batch.
+ * logged timestamp it holds, so the closest one in its reply is the same batch.
  */
 function nearestLogged(logged, timestamp) {
     let best;
