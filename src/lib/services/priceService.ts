@@ -23,7 +23,7 @@ class PriceService {
 	
 	private lastUpdate = 0;
 	private updateInterval = 5 * 60 * 1000; // 5 minutes
-	private isUpdating = false;
+	private updating: Promise<void> | null = null;
 
 	async getErgPrice(): Promise<number> {
 		await this.updatePrices();
@@ -40,15 +40,21 @@ class PriceService {
 		return this.priceData;
 	}
 
-	private async updatePrices(): Promise<void> {
-		const now = Date.now();
-		
+	private updatePrices(): Promise<void> {
 		// Check if we need to update
-		if (now - this.lastUpdate < this.updateInterval || this.isUpdating) {
-			return;
+		if (Date.now() - this.lastUpdate < this.updateInterval) {
+			return Promise.resolve();
 		}
 
-		this.isUpdating = true;
+		// Callers during an update wait for it, instead of reading zero prices.
+		this.updating ??= this.fetchPrices().finally(() => {
+			this.updating = null;
+		});
+		return this.updating;
+	}
+
+	private async fetchPrices(): Promise<void> {
+		const now = Date.now();
 
 		try {
 			// Fetch ERG price from CoinGecko
@@ -60,8 +66,6 @@ class PriceService {
 			this.lastUpdate = now;
 		} catch (error) {
 			console.error('Error updating prices:', error);
-		} finally {
-			this.isUpdating = false;
 		}
 	}
 

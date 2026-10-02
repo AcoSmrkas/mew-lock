@@ -43,40 +43,32 @@
 
 	// Price data
 	let totalUsdValue = 0;
+	let boxUsdValues: Record<string, number> = {}; // boxId -> USD value
+
+	// Price performance by boxId, computed once per lock list with one batched price
+	// lookup. The cards used to {#await} their own lookup, which every re-render sent
+	// again: on 2026-10-02 one visitor's /locks sent ~350 getTokenPriceAt calls in 10
+	// minutes and took api.ergexplorer.com down.
+	let lockPerformance: Record<string, any> = {};
 
 import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	onMount(async () => {
 		await getCurrentBlockHeight();
 		await loadMewLockBoxes();
-		await calculateUsdValues();
+		await Promise.all([calculateUsdValues(), loadLockPerformance()]);
 	});
 
 	async function calculateUsdValues() {
 		try {
-			let total = 0;
-			
+			await priceService.getAllPrices(); // the ERG value below reads the loaded price
+			const values: Record<string, number> = {};
 			for (const box of mewLockBoxes) {
-				// Calculate ERG value
-				const ergAmount = box.value / 1e9;
-				const ergUsdValue = priceService.calculateUsdValue(ergAmount);
-				total += ergUsdValue;
-				
-				// Calculate token values
-				if (box.assets) {
-					for (const asset of box.assets) {
-						const tokenPrice = await priceService.getTokenPrice(asset.tokenId);
-						if (tokenPrice) {
-							const decimals = asset.decimals || 0;
-							const tokenAmount = asset.amount / Math.pow(10, decimals);
-							const tokenUsdValue = tokenAmount * tokenPrice.usdPrice;
-							total += tokenUsdValue;
-						}
-					}
-				}
+				values[box.boxId] = await calculateBoxUsdValue(box);
 			}
-			
-			totalUsdValue = total;
+
+			boxUsdValues = values;
+			totalUsdValue = Object.values(values).reduce((sum, value) => sum + value, 0);
 		} catch (error) {
 			console.error('Error calculating USD values:', error);
 		}
@@ -147,35 +139,23 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 		return 0;
 	}
 
-	async function calculateLockPerformance(lockBox) {
+	async function loadLockPerformance() {
 		try {
-			console.log('🔍 Calculating performance for lock:', lockBox.boxId);
-			console.log('📦 Lock box data:', lockBox);
-			console.log('📅 R6 register (timestamp):', lockBox.additionalRegisters?.R6);
-			
-			const currentErgPrice = await priceService.getErgPrice();
 			const allPrices = await priceService.getAllPrices();
-			
-			console.log('💰 Current ERG price:', currentErgPrice);
-			
+
 			// Prepare current prices in the format expected by the service
 			const currentPrices = {
-				ergUsd: currentErgPrice,
-				tokens: {}
+				ergUsd: allPrices.erg.usd,
+				tokens: Object.fromEntries(allPrices.tokens)
 			};
-			
-			// Add current token prices
-			allPrices.tokens.forEach((tokenPrice, tokenId) => {
-				currentPrices.tokens[tokenId] = tokenPrice;
-			});
-			
-			const result = await pricePerformanceService.calculateLockPerformance(lockBox, currentPrices);
-			console.log('📊 Performance result:', result);
-			
-			return result;
+
+			const results = await pricePerformanceService.calculateLocksPerformance(mewLockBoxes, currentPrices);
+			lockPerformance = Object.fromEntries(results);
 		} catch (error) {
 			console.error('❌ Error calculating lock performance:', error);
-			return { error: 'Performance data unavailable' };
+			lockPerformance = Object.fromEntries(
+				mewLockBoxes.map((box) => [box.boxId, { error: 'Performance data unavailable' }])
+			);
 		}
 	}
 
@@ -938,6 +918,8 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 					</h2>
 					<div class="locks-grid">
 						{#each sortedErgOnlyLocks as lockBox (lockBox.boxId)}
+							{@const performance = lockPerformance[lockBox.boxId]}
+							{@const usdValue = boxUsdValues[lockBox.boxId] ?? 0}
 							<div
 								class="compact-lock-card"
 								class:ready={lockBox.canWithdraw}
@@ -973,26 +955,24 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 										<div class="token-info">
 											<div class="token-amount-with-perf">
 												<span class="amount-text">{nFormatter(lockBox.value / 1e9)} ERG</span>
-												{#await calculateLockPerformance(lockBox) then performance}
-													{#if performance && !performance.error && performance.overallPerformance}
-														<div class="inline-performance">
-															{#if performance.overallPerformance.priceChangePercent >= 0}
-																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
-																	<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
-																</svg>
-															{:else}
-																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
-																	<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
-																</svg>
-															{/if}
-															<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
-																{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
-															</span>
-														</div>
-													{/if}
-												{/await}
+												{#if performance && !performance.error && performance.overallPerformance}
+													<div class="inline-performance">
+														{#if performance.overallPerformance.priceChangePercent >= 0}
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
+																<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
+															</svg>
+														{:else}
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
+																<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
+															</svg>
+														{/if}
+														<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
+															{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
+														</span>
+													</div>
+												{/if}
 											</div>
-											{#await Promise.all([calculateBoxUsdValue(lockBox), calculateLockPerformance(lockBox)]) then [usdValue, performance]}
+											{#if performance}
 												{#if usdValue > 0 && performance && !performance.error && performance.overallPerformance}
 													<div class="price-comparison">
 														L: ${performance.overallPerformance.historicalValue.toFixed(2)} | C: ${performance.overallPerformance.currentValue.toFixed(2)}
@@ -1000,7 +980,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 												{:else if usdValue > 0}
 													<div class="token-usd">{priceService.formatUsd(usdValue)}</div>
 												{/if}
-											{/await}
+											{/if}
 										</div>
 									</div>
 								</div>
@@ -1034,6 +1014,8 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 					</h2>
 					<div class="locks-grid">
 						{#each sortedErgTokenLocks as lockBox (lockBox.boxId)}
+							{@const performance = lockPerformance[lockBox.boxId]}
+							{@const usdValue = boxUsdValues[lockBox.boxId] ?? 0}
 							<div
 								class="compact-lock-card multi-token"
 								class:ready={lockBox.canWithdraw}
@@ -1070,28 +1052,26 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 										<div class="token-info">
 											<div class="token-amount-with-perf">
 												<span class="amount-text">{nFormatter(lockBox.value / 1e9)} ERG</span>
-												{#await calculateLockPerformance(lockBox) then performance}
-													{#if performance && !performance.error && performance.overallPerformance}
-														<div class="inline-performance">
-															{#if performance.overallPerformance.priceChangePercent >= 0}
-																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
-																	<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
-																</svg>
-															{:else}
-																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
-																	<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
-																</svg>
-															{/if}
-															<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
-																{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
-															</span>
-														</div>
-													{/if}
-												{/await}
+												{#if performance && !performance.error && performance.overallPerformance}
+													<div class="inline-performance">
+														{#if performance.overallPerformance.priceChangePercent >= 0}
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-up">
+																<path d="M7 14L12 9L17 14H7Z" fill="#22c55e"/>
+															</svg>
+														{:else}
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="arrow-down">
+																<path d="M7 10L12 15L17 10H7Z" fill="#ef4444"/>
+															</svg>
+														{/if}
+														<span class="perf-percent" class:positive={performance.overallPerformance.priceChangePercent >= 0} class:negative={performance.overallPerformance.priceChangePercent < 0}>
+															{pricePerformanceService.formatPriceChange(performance.overallPerformance.priceChangePercent)}
+														</span>
+													</div>
+												{/if}
 											</div>
 											
 											<!-- Total USD Value -->
-											{#await Promise.all([calculateBoxUsdValue(lockBox), calculateLockPerformance(lockBox)]) then [usdValue, performance]}
+											{#if performance}
 												{#if usdValue > 0 && performance && !performance.error && performance.overallPerformance}
 													<div class="price-comparison">
 														L: ${performance.overallPerformance.historicalValue.toFixed(2)} | C: ${performance.overallPerformance.currentValue.toFixed(2)}
@@ -1099,7 +1079,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 												{:else if usdValue > 0}
 													<div class="token-usd">{priceService.formatUsd(usdValue)}</div>
 												{/if}
-											{/await}
+											{/if}
 										</div>
 									</div>
 
