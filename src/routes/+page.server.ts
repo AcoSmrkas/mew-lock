@@ -5,8 +5,8 @@ const MAIN_PAGE_ITEMS_BUNDLE = 10;
 const MAIN_PAGE_ITEMS_SINGLE = 10;
 const API_HOST = 'https://api.mewfinance.com/';
 const CONTRACT_CRC32 = '3955924278';
-const OFFERS_CRC32 = '1716819484';
-const OLD_OFFERS_CRC32 = ['1834725596', '3062309557'];
+const OFFERS_CRC32 = '2893835015';
+const OLD_OFFERS_CRC32 = ['1834725596', '3062309557', '1716819484'];
 const OLD_CONTRACTS_CRC32 = ['1785495617', '1006322691'];
 
 async function fetchOrders(offset, limit, bundle = null) {
