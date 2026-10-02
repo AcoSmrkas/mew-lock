@@ -554,10 +554,15 @@ describe('sweep: two campaigns sharing a fee address (audit F-1)', () => {
 	});
 
 	it('residual (audit V3-1): v3 first + a v2 campaign second, same fee address, still leaks the v2 one', () => {
-		const c = setup();
+		const c = setup(undefined, 3);
 		const before = balanceOf(c.mallory, 'LIT');
 		expect(run(c, coSweep(c, false, 2), [c.mallory])).toBe(true);
 		expect(balanceOf(c.mallory, 'LIT') - before).toBe(SMALL_BUDGET);
+	});
+
+	it('v4 first + a v2 campaign second: v4 refuses any input that is not a wallet box', () => {
+		const c = setup();
+		expect(() => c.chain.execute(coSweep(c, false, 2), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
 	});
 
 	it('the other way round (v2 first, v3 second) the v3 campaign refuses', () => {
@@ -565,7 +570,7 @@ describe('sweep: two campaigns sharing a fee address (audit F-1)', () => {
 		expect(() => c.chain.execute(coSweep(c, false, 3), { signers: [c.mallory] })).toThrow(/Script reduced to false/);
 	});
 
-	it('v3 refuses a sweep that does not spend the campaign first', () => {
+	it('v3 and later refuse a sweep that does not spend the campaign first', () => {
 		const c = setup();
 		c.chain.jumpTo(END + GRACE);
 		const tx = buildSweepTx({
@@ -579,6 +584,31 @@ describe('sweep: two campaigns sharing a fee address (audit F-1)', () => {
 		expectOnlyTamperFails(c, tx, [c.mallory], (t) => {
 			t.inputs.push(t.inputs.shift()!);
 		});
+	});
+});
+
+describe('v4: every other input must be a wallet box', () => {
+	// Before v4 a lock or a sweep could share its transaction with another contract's
+	// box, which could then count the campaign's outputs as its own payment.
+	const withScriptInput = (version: number) => {
+		const c = setup(undefined, version);
+		const other = c.chain.addParty('0008d3', 'anyone-can-spend'); // sigmaProp(true)
+		other.addBalance({ nanoergs: 1_000_000n });
+		const box = other.utxos.toArray()[0];
+		const tx = tamper(lock(c, c.alice, 1_000n * LIT_UNIT, 3).tx, (t) => {
+			t.inputs.push({ ...box, value: box.value.toString(), assets: [], additionalRegisters: {}, extension: {} } as any);
+		});
+		return { c, tx };
+	};
+
+	it('v3 accepts a lock that also spends another contract\'s box', () => {
+		const { c, tx } = withScriptInput(3);
+		expect(run(c, tx, [c.alice])).toBe(true);
+	});
+
+	it('v4 refuses it', () => {
+		const { c, tx } = withScriptInput(4);
+		expect(() => c.chain.execute(tx, { signers: [c.alice] })).toThrow(/Script reduced to false/);
 	});
 });
 

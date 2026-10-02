@@ -36,10 +36,10 @@ export type CampaignParams = {
 };
 
 /**
- * The campaign contract new deployments get (contracts/campaign.es). v2 is the
- * deployed test contract (campaign-v2.es); v1 was LIT-only.
+ * The campaign contract new deployments get (contracts/campaign.es). v3 is Season 1
+ * (campaign-v3.es), v2 the deployed test contract (campaign-v2.es); v1 was LIT-only.
  */
-export const CAMPAIGN_VERSION = 3;
+export const CAMPAIGN_VERSION = 4;
 
 /** Extra blocks the UI adds to each lock so it stays valid while it waits for a block. */
 export const UNLOCK_BUFFER = 20;

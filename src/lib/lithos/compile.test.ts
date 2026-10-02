@@ -41,11 +41,13 @@ describe('compile', () => {
 		expect(a).toContain(position.slice(2));
 	});
 
-	it('keeps v2 (deployed) compilable, gives new campaigns v3, and refuses unknown versions', () => {
+	it('keeps v2 and v3 (deployed) compilable, gives new campaigns v4, and refuses unknown versions', () => {
 		const position = compilePosition('testnet');
-		const v3 = compileCampaign(params, position);
-		expect(compileCampaign(params, position, 3)).toBe(v3);
-		expect(compileCampaign(params, position, 2)).not.toBe(v3);
+		const v4 = compileCampaign(params, position);
+		expect(compileCampaign(params, position, 4)).toBe(v4);
+		const v3 = compileCampaign(params, position, 3);
+		const v2 = compileCampaign(params, position, 2);
+		expect(new Set([v2, v3, v4]).size).toBe(3);
 		expect(() => compileCampaign(params, position, 1)).toThrow(/v1/);
 	});
 });
