@@ -15,8 +15,12 @@ vi.mock('$lib/api-explorer/chain', () => ({
 import {
 	MEWLOCK_CONTRACT_ADDRESS,
 	MEWLOCK_LEGACY_CONTRACT_ADDRESSES,
-	createMewLockWithdrawalTx
+	STORAGE_RENT_PERIOD,
+	createMewLockDepositTx,
+	createMewLockWithdrawalTx,
+	estimateLockRentReserve
 } from './mewLockTx';
+import { estimateBoxSize } from '@fleet-sdk/serializer';
 
 const HEIGHT = 1_890_000;
 const TOKEN = 'ab'.repeat(32);
@@ -72,5 +76,33 @@ describe('createMewLockWithdrawalTx', () => {
 		for (const address of [preJune, june, MEWLOCK_CONTRACT_ADDRESS]) {
 			expect(await withdraw(address, 100_000n, 34n)).toBe(true);
 		}
+	});
+});
+
+describe('createMewLockDepositTx and storage rent', () => {
+	const deposit = (years: number) => {
+		const chain = new MockChain({ height: HEIGHT });
+		const owner = chain.newParty('owner').addBalance({ nanoergs: 10_000_000_000n, tokens: [{ tokenId: TOKEN, amount: 1_000_000n }] });
+		const unlockHeight = HEIGHT + years * 262_800;
+		const tx = createMewLockDepositTx(owner.address.encode(), owner.utxos.toArray(), HEIGHT, 1_000_000n, [{ tokenId: TOKEN, amount: 1_000_000 }], unlockHeight, 'name', null);
+		const lock = tx.outputs.find((o: any) => ErgoAddress.fromErgoTree(o.ergoTree).encode() === MEWLOCK_CONTRACT_ADDRESS);
+		const estimate = estimateLockRentReserve(HEIGHT, unlockHeight, owner.address.encode(), [{ tokenId: TOKEN, amount: 1_000_000 }], 'name', null);
+		return { lock, estimate, unlockHeight };
+	};
+
+	it('leaves a lock under 4 years as entered', () => {
+		const { lock, estimate } = deposit(1);
+		expect(BigInt(lock.value)).toBe(1_000_000n);
+		expect(estimate).toBe(0n);
+	});
+
+	it('raises a 10-year lock to the reserve, which survives every rent period before it opens', () => {
+		const { lock, estimate, unlockHeight } = deposit(10);
+		const value = BigInt(lock.value);
+		expect(value).toBe(estimate);
+		const periods = BigInt(Math.floor((unlockHeight - HEIGHT) / STORAGE_RENT_PERIOD));
+		expect(periods).toBe(2n);
+		const fee = 1_250_000n * BigInt(estimateBoxSize({ ...lock, creationHeight: unlockHeight } as any));
+		expect(value - periods * fee).toBeGreaterThanOrEqual(1_000_000n);
 	});
 });

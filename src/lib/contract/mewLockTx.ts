@@ -7,7 +7,15 @@ import {
 	TransactionBuilder,
 	ErgoUnsignedInput
 } from '@fleet-sdk/core';
-import { SGroupElement, SInt, SSigmaProp, SByte, SColl, SByte as SByteType } from '@fleet-sdk/serializer';
+import {
+	SGroupElement,
+	SInt,
+	SSigmaProp,
+	SByte,
+	SColl,
+	SByte as SByteType,
+	estimateBoxSize
+} from '@fleet-sdk/serializer';
 import { chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
 
 // MewLockV2 smart contract address
@@ -68,6 +76,63 @@ const devKeyFor = (lockErgoTree: string) =>
 const MIN_ERG_FEE_THRESHOLD = 100000; // 0.1 ERG minimum for fee calculation
 const MIN_TOKEN_FEE_THRESHOLD = 34; // 34 tokens minimum for fee calculation
 
+// Ergo charges storage rent once a box is 1,051,200 blocks (~4 years) old: a miner may take
+// 1,250,000 nanoERG per byte of the box (the current storageFeeFactor) and recreate it, or
+// take a box worth less than that whole, tokens included. A lock that opens later keeps
+// enough ERG to pay every rent period before it opens.
+export const STORAGE_RENT_PERIOD = 1_051_200;
+const STORAGE_FEE_PER_BYTE = 1_250_000n;
+
+/** The least nanoERG a lock box must hold so storage rent can't empty it before it opens. */
+export function lockRentReserve(lockBox: OutputBuilder, height: number, unlockHeight: number): bigint {
+	const periods = Math.floor((unlockHeight - height) / STORAGE_RENT_PERIOD);
+	if (periods <= 0) return 0n;
+	// A few bytes of slack: each recreated box carries a larger creation height.
+	const bytes = BigInt(estimateBoxSize(lockBox.setCreationHeight(height).build()) + 8);
+	return BigInt(periods) * STORAGE_FEE_PER_BYTE * bytes + BigInt(SAFE_MIN_BOX_VALUE);
+}
+
+function lockBoxFor(
+	value: bigint,
+	owner: ErgoAddress,
+	tokens: Array<{ tokenId: string; amount: bigint }>,
+	unlockHeight: number,
+	lockName?: string | null,
+	lockDescription?: string | null
+): OutputBuilder {
+	const registers: { [key: string]: string } = {
+		R4: SGroupElement(first(owner.getPublicKeys())).toHex(), // owner (recipient for lock-for)
+		R5: SInt(unlockHeight).toHex(), // unlock height
+		R6: SInt(Math.floor(Date.now() / 1000)).toHex() // timestamp
+	};
+	if (lockName) registers.R7 = SColl(SByte, Array.from(new TextEncoder().encode(lockName))).toHex();
+	if (lockDescription) registers.R8 = SColl(SByte, Array.from(new TextEncoder().encode(lockDescription))).toHex();
+	const box = new OutputBuilder(value, MEWLOCK_CONTRACT_ADDRESS).setAdditionalRegisters(registers);
+	const held = tokens.filter((t) => t.amount > 0n);
+	if (held.length > 0) box.addTokens(held);
+	return box;
+}
+
+/** The storage-rent reserve a lock with these contents and unlock height will keep (0 under 4 years). */
+export function estimateLockRentReserve(
+	height: number,
+	unlockHeight: number,
+	ownerBase58PK: string,
+	tokens: Array<{ tokenId: string; amount: bigint | number }>,
+	lockName?: string | null,
+	lockDescription?: string | null
+): bigint {
+	const box = lockBoxFor(
+		BigInt(SAFE_MIN_BOX_VALUE),
+		ErgoAddress.fromBase58(ownerBase58PK),
+		tokens.map((t) => ({ tokenId: t.tokenId, amount: BigInt(t.amount) })),
+		unlockHeight,
+		lockName,
+		lockDescription
+	);
+	return lockRentReserve(box, height, unlockHeight);
+}
+
 export function createMewLockDepositTx(
 	depositorBase58PK: string,
 	depositorUtxos: Array<any>,
@@ -97,47 +162,16 @@ export function createMewLockDepositTx(
 	});
 
 	// Create the MewLock contract box with remaining amounts after fees
-	const lockBoxValue = amountToLock;
-
-	// Build registers object - R4 and R5 are required, R7 and R8 are optional
-	// R4 will be recipient's key if recipientBase58PK provided, otherwise depositor's key
-	const registers: { [key: string]: string } = {
-		R4: SGroupElement(first(r4Address.getPublicKeys())).toHex(), // recipient (lock-for) or depositor public key as GroupElement
-		R5: SInt(unlockHeight).toHex(), // unlock height
-		R6: SInt(Math.floor(Date.now() / 1000)).toHex() // timestamp (existing)
-	};
-	
-	// Add optional lock name to R7 if provided
-	if (lockName) {
-		const nameBytes = new TextEncoder().encode(lockName);
-		registers.R7 = SColl(SByte, Array.from(nameBytes)).toHex();
-	}
-	
-	// Add optional lock description to R8 if provided  
-	if (lockDescription) {
-		const descBytes = new TextEncoder().encode(lockDescription);
-		registers.R8 = SColl(SByte, Array.from(descBytes)).toHex();
-	}
-	
-	const mewLockBox = new OutputBuilder(
-		lockBoxValue,
-		MEWLOCK_CONTRACT_ADDRESS
-	).setAdditionalRegisters(registers);
-
-	// Add remaining tokens to lock box
-	const remainingTokens = tokenFees
-		.filter((token) => token.remainingAmount > BigInt(0))
-		.map((token) => ({
-			tokenId: token.tokenId,
-			amount: token.remainingAmount
-		}));
-
-	if (remainingTokens.length > 0) {
-		mewLockBox.addTokens(remainingTokens);
-	}
-
-	// const devFeeValue = 0.2 * (10 ** 9);
-	// const devFeeBox = new OutputBuilder(devFeeValue.toString(), devAddress);
+	const mewLockBox = lockBoxFor(
+		amountToLock,
+		r4Address,
+		tokenFees.map((token) => ({ tokenId: token.tokenId, amount: token.remainingAmount })),
+		unlockHeight,
+		lockName,
+		lockDescription
+	);
+	const rentReserve = lockRentReserve(mewLockBox, height, unlockHeight);
+	if (rentReserve > amountToLock) mewLockBox.setValue(rentReserve);
 
 	const outputs = [mewLockBox]; //, devFeeBox];
 

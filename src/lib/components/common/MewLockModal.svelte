@@ -18,7 +18,11 @@
 		setPlaceholderImage
 	} from '$lib/utils/utils.js';
 	import { fetchBoxes, getBlockHeight } from '$lib/api-explorer/explorer.ts';
-	import { createMewLockDepositTx } from '$lib/contract/mewLockTx.ts';
+	import {
+		createMewLockDepositTx,
+		estimateLockRentReserve,
+		STORAGE_RENT_PERIOD
+	} from '$lib/contract/mewLockTx.ts';
 	import { get } from 'svelte/store';
 	import JSONbig from 'json-bigint-native';
 	import ErgopayModal from './ErgopayModal.svelte';
@@ -232,6 +236,24 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 	}
 
 	$: unlockHeight = currentHeight + parseInt(lockDuration);
+	// ERG a lock this long must keep for storage rent (the deposit adds it if needed).
+	$: rentReserve = (() => {
+		if (!currentHeight || !(parseInt(lockDuration) > STORAGE_RENT_PERIOD)) return 0n;
+		const owner = (lockForEnabled && recipientAddress) || $connected_wallet_address;
+		if (!owner) return 0n;
+		try {
+			const tokens =
+				lockType === 'tokens'
+					? selectedTokensToLock.map((t) => ({
+							tokenId: t.tokenId,
+							amount: Math.round(parseFloat(t.amountToLock || '0') * Math.pow(10, t.decimals))
+					  }))
+					: [];
+			return estimateLockRentReserve(currentHeight, unlockHeight, owner, tokens, lockName.trim() || null, lockDescription.trim() || null);
+		} catch {
+			return 0n;
+		}
+	})();
 	$: canSubmit =
 		lockType === 'erg'
 			? lockAmount && parseFloat(lockAmount) > 0
@@ -582,8 +604,9 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 								</svg>
 							</div>
 							<div class="warning-content">
-								<strong>Storage Rent Notice:</strong> Locks longer than 4 years will be subject to Ergo's storage rent mechanism. ~0.14 ERG per box. 
-								This means your locked assets may be charged periodic fees to remain on the blockchain. suggested amount for token locks should be min 1 ERG.
+								<strong>Storage rent:</strong> Ergo charges rent on boxes older than 4 years, so a lock
+								this long keeps {rentReserve > 0n ? `at least ${(Number(rentReserve) / 1e9).toFixed(3)} ERG` : 'enough ERG'} to pay it until it opens.
+								If you lock less ERG, the difference comes from your wallet; what rent doesn't use comes back when you withdraw.
 								<a href="https://ergoplatform.org/en/blog/2022-02-18-ergo-explainer-storage-rent/" target="_blank" rel="noopener">Learn more about storage rent</a>
 							</div>
 						</div>
