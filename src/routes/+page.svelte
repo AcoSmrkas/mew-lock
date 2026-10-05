@@ -8,6 +8,18 @@
 	import { networkConfig } from '$lib/lithos/network.ts';
 	import { getHeight, getPositions, statsOf, type CampaignStats } from '$lib/lithos/api.ts';
 	import { fmtAmount } from '$lib/lithos/format.ts';
+	import { connected_wallet_address } from '$lib/store/store';
+	import { lockModalOpen } from '$lib/store/lockModal';
+
+	// "Lock Assets" opens the lock form when a wallet is connected; without one it goes
+	// to My Locks, which explains how to connect. It used to always go to My Locks,
+	// which had no way to start a lock.
+	function startLock(event: MouseEvent) {
+		if ($connected_wallet_address) {
+			event.preventDefault();
+			lockModalOpen.set(true);
+		}
+	}
 
 	// Platform data variables
 	let loading = true;
@@ -87,20 +99,17 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	}
 
 	// Separate ERG-only locks from ERG+token locks with proper data validation
+	// Newest first. A box id is a hash, so sorting by it was effectively random.
+	const newestFirst = (a, b) => (b.creationHeight ?? 0) - (a.creationHeight ?? 0);
+
 	$: ergOnlyLocks = mewLockBoxes
 		.filter((box) => box && (!box.assets || box.assets.length === 0))
-		.sort((a, b) => {
-			// Sort by creation time (newest first) using boxId as proxy
-			return b.boxId?.localeCompare(a.boxId) || 0;
-		})
+		.sort(newestFirst)
 		.slice(0, 6);
 
 	$: ergTokenLocks = mewLockBoxes
 		.filter((box) => box && box.assets && box.assets.length > 0)
-		.sort((a, b) => {
-			// Sort by creation time (newest first) using boxId as proxy
-			return b.boxId?.localeCompare(a.boxId) || 0;
-		})
+		.sort(newestFirst)
 		.slice(0, 6);
 </script>
 
@@ -173,7 +182,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 								<span class="lithos-ad-loading">Checking campaign…</span>
 							{:else if lithosStats}
 								<div>
-									<b>{fmtAmount(lithosStats.totalLocked, lithosDeployment.assets.stake.decimals)}</b
+									<b>{fmtAmount(lithosStats.totalLocked, lithosDeployment.assets.stake.decimals, 0)}</b
 									><small>LIT locked</small>
 								</div>
 								<div><b>{lithosStats.lockers}</b><small>Lockers</small></div>
@@ -192,7 +201,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 						<h2>Secure Time-Locked Asset Storage</h2>
 						<p>Lock your ERG and tokens with smart contracts on the Ergo blockchain. Set your own unlock conditions and maintain complete control over your assets.</p>
 						<div class="cta-actions">
-							<a href="/my-locks" class="cta-btn primary">
+							<a href="/my-locks" class="cta-btn primary" on:click={startLock}>
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 									<path d="M18 8H20C21.1 8 22 8.9 22 10V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V10C2 8.9 2.9 8 4 8H6V6C6 3.79 7.79 2 10 2H14C16.21 2 18 3.79 18 6V8M16 8V6C16 4.9 15.1 4 14 4H10C8.9 4 8 4.9 8 6V8H16M12 17C10.9 17 10 16.1 10 15S10.9 13 12 13S14 13.9 14 15S13.1 17 12 17Z" fill="currentColor"/>
 								</svg>
@@ -291,7 +300,10 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 								<div class="activity-list-simple">
 									{#each ergTokenLocks.slice(0, 4) as lockBox}
 										<div class="activity-item-simple">
-											<span class="amount">{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG + {lockBox.assets?.length || 0}</span>
+											<span class="amount"
+												>{nFormatter(lockBox.value ? lockBox.value / 1e9 : 0)} ERG + {lockBox.assets?.length || 0}
+												token{lockBox.assets?.length === 1 ? '' : 's'}</span
+											>
 											<div class="status-simple">
 												{#if currentHeight >= (lockBox.additionalRegisters?.R5?.renderedValue ? parseInt(lockBox.additionalRegisters.R5.renderedValue) : 0)}
 													<div class="status-icon unlocked">

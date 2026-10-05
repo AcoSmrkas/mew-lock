@@ -14,12 +14,12 @@
 		{
 			question: 'How does Mew Lock work?',
 			answer:
-				'Users send assets to the Mew Lock smart contract with a specified unlock height (block number). The contract stores the assets safely until the blockchain reaches that height, after which only the original depositor can withdraw them.'
+				'Users send assets to the Mew Lock smart contract with a specified unlock height (block number). The contract stores the assets safely until the blockchain reaches that height, after which only the lock\'s owner can withdraw them: you, or the address you locked them for.'
 		},
 		{
 			question: 'What are the fees?',
 			answer:
-				'Mew Lock has a 3% withdrawal fee on all locked assets. For locks longer than 4 years, additional Ergo storage rent fees may apply as per the Ergo protocol.'
+				'Mew Lock takes a 3% fee when you withdraw, on the ERG and on each token in the lock (token amounts of 34 units or less pay none). Locking costs only the 0.0011 ERG network fee. A lock longer than 4 years keeps some extra ERG to pay Ergo\'s storage rent; whatever rent doesn\'t use comes back when you withdraw.'
 		},
 		{
 			question: 'What data is needed for a Mew Lock transaction?',
@@ -49,12 +49,12 @@
 		{
 			question: 'What happens if I lose my wallet?',
 			answer:
-				'If you lose access to your wallet, you cannot withdraw your locked assets. The smart contract requires a signature from the original depositor\'s address. Always backup your wallet seed phrase securely.'
+				'If you lose access to your wallet, you cannot withdraw your locked assets. The smart contract requires a signature from the lock owner\'s key. Always back up your wallet seed phrase securely.'
 		},
 		{
 			question: 'How long can I lock assets?',
 			answer:
-				'You can lock assets for any duration, but locks over 4 years are subject to Ergo\'s storage rent fees. Popular durations include 1 month (~1,440 blocks), 6 months (~8,640 blocks), 1 year (~17,280 blocks), 5 years (~86,400 blocks), and 10 years (~172,800 blocks).'
+				'Any number of blocks; a block is about 2 minutes. Common durations: 1 day (~720 blocks), 1 month (~21,600 blocks), 6 months (~129,600 blocks), 1 year (~262,800 blocks), 5 years (~1,314,000 blocks) and 10 years (~2,628,000 blocks). Locks over 4 years keep extra ERG for Ergo\'s storage rent.'
 		},
 		{
 			question: 'Register Encoding and Implementation Details',
