@@ -18,7 +18,9 @@ import {
 	STORAGE_RENT_PERIOD,
 	createMewLockDepositTx,
 	createMewLockWithdrawalTx,
-	estimateLockRentReserve
+	estimateLockRentReserve,
+	exceedsLegacyLimit,
+	withdrawalSplit
 } from './mewLockTx';
 import { estimateBoxSize } from '@fleet-sdk/serializer';
 
@@ -72,10 +74,40 @@ describe('createMewLockWithdrawalTx', () => {
 		expect(await withdraw(MEWLOCK_CONTRACT_ADDRESS, 1_000_000_000n, 4_000_000_000_000_000n)).toBe(true);
 	});
 
+	it('cannot release, on an old contract, the token amounts exceedsLegacyLimit flags', async () => {
+		const tree = (address: string) => ErgoAddress.fromBase58(address).ergoTree;
+		const big = 4_000_000_000_000_000n;
+		expect(exceedsLegacyLimit({ ergoTree: tree(preJune), assets: [{ amount: big }] })).toBe(true);
+		expect(exceedsLegacyLimit({ ergoTree: tree(june), assets: [{ amount: big }] })).toBe(true);
+		expect(exceedsLegacyLimit({ ergoTree: tree(MEWLOCK_CONTRACT_ADDRESS), assets: [{ amount: big }] })).toBe(false);
+		expect(exceedsLegacyLimit({ ergoTree: tree(june), assets: [{ amount: 1_000_000n }] })).toBe(false);
+		// The premise: the old contract really does refuse it.
+		expect(await withdraw(june, 1_000_000_000n, big)).toBe(false);
+	});
+
 	it('charges no fee exactly at the thresholds, like every contract version', async () => {
 		for (const address of [preJune, june, MEWLOCK_CONTRACT_ADDRESS]) {
 			expect(await withdraw(address, 100_000n, 34n)).toBe(true);
 		}
+	});
+});
+
+describe('withdrawalSplit', () => {
+	it('takes 3% of ERG and of each token above the thresholds', () => {
+		const split = withdrawalSplit(10_000_000_000n, [
+			{ tokenId: 'a', amount: '1000' },
+			{ tokenId: 'b', amount: 34 }
+		]);
+		expect(split.ergFee).toBe(300_000_000n);
+		expect(split.ergKeep).toBe(9_700_000_000n);
+		expect(split.tokens).toEqual([
+			{ tokenId: 'a', fee: 30n, keep: 970n },
+			{ tokenId: 'b', fee: 0n, keep: 34n }
+		]);
+	});
+
+	it('takes nothing at or below the ERG threshold', () => {
+		expect(withdrawalSplit(100_000n, []).ergFee).toBe(0n);
 	});
 });
 

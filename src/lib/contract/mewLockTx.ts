@@ -73,8 +73,51 @@ const devKeyFor = (lockErgoTree: string) =>
 	ErgoAddress.fromErgoTree(lockErgoTree).encode() === MEWLOCK_LEGACY_CONTRACT_ADDRESSES[0]
 		? OLD_DEV_PUBLIC_KEY
 		: DEV_PUBLIC_KEY;
-const MIN_ERG_FEE_THRESHOLD = 100000; // 0.1 ERG minimum for fee calculation
-const MIN_TOKEN_FEE_THRESHOLD = 34; // 34 tokens minimum for fee calculation
+const MIN_ERG_FEE_THRESHOLD = 100000; // nanoERG (0.0001 ERG): at or below it, no ERG fee
+const MIN_TOKEN_FEE_THRESHOLD = 34; // raw token units: at or below it, no fee on that token
+
+/**
+ * What a withdrawal takes as the 3% fee and what the owner keeps, exactly as the
+ * contract computes it. The withdrawal builder and the screens that show the
+ * split before signing both use this, so the figures shown are the ones signed.
+ */
+export function withdrawalSplit(
+	value: bigint,
+	assets: Array<{ tokenId: string; amount: bigint | number | string }>
+): {
+	ergFee: bigint;
+	ergKeep: bigint;
+	tokens: Array<{ tokenId: string; fee: bigint; keep: bigint }>;
+} {
+	const ergFee =
+		value > BigInt(MIN_ERG_FEE_THRESHOLD) ? (value * BigInt(FEE_NUM)) / BigInt(FEE_DENOM) : 0n;
+	const tokens = assets.map((token) => {
+		const amount = BigInt(token.amount);
+		const fee =
+			amount > BigInt(MIN_TOKEN_FEE_THRESHOLD) ? (amount * BigInt(FEE_NUM)) / BigInt(FEE_DENOM) : 0n;
+		return { tokenId: token.tokenId, fee, keep: amount - fee };
+	});
+	return { ergFee, ergKeep: value - ergFee, tokens };
+}
+
+// The contracts before v2 computed the fee as a Long, so amount * FEE_NUM overflows above this
+// many raw units and the contract rejects every withdrawal of that token.
+const LEGACY_MAX_TOKEN_AMOUNT = 9223372036854775807n / BigInt(FEE_NUM);
+
+/** True when a lock on an old contract holds a token amount that contract can never release. */
+export function exceedsLegacyLimit(lock: {
+	ergoTree: string;
+	assets?: Array<{ amount: bigint | number | string }>;
+}): boolean {
+	let address: string;
+	try {
+		address = ErgoAddress.fromErgoTree(lock.ergoTree).encode();
+	} catch {
+		return false;
+	}
+	if (!MEWLOCK_LEGACY_CONTRACT_ADDRESSES.includes(address)) return false;
+	return (lock.assets ?? []).some((asset) => BigInt(asset.amount) > LEGACY_MAX_TOKEN_AMOUNT);
+}
 
 // Ergo charges storage rent once a box is 1,051,200 blocks (~4 years) old: a miner may take
 // 1,250,000 nanoERG per byte of the box (the current storageFeeFactor) and recreate it, or
@@ -232,25 +275,14 @@ export async function createMewLockWithdrawalTx(
 
 		console.log('normalizedLockBox:', normalizedLockBox);
 
-		// Calculate ERG fee (3% if >= 0.1 ERG) - matching smart contract logic
-		const ergFee =
-			normalizedLockBox.value > BigInt(MIN_ERG_FEE_THRESHOLD)
-				? (normalizedLockBox.value * BigInt(FEE_NUM)) / BigInt(FEE_DENOM)
-				: BigInt(0);
-
-		// Calculate token fees (3% if >= 34 tokens each) - matching smart contract logic
-		const tokenFees = normalizedLockBox.assets.map((token) => {
-			const tokenAmount = BigInt(token.amount);
-			const feeAmount =
-				tokenAmount > BigInt(MIN_TOKEN_FEE_THRESHOLD)
-					? (tokenAmount * BigInt(FEE_NUM)) / BigInt(FEE_DENOM)
-					: BigInt(0);
-			return {
-				tokenId: token.tokenId,
-				feeAmount: feeAmount,
-				remainingAmount: tokenAmount - feeAmount
-			};
-		});
+		// The 3% fee, exactly as the contract computes it.
+		const split = withdrawalSplit(normalizedLockBox.value, normalizedLockBox.assets);
+		const ergFee = split.ergFee;
+		const tokenFees = split.tokens.map((token) => ({
+			tokenId: token.tokenId,
+			feeAmount: token.fee,
+			remainingAmount: token.keep
+		}));
 
 		// Create the MewLock contract box with remaining amounts after fees
 		const lockBoxValue = normalizedLockBox.value - ergFee;
