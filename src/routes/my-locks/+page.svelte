@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import {
 		connected_wallet_address,
 		connected_wallet_addresses,
@@ -18,10 +18,24 @@
 	import { fmtAmount, fmtBlocks } from '$lib/lithos/format.ts';
 	import type { PositionState } from '$lib/lithos/boxes.ts';
 	import { positionsOwnedBy, walletOwnerAddresses } from '$lib/lithos/ownership.ts';
+	import {
+		dateAfterBlocks,
+		describeWalletError,
+		durationOfBlocks,
+		isUsableHeight,
+		settlePendingLocks,
+		type PendingLock
+	} from '$lib/lock/lockUi';
+	import { lockModalOpen, locksChanged } from '$lib/store/lockModal';
+	import { exceedsLegacyLimit, withdrawalSplit } from '$lib/contract/mewLockTx';
 
 	// MewLock variables
 	let mewLockBoxes = [];
 	let loading = true;
+	// The lock list failed to load; saying "no locks" then would be wrong.
+	let loadError = false;
+	// Locks sent from this browser that are not in a block yet.
+	let pendingLocks: PendingLock[] = [];
 	let withdrawing = false;
 	let currentHeight = 0;
 	let showErgopayModal = false;
@@ -42,7 +56,7 @@
 	let totalLocks = 0;
 
 	// View filters
-	let viewFilter = 'mine'; // 'mine', 'ready', 'all'
+	let viewFilter = 'mine'; // 'mine', 'ready'
 	let sortBy = 'height'; // 'height', 'amount', 'tokens'
 	let sortOrder = 'asc'; // 'asc', 'desc'
 
@@ -59,6 +73,20 @@
 
 	import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
+	// The height moves on while the page is open; without this a lock never turned
+	// "Ready" until a reload.
+	let heightTimer: ReturnType<typeof setInterval> | undefined;
+
+	async function refreshHeight() {
+		await getCurrentBlockHeight();
+		mewLockBoxes = mewLockBoxes.map((box) => ({
+			...box,
+			currentHeight,
+			canWithdraw: isUsableHeight(currentHeight) && currentHeight >= box.unlockHeight,
+			blocksRemaining: Math.max(0, box.unlockHeight - currentHeight)
+		}));
+	}
+
 	onMount(async () => {
 		await getCurrentBlockHeight();
 		// Mounted before the first loads, so a switch while they run reloads below.
@@ -66,7 +94,21 @@
 		mounted = true;
 		loadLithosPositions();
 		await loadMewLockBoxes();
+		heightTimer = setInterval(refreshHeight, 60_000);
 	});
+
+	onDestroy(() => clearInterval(heightTimer));
+
+	// A lock was just sent from the form on this page: show it as pending now.
+	let seenLocksChanged = $locksChanged;
+	$: if (mounted && $locksChanged !== seenLocksChanged) {
+		seenLocksChanged = $locksChanged;
+		loadMewLockBoxes();
+	}
+
+	function openLockForm() {
+		lockModalOpen.set(true);
+	}
 
 	// Reload + recompute ownership whenever the connected address changes.
 	$: if (mounted && $connected_wallet_address !== loadedForAddress) {
@@ -153,10 +195,17 @@
 
 	async function loadMewLockBoxes() {
 		const addrAtStart = $connected_wallet_address;
-		loading = true;
+		loading = mewLockBoxes.length === 0;
+		loadError = false;
 		try {
-			// Boxes from the current contract and any retired ones (limit is 500 per contract)
-			const items = await fetchMewLockBoxes();
+			// A lock is owned by whatever address the wallet locked for, which is its
+			// change address and need not be the one shown as connected. Matching only
+			// that one hid new locks from their owner.
+			const [items, ownerList] = await Promise.all([
+				fetchMewLockBoxes(),
+				walletOwnerAddresses([addrAtStart, ...($connected_wallet_addresses ?? [])])
+			]);
+			const owners = new Set(ownerList);
 
 			// If the user switched address mid-fetch, drop this result; a newer
 			// load is already running and owns the loading flag + state.
@@ -176,9 +225,9 @@
 
 			mewLockBoxes = items.map((box) => {
 				const unlockHeight = parseInt(box.additionalRegisters.R5.renderedValue);
-				const canWithdraw = currentHeight >= unlockHeight;
+				const canWithdraw = isUsableHeight(currentHeight) && currentHeight >= unlockHeight;
 				const depositorAddress = convertPkToAddress(box.additionalRegisters.R4);
-				const isOwnBox = depositorAddress === $connected_wallet_address;
+				const isOwnBox = owners.has(depositorAddress);
 
 				// Extract lock name and description from R7 and R8 (NEW)
 				const lockName = decodeStringFromRegister(box.additionalRegisters.R7);
@@ -210,10 +259,12 @@
 			);
 
 			// Filter to only user's boxes
-			mewLockBoxes = mewLockBoxes.filter((box) => {
-				const matches = box.depositorAddress === $connected_wallet_address;
-				return matches && !optimisticallySpent.has(box.boxId);
-			});
+			mewLockBoxes = mewLockBoxes.filter((box) => box.isOwnBox && !optimisticallySpent.has(box.boxId));
+
+			// A pending lock is done once its transaction has made a lock box.
+			pendingLocks = settlePendingLocks(
+				new Set(items.map((box) => box.transactionId).filter(Boolean))
+			).filter((lock) => owners.has(lock.owner));
 
 			console.log('Boxes after filtering:', mewLockBoxes.length);
 
@@ -223,6 +274,7 @@
 			totalLocks = mewLockBoxes.length;
 		} catch (error) {
 			console.error('Error loading MewLock boxes:', error);
+			if ($connected_wallet_address === addrAtStart) loadError = true;
 		} finally {
 			// Only clear loading if this load is still the current one.
 			if ($connected_wallet_address === addrAtStart) {
@@ -277,7 +329,12 @@
 			}
 		} catch (error) {
 			console.error('Withdrawal error:', error);
-			showCustomToast(`Withdrawal failed: ${error.message}`, 5000, 'danger');
+			const { cancelled, message } = describeWalletError(error);
+			showCustomToast(
+				cancelled ? message : `Withdrawal failed. ${message}`,
+				cancelled ? 4000 : 8000,
+				cancelled ? 'default' : 'danger'
+			);
 		} finally {
 			withdrawing = false;
 		}
@@ -337,17 +394,18 @@
 	);
 
 	// Filtering based on view mode
-	$: filteredBoxes = (() => {
-		switch (viewFilter) {
-			case 'mine':
-				return ownLocks;
-			case 'ready':
-				return unlockableBoxes;
-			case 'all':
-			default:
-				return mewLockBoxes;
-		}
-	})();
+	$: filteredBoxes = viewFilter === 'ready' ? unlockableBoxes : ownLocks;
+
+	/** What withdrawing a lock pays out, as the contract computes it. */
+	function payoutOf(lockBox) {
+		const split = withdrawalSplit(BigInt(lockBox.value), lockBox.assets ?? []);
+		const tokens = split.tokens.map((token, i) => {
+			const asset = lockBox.assets[i];
+			return `${nFormatter(Number(token.keep) / 10 ** (asset.decimals || 0))} ${asset.name || 'Token'}`;
+		});
+		const shown = [`${nFormatter(Number(split.ergKeep) / 1e9)} ERG`, ...tokens.slice(0, 2)].join(' + ');
+		return tokens.length > 2 ? `${shown} + ${tokens.length - 2} more` : shown;
+	}
 
 	// Sorting
 	$: sortedFilteredBoxes = [...filteredBoxes].sort((a, b) => {
@@ -409,6 +467,12 @@
 			<div class="loading-state">
 				<div class="spinner" />
 				<p>Loading your locked assets...</p>
+			</div>
+		{:else if loadError && mewLockBoxes.length === 0}
+			<div class="empty-state">
+				<h3>Couldn't load your locks</h3>
+				<p>Your locks are safe on chain; this page just couldn't read them right now.</p>
+				<button class="new-lock-btn" on:click={loadMewLockBoxes}>Try again</button>
 			</div>
 		{:else}
 			<!-- Personal Stats -->
@@ -584,6 +648,7 @@
 				<div class="section-header">
 					<h2>Manage Your Locks</h2>
 					<div class="controls">
+						<button class="new-lock-btn" on:click={openLockForm}>+ New lock</button>
 						<!-- View Filter -->
 						<div class="view-controls">
 							<button
@@ -599,13 +664,6 @@
 								on:click={() => setViewFilter('ready')}
 							>
 								Ready ({unlockableBoxes.length})
-							</button>
-							<button
-								class="filter-btn"
-								class:active={viewFilter === 'all'}
-								on:click={() => setViewFilter('all')}
-							>
-								All ({mewLockBoxes.length})
 							</button>
 						</div>
 
@@ -681,6 +739,27 @@
 					</div>
 				</div>
 
+				{#if pendingLocks.length > 0}
+					<div class="pending-locks">
+						{#each pendingLocks as lock (lock.txId)}
+							<div class="pending-lock">
+								<div class="spinner small" />
+								<div>
+									<strong>{lock.summary}</strong>, waiting for its first confirmation
+									<small
+										>Unlocks at block {lock.unlockHeight.toLocaleString('en-US')} ·
+										<a
+											href={`https://ergexplorer.com/transactions/${lock.txId}`}
+											target="_blank"
+											rel="noopener">View transaction</a
+										></small
+									>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
 				<!-- Locks Grid -->
 				{#if sortedFilteredBoxes.length > 0}
 					<div class="locks-grid">
@@ -739,16 +818,31 @@
 									{/if}
 
 									<div class="lock-timing">
-										{#if !lockBox.canWithdraw}
-											<span class="timing-text">
-												{nFormatter(lockBox.blocksRemaining)} blocks remaining
+										{#if !lockBox.canWithdraw && isUsableHeight(currentHeight)}
+											<span
+												class="timing-text"
+												title={`${lockBox.blocksRemaining.toLocaleString('en-US')} blocks to go`}
+											>
+												{durationOfBlocks(lockBox.blocksRemaining)} left · around {dateAfterBlocks(
+													lockBox.blocksRemaining
+												)}
 											</span>
 										{/if}
 									</div>
 								</div>
 
-								{#if lockBox.isOwnBox && lockBox.canWithdraw}
+								{#if lockBox.isOwnBox && lockBox.canWithdraw && exceedsLegacyLimit(lockBox)}
 									<div class="lock-actions">
+										<p class="payout-note">
+											This lock is on an older contract that can't release this many tokens in one
+											withdrawal. Ask us on <a href="https://t.me/MewFinance" target="_blank" rel="noopener"
+												>Telegram</a
+											> and we'll help.
+										</p>
+									</div>
+								{:else if lockBox.isOwnBox && lockBox.canWithdraw}
+									<div class="lock-actions">
+										<p class="payout-note">You get {payoutOf(lockBox)} after the 3% fee</p>
 										<button
 											class="withdraw-btn"
 											disabled={withdrawing}
@@ -795,14 +889,15 @@
 						</div>
 						<h3>No Assets Found</h3>
 						<p>
-							{#if viewFilter === 'mine'}
-								You don't have any locked assets yet.
-							{:else if viewFilter === 'ready'}
+							{#if viewFilter === 'ready'}
 								No assets are ready to unlock at the moment.
 							{:else}
-								No locked assets match the current filter.
+								You don't have any locked assets yet.
 							{/if}
 						</p>
+						{#if viewFilter !== 'ready'}
+							<button class="new-lock-btn" on:click={openLockForm}>Lock assets</button>
+						{/if}
 					</div>
 				{/if}
 			</section>
@@ -1376,6 +1471,63 @@
 		margin-top: 1rem;
 		padding-top: 1rem;
 		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.payout-note {
+		margin: 0 0 0.75rem;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.new-lock-btn {
+		padding: 0.5rem 1rem;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		border: none;
+		border-radius: 8px;
+		color: white;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.empty-state .new-lock-btn {
+		margin-top: 1.25rem;
+	}
+
+	.pending-locks {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.pending-lock {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		background: rgba(102, 126, 234, 0.08);
+		border: 1px dashed rgba(102, 126, 234, 0.4);
+		border-radius: 12px;
+		color: rgba(255, 255, 255, 0.85);
+	}
+
+	.pending-lock small {
+		display: block;
+		margin-top: 0.25rem;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.pending-lock a {
+		color: #a5b4fc;
+	}
+
+	.spinner.small {
+		width: 18px;
+		height: 18px;
+		border-width: 2px;
+		margin-bottom: 0;
+		flex-shrink: 0;
 	}
 
 	.withdraw-btn {
