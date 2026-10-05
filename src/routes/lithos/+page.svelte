@@ -188,6 +188,10 @@
 	let unsignedTx: any = null;
 
 	let submitted: { txId: string; what: string }[] = [];
+	// Positions whose unlock was sent. Confirmed reads still list them for a block or
+	// two, and the Unlock button used to come back meanwhile; a second click only
+	// failed with a misleading "someone else locked at the same moment".
+	let sentUnlocks = new Set<string>();
 	let timer: ReturnType<typeof setInterval> | undefined;
 
 	onMount(() => {
@@ -375,6 +379,7 @@
 				buildUnlockTx({ deployment: d, position: p, inputs, height: h }),
 				`Unlock of ${fmtA(p.principal)} ${A.ticker} + ${fmtB(p.reward)} ${B.ticker}`
 			);
+			if (!usingErgoPay()) sentUnlocks = new Set([...sentUnlocks, p.box.boxId]);
 		});
 
 	const topUp = () =>
@@ -763,10 +768,17 @@
 								{#if mine}
 									<button
 										class="ll-btn ll-btn-success ll-btn-sm"
-										disabled={height < p.unlockAt || busy !== '' || wrongNetwork}
+										disabled={height < p.unlockAt ||
+											busy !== '' ||
+											wrongNetwork ||
+											sentUnlocks.has(p.box.boxId)}
 										on:click={() => unlock(p)}
 									>
-										{busy === `unlock:${p.box.boxId}` ? 'Waiting…' : 'Unlock'}
+										{sentUnlocks.has(p.box.boxId)
+											? 'Unlock sent'
+											: busy === `unlock:${p.box.boxId}`
+											? 'Waiting…'
+											: 'Unlock'}
 									</button>
 								{:else}
 									<a
@@ -881,6 +893,10 @@
 					Anyone can add {B.ticker} to the budget until block #{d.params.end.toLocaleString(
 						'en-US'
 					)}. It raises the rate for every lock after it.
+				</p>
+				<p class="ll-card-text">
+					It's a donation: it can't be taken back, and whatever isn't paid out as rewards goes to
+					Mew Finance when the campaign closes.
 				</p>
 				<div class="ll-input">
 					<input inputmode="decimal" autocomplete="off" placeholder="0.0" bind:value={topUpInput} />

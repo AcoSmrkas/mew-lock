@@ -34,6 +34,8 @@
 	let loading = true;
 	let error = '';
 	let busy = '';
+	// Positions whose unlock was sent; confirmed reads keep listing them for a block or two.
+	let sentUnlocks = new Set<string>();
 	let showErgopayModal = false;
 	let isAuth = false;
 	let unsignedTx: any = null;
@@ -118,8 +120,9 @@
 				return;
 			}
 			const txId = await signAndSubmit(tx);
+			sentUnlocks = new Set([...sentUnlocks, position.box.boxId]);
 			showCustomToast(
-				`LIT unlocked.<br><a target="_blank" rel="noopener" href="${net.txUrl(
+				`Unlock sent. Your LIT arrives once it's in a block.<br><a target="_blank" rel="noopener" href="${net.txUrl(
 					txId
 				)}">View transaction</a>`,
 				10_000,
@@ -261,10 +264,12 @@
 						</p>
 						<button
 							class="ll-btn ll-btn-success ll-btn-block"
-							disabled={blocksLeft !== 0 || busy !== ''}
+							disabled={blocksLeft !== 0 || busy !== '' || sentUnlocks.has(position.box.boxId)}
 							on:click={() => unlock(position)}
 						>
-							{busy === position.box.boxId
+							{sentUnlocks.has(position.box.boxId)
+								? 'Unlock sent'
+								: busy === position.box.boxId
 								? 'Waiting for the wallet…'
 								: blocksLeft === 0
 								? `Unlock my ${asset.ticker}`
