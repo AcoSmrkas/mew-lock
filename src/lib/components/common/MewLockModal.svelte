@@ -21,8 +21,19 @@
 	import {
 		createMewLockDepositTx,
 		estimateLockRentReserve,
-		STORAGE_RENT_PERIOD
+		STORAGE_RENT_PERIOD,
+		withdrawalSplit
 	} from '$lib/contract/mewLockTx.ts';
+	import {
+		dateAfterBlocks,
+		describeWalletError,
+		durationOfBlocks,
+		isUsableHeight,
+		parseBlocks,
+		recipientProblem,
+		rememberPendingLock
+	} from '$lib/lock/lockUi';
+	import { locksChanged } from '$lib/store/lockModal';
 	import { get } from 'svelte/store';
 	import JSONbig from 'json-bigint-native';
 	import ErgopayModal from './ErgopayModal.svelte';
@@ -30,7 +41,7 @@
 	const dispatch = createEventDispatcher();
 
 	// Modal state
-	let step = 1; // 1: Choose type, 2: Configure lock
+	let step = 1; // 1: Choose type, 2: Configure lock, 3: Review
 	let lockType = ''; // 'erg' or 'tokens'
 	let processing = false;
 
@@ -40,6 +51,8 @@
 	let lockDurationSelect = 720;
 	let selectedTokensToLock = [];
 	let currentHeight = 0;
+	// The height read failed; nothing can be locked until it succeeds.
+	let heightError = false;
 	
 	// Enhanced lock metadata (NEW)
 	let lockName = '';
@@ -47,7 +60,10 @@
 	let showErgopayModal = false;
 	let isAuth = false;
 	let unsignedTx = null;
-	let ergAmount = 1;
+	// ERG kept in an ERG + tokens lock. It is locked with the tokens and comes back on
+	// withdrawal; a lock box only needs a little. It used to default to 1 ERG under the
+	// label "ERG Amount for Fees", which read as a fee rather than as locked ERG.
+	let ergAmount = 0.01;
 
 	// Lock-for feature
 	let lockForEnabled = false;
@@ -60,9 +76,6 @@
 			token.name?.toLowerCase().includes(search.toLowerCase()) ||
 			token.tokenId.toLowerCase().includes(search.toLowerCase())
 	);
-
-	let unlockCalculation = '';
-	$: unlockCalculation = calculateApprox(lockDuration);
 
 	onMount(async () => {
 		await getCurrentHeight();
@@ -77,87 +90,21 @@
 	$: if ($utxosTokenInfos && $utxosAssets && !$utxosLoading) {
 		loadAvailableTokens();
 	}
-$: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust based on actual lockDuration units
-
-	function calculateApprox(lockDuration) {
-		// Constants
-		const BLOCKS_PER_DAY = 720;
-		const BLOCKS_PER_HOUR = BLOCKS_PER_DAY / 24; // 30 blocks per hour
-		const BLOCKS_PER_MONTH = BLOCKS_PER_DAY * 30; // Approximate month
-		const BLOCKS_PER_YEAR = BLOCKS_PER_DAY * 365; // Approximate year
-
-		// Handle edge cases
-		if (lockDuration <= 0) {
-			return 'Already unlocked';
-		}
-
-		// Calculate time units
-		const years = Math.floor(lockDuration / BLOCKS_PER_YEAR);
-		const months = Math.floor((lockDuration % BLOCKS_PER_YEAR) / BLOCKS_PER_MONTH);
-		const days = Math.floor((lockDuration % BLOCKS_PER_MONTH) / BLOCKS_PER_DAY);
-		const hours = Math.floor((lockDuration % BLOCKS_PER_DAY) / BLOCKS_PER_HOUR);
-
-		// Build result string
-		let result = 'Unlocks in approximately ';
-
-		if (years > 0) {
-			if (years === 1) {
-				result += '1 year';
-			} else {
-				result += `${years} years`;
-			}
-
-			if (months > 0) {
-				result += ` and ${months} month${months === 1 ? '' : 's'}`;
-			}
-		} else if (months > 0) {
-			if (months === 1) {
-				result += '1 month';
-			} else {
-				result += `${months} months`;
-			}
-
-			if (days > 0 && months < 3) {
-				// Only show days if less than 3 months
-				result += ` and ${days} day${days === 1 ? '' : 's'}`;
-			}
-		} else if (days > 0) {
-			if (days === 1) {
-				result += '1 day';
-			} else {
-				result += `${days} days`;
-			}
-
-			if (hours > 0 && days <= 7) {
-				// Only show hours if less than a week
-				result += ` and ${hours} hour${hours === 1 ? '' : 's'}`;
-			}
-		} else if (hours > 0) {
-			if (hours === 1) {
-				result += '1 hour';
-			} else {
-				result += `${hours} hours`;
-			}
-		} else {
-			// Less than an hour
-			const minutes = Math.round((lockDuration / BLOCKS_PER_HOUR) * 60);
-			if (minutes <= 1) {
-				result += 'less than 1 minute';
-			} else {
-				result += `${minutes} minutes`;
-			}
-		}
-
-		return result;
-	}
-
 	async function getCurrentHeight() {
-		try {
-			const response = await getBlockHeight();
-			currentHeight = response;
-		} catch (error) {
-			console.error('Error fetching current height:', error);
+		heightError = false;
+		for (let attempt = 0; attempt < 3; attempt++) {
+			try {
+				const height = await getBlockHeight();
+				if (isUsableHeight(height)) {
+					currentHeight = height;
+					return;
+				}
+			} catch (error) {
+				console.error('Error fetching current height:', error);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1500));
 		}
+		heightError = true;
 	}
 
 	async function loadAvailableTokens() {
@@ -235,10 +182,13 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 		);
 	}
 
-	$: unlockHeight = currentHeight + parseInt(lockDuration);
+	$: durationBlocks = parseBlocks(lockDuration);
+	$: unlockHeight =
+		isUsableHeight(currentHeight) && durationBlocks ? currentHeight + durationBlocks : 0;
+	$: recipientError = lockForEnabled ? recipientProblem(recipientAddress) : null;
 	// ERG a lock this long must keep for storage rent (the deposit adds it if needed).
 	$: rentReserve = (() => {
-		if (!currentHeight || !(parseInt(lockDuration) > STORAGE_RENT_PERIOD)) return 0n;
+		if (!unlockHeight || !((durationBlocks ?? 0) > STORAGE_RENT_PERIOD)) return 0n;
 		const owner = (lockForEnabled && recipientAddress) || $connected_wallet_address;
 		if (!owner) return 0n;
 		try {
@@ -254,7 +204,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 			return 0n;
 		}
 	})();
-	$: canSubmit =
+	$: amountsValid =
 		lockType === 'erg'
 			? lockAmount && parseFloat(lockAmount) > 0
 			: ergAmount && parseFloat(ergAmount) > 0 &&
@@ -262,6 +212,31 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 			  selectedTokensToLock.every(
 					(token) => token.amountToLock && parseFloat(token.amountToLock) > 0
 			  );
+	$: canSubmit = amountsValid && !!unlockHeight && !recipientError;
+
+	// What goes into the lock, in base units, for the review step.
+	$: lockedNanoErg = BigInt(
+		Math.round(parseFloat(lockType === 'tokens' ? String(ergAmount) : lockAmount || '0') * 1e9) || 0
+	);
+	$: boxNanoErg = rentReserve > lockedNanoErg ? rentReserve : lockedNanoErg;
+	$: lockedTokens =
+		lockType === 'tokens'
+			? selectedTokensToLock.map((t) => ({
+					tokenId: t.tokenId,
+					name: t.name || 'Token',
+					decimals: t.decimals || 0,
+					amount: BigInt(Math.round(parseFloat(t.amountToLock || '0') * Math.pow(10, t.decimals || 0)))
+			  }))
+			: [];
+	$: payout = withdrawalSplit(boxNanoErg, lockedTokens);
+
+	function fmtUnits(raw: bigint, decimals: number): string {
+		return nFormatter(Number(raw) / Math.pow(10, decimals));
+	}
+
+	function reviewLock() {
+		if (canSubmit) step = 3;
+	}
 
 	async function handleLockSubmit() {
 		if (!canSubmit || processing) return;
@@ -279,6 +254,14 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 				utxos = await fetchBoxes(get(connected_wallet_address));
 				height = await getBlockHeight();
 			}
+
+			// The unlock block is counted from the height this transaction is built at,
+			// never from a figure read when the form opened (or 0, if that read failed).
+			if (!isUsableHeight(height)) {
+				throw new Error("Couldn't read the current block height. Nothing was sent. Try again.");
+			}
+			const unlockAt = height + (durationBlocks as number);
+			const owner = lockForEnabled ? recipientAddress.trim() : myAddress;
 
 			// Prepare tokens for locking
 			const tokensToLock =
@@ -298,17 +281,28 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 				height,
 				BigInt(Math.round(parseFloat(ergAmountToLock) * 1e9)), // ERG amount in nanoERG as bigint
 				tokensToLock,
-				unlockHeight,
+				unlockAt,
 				lockName.trim() || null, // R7: Lock name (optional)
 				lockDescription.trim() || null, // R8: Lock description (optional)
-				lockForEnabled && recipientAddress ? recipientAddress : null // Lock-for recipient (optional)
+				lockForEnabled ? recipientAddress.trim() : null // Lock-for recipient (optional)
 			);
 
 			if (get(selected_wallet_ergo) !== 'ergopay') {
 				const signed = await ergo.sign_tx(lockTx);
 				const transactionId = await ergo.submit_tx(signed);
+				rememberPendingLock({
+					txId: transactionId,
+					owner,
+					summary:
+						lockType === 'tokens'
+							? `${fmtUnits(lockedNanoErg, 9)} ERG + ${lockedTokens.length} token${lockedTokens.length === 1 ? '' : 's'}`
+							: `${fmtUnits(lockedNanoErg, 9)} ERG`,
+					unlockHeight: unlockAt,
+					sentAt: Date.now()
+				});
+				locksChanged.update((n) => n + 1);
 				showCustomToast(
-					`Tokens locked! TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
+					`Locked! It shows up in My Locks once it's in a block. TX: <a target="_new" href="https://ergexplorer.com/transactions/${transactionId}">${transactionId}</a>`,
 					10000,
 					'success'
 				);
@@ -320,7 +314,8 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 			}
 		} catch (error) {
 			console.error('Lock error:', error);
-			showCustomToast(`Lock failed: ${error.message}`, 5000, 'danger');
+			const { cancelled, message } = describeWalletError(error);
+			showCustomToast(cancelled ? message : `Lock failed. ${message}`, cancelled ? 4000 : 8000, cancelled ? 'default' : 'danger');
 		} finally {
 			processing = false;
 		}
@@ -369,7 +364,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 
 			<div class="modal-body">
 				<p class="step-description">
-					Choose what you want to lock with MewLock time-based storage:
+					Choose what you want to lock with Mew Lock:
 				</p>
 
 				<div class="lock-type-grid">
@@ -418,7 +413,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					</button>
 				</div>
 			</div>
-		{:else}
+		{:else if step === 2}
 			<!-- Step 2: Configure Lock -->
 			<div class="modal-header">
 				<div class="header-nav">
@@ -477,16 +472,19 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					<!-- svelte-ignore a11y-label-has-associated-control -->
 					<div class="input-group">
 						<!-- svelte-ignore a11y-label-has-associated-control -->
-						<label>ERG Amount for Fees</label>
+						<label>ERG to lock with the tokens</label>
 						<input
 							type="number"
 							bind:value={ergAmount}
-							placeholder="Enter ERG amount for fees"
+							placeholder="0.01"
 							step="0.01"
-							min="0.01"
+							min="0.001"
 							class="mewlock-input"
 						/>
-						<small>Minimum 0.1 ERG recommended for transaction fees</small>
+						<small
+							>Locked together with the tokens and returned when you withdraw. A lock needs a
+							little ERG to exist; 0.01 is enough.</small
+						>
 					</div>
 				{/if}
 				
@@ -512,7 +510,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					<label>Description <span class="optional">(optional)</span></label>
 					<textarea
 						bind:value={lockDescription}
-						placeholder="e.g., Saving for family vacation in summer 2025"
+						placeholder="e.g., Saving for a family holiday"
 						maxlength="150"
 						rows="2"
 						class="mewlock-input"
@@ -540,7 +538,11 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 								placeholder="Enter recipient's Ergo address (9...)"
 								class="mewlock-input recipient-input"
 							/>
-							<small>The recipient address will be able to unlock these assets, not you</small>
+							{#if recipientError}
+								<small class="field-error">{recipientError}</small>
+							{:else}
+								<small>The recipient address will be able to unlock these assets, not you</small>
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -569,18 +571,28 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					</select>
 					{#if lockDurationSelect === -1}
 						<input
-							placeholder="Enter custom duration"
+							placeholder="Number of blocks (1 block ≈ 2 minutes)"
 							type="number"
 							bind:value={lockDuration}
 							min="1"
+							step="1"
 							class="mewlock-input"
 						/>
 					{/if}
-					<small class="block w-100"
-						>Unlock at height: {unlockHeight} (Current: {currentHeight})</small
-					>
-					{#if lockDurationSelect === -1}
-						<small class="block">{unlockCalculation}</small>
+					{#if heightError}
+						<small class="field-error block"
+							>Couldn't read the current block height, so the unlock block can't be set yet.
+							<button type="button" class="link-btn" on:click={getCurrentHeight}>Try again</button></small
+						>
+					{:else if !durationBlocks}
+						<small class="field-error block">Enter a whole number of blocks, at least 1.</small>
+					{:else if unlockHeight}
+						<small class="block w-100"
+							>Unlocks at block {unlockHeight.toLocaleString('en-US')}: {durationOfBlocks(durationBlocks)} from
+							now, around {dateAfterBlocks(durationBlocks)}</small
+						>
+					{:else}
+						<small class="block w-100">Reading the current block height…</small>
 					{/if}
 					
 					<!-- General withdrawal fee notice for all locks -->
@@ -596,7 +608,7 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					</div>
 					
 					<!-- Storage rent warning for 4+ year locks -->
-					{#if lockDuration > 1051200}
+					{#if (durationBlocks ?? 0) > STORAGE_RENT_PERIOD}
 						<div class="storage-rent-warning">
 							<div class="warning-icon">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -777,17 +789,111 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 					</div>
 				{/if}
 
-				<!-- Submit Button -->
+				<!-- Review Button -->
 				<button
 					class="mewlock-btn submit-btn"
-					class:disabled={!canSubmit || processing}
-					disabled={!canSubmit || processing}
+					class:disabled={!canSubmit}
+					disabled={!canSubmit}
+					on:click={reviewLock}
+				>
+					Review lock
+				</button>
+			</div>
+		{:else}
+			<!-- Step 3: Review before signing -->
+			<div class="modal-header">
+				<div class="header-nav">
+					<button class="back-btn" on:click={() => (step = 2)} disabled={processing} aria-label="Back">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z" fill="currentColor" />
+						</svg>
+					</button>
+					<h2>Review your lock</h2>
+				</div>
+				<button class="close-btn" on:click={closeModal} aria-label="Close">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<path
+							d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"
+							fill="currentColor"
+						/>
+					</svg>
+				</button>
+			</div>
+
+			<div class="modal-body">
+				<dl class="review-list">
+					<div>
+						<dt>You lock</dt>
+						<dd>
+							{fmtUnits(boxNanoErg, 9)} ERG
+							{#each lockedTokens as token}
+								<br />{fmtUnits(token.amount, token.decimals)} {token.name}
+							{/each}
+							{#if boxNanoErg > lockedNanoErg}
+								<small
+									>Raised from {fmtUnits(lockedNanoErg, 9)} ERG to pay storage rent; what rent doesn't
+									use comes back.</small
+								>
+							{/if}
+						</dd>
+					</div>
+					{#if lockName.trim()}
+						<div>
+							<dt>Name</dt>
+							<dd>{lockName.trim()}</dd>
+						</div>
+					{/if}
+					<div>
+						<dt>Unlocks</dt>
+						<dd>
+							Block {unlockHeight.toLocaleString('en-US')}, around {dateAfterBlocks(durationBlocks ?? 0)}
+							<small>{durationOfBlocks(durationBlocks ?? 0)} from now, counted from the block it's sent in</small>
+						</dd>
+					</div>
+					<div>
+						<dt>Owner</dt>
+						<dd>
+							{#if lockForEnabled}
+								<span class="mono">{recipientAddress.trim()}</span>
+								<small class="field-error"
+									>Only this address can withdraw. You can't take these assets back.</small
+								>
+							{:else}
+								You (this wallet)
+							{/if}
+						</dd>
+					</div>
+					<div>
+						<dt>At withdrawal</dt>
+						<dd>
+							{lockForEnabled ? 'The owner gets' : 'You get'} back {fmtUnits(payout.ergKeep, 9)} ERG
+							{#each payout.tokens as token, i}
+								<br />{fmtUnits(token.keep, lockedTokens[i].decimals)} {lockedTokens[i].name}
+							{/each}
+							<small>after the 3% withdrawal fee</small>
+						</dd>
+					</div>
+					<div>
+						<dt>Network fee</dt>
+						<dd>0.0011 ERG now</dd>
+					</div>
+				</dl>
+
+				<div class="review-warning">
+					Nobody can withdraw before block {unlockHeight.toLocaleString('en-US')}: not you, not us. Make sure
+					you won't need these assets until then.
+				</div>
+
+				<button
+					class="mewlock-btn submit-btn"
+					class:disabled={processing}
+					disabled={processing}
 					on:click={handleLockSubmit}
 				>
 					{#if processing}
-						Processing...
+						Waiting for your wallet…
 					{:else}
-						Lock {lockType === 'erg' ? 'ERG' : 'Assets'}
+						Lock and sign
 					{/if}
 				</button>
 			</div>
@@ -1404,6 +1510,78 @@ $: lockDurationInYears = lockDuration / (1000 * 60 * 60 * 24 * 365); // adjust b
 	.submit-btn {
 		width: 100%;
 		margin-top: 1rem;
+	}
+
+	.field-error {
+		color: #fca5a5 !important;
+	}
+
+	.link-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		color: #a5b4fc;
+		text-decoration: underline;
+		cursor: pointer;
+		font: inherit;
+	}
+
+	.review-list {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.875rem;
+	}
+
+	.review-list > div {
+		display: grid;
+		grid-template-columns: 8rem 1fr;
+		gap: 1rem;
+		padding-bottom: 0.875rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.review-list dt {
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.875rem;
+	}
+
+	.review-list dd {
+		margin: 0;
+		color: white;
+		font-weight: 600;
+		word-break: break-word;
+	}
+
+	.review-list dd small {
+		display: block;
+		margin-top: 0.25rem;
+		font-weight: 400;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.review-list .mono {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 0.8rem;
+		font-weight: 400;
+	}
+
+	.review-warning {
+		margin-top: 1.25rem;
+		padding: 0.875rem 1rem;
+		border-radius: 12px;
+		background: rgba(251, 191, 36, 0.1);
+		border: 1px solid rgba(251, 191, 36, 0.3);
+		color: #fde68a;
+		font-size: 0.9rem;
+	}
+
+	@media (max-width: 480px) {
+		.review-list > div {
+			grid-template-columns: 1fr;
+			gap: 0.25rem;
+		}
 	}
 
 	.mewlock-btn:hover:not(:disabled) {

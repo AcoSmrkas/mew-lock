@@ -6,10 +6,10 @@
 	import { priceService } from '$lib/services/priceService';
 	import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 	import { ergLocked } from '$lib/store/tvl.ts';
+	import { lockModalOpen } from '$lib/store/lockModal';
 	import { onMount } from 'svelte';
 
 	let mobileMenuOpen = false;
-	let showLockModal = false;
 	let tvl = 0;
 	let tvlLoading = true;
 
@@ -22,12 +22,12 @@
 	}
 
 	function openLockModal() {
-		showLockModal = true;
+		lockModalOpen.set(true);
 		closeMobileMenu();
 	}
 
 	function closeLockModal() {
-		showLockModal = false;
+		lockModalOpen.set(false);
 	}
 
 	// Lithos Lock at /lithos; set to false to take it out of the menu again.
@@ -239,7 +239,7 @@
 </nav>
 
 <!-- MewLock Modal -->
-{#if showLockModal}
+{#if $lockModalOpen && $connected_wallet_address}
 	<MewLockModal on:close={closeLockModal} />
 {/if}
 
