@@ -1,3 +1,12 @@
+# mew-lock
+
+Mew Lock, a time-lock dApp on Ergo.
+
+- Domain: lock.mewfinance.com
+- Live branch: main
+- Ships via: local build + rsync
+- Local dev: `npm ci --ignore-scripts && npm run dev`
+
 # MewLock - Time-Locked Asset Storage on Ergo
 
 MewLock is a decentralized time-lock application built on the Ergo blockchain that allows users to securely lock ERG and tokens for specified durations. Assets are locked using smart contracts and can only be withdrawn after the unlock height is reached.
