@@ -7,3 +7,11 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^.*$ /index.html [L,QSA]
 </IfModule>
+
+# Pages are re-checked on every visit, so a browser never keeps a page from an earlier
+# build. Hashed files under _app keep their normal caching.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
