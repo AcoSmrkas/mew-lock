@@ -26,6 +26,7 @@
 		settlePendingLocks,
 		type PendingLock
 	} from '$lib/lock/lockUi';
+	import { downloadReminder } from '$lib/lock/reminder';
 	import { lockModalOpen, locksChanged } from '$lib/store/lockModal';
 	import { exceedsLegacyLimit, withdrawalSplit } from '$lib/contract/mewLockTx';
 
@@ -395,6 +396,21 @@
 
 	// Filtering based on view mode
 	$: filteredBoxes = viewFilter === 'ready' ? unlockableBoxes : ownLocks;
+
+	/** Saves a calendar event for the estimated unlock time. */
+	function remindUnlock(lockBox) {
+		downloadReminder(
+			{
+				uid: `${lockBox.boxId}@lock.mewfinance.com`,
+				title: lockBox.lockName ? `Mew Lock unlocks: ${lockBox.lockName}` : 'Your Mew Lock unlocks',
+				blocks: lockBox.blocksRemaining,
+				description: `Unlocks at block ${lockBox.unlockHeight.toLocaleString('en-US')}. Block times vary, so the time is an estimate.`,
+				url: 'https://lock.mewfinance.com/my-locks',
+				alertsBefore: [0]
+			},
+			'mew-lock-unlock.ics'
+		);
+	}
 
 	/** What withdrawing a lock pays out, as the contract computes it. */
 	function payoutOf(lockBox) {
@@ -827,6 +843,15 @@
 													lockBox.blocksRemaining
 												)}
 											</span>
+											{#if lockBox.isOwnBox}
+												<button
+													class="remind-btn"
+													title="Add the unlock time to your calendar"
+													on:click={() => remindUnlock(lockBox)}
+												>
+													Remind me
+												</button>
+											{/if}
 										{/if}
 									</div>
 								</div>
@@ -1453,8 +1478,28 @@
 	}
 
 	.lock-timing {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
 		padding-top: 1rem;
 		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.remind-btn {
+		padding: 0.3rem 0.75rem;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 999px;
+		background: transparent;
+		color: rgba(255, 255, 255, 0.85);
+		font-size: 0.8rem;
+		cursor: pointer;
+	}
+
+	.remind-btn:hover {
+		border-color: rgba(255, 255, 255, 0.45);
+		color: #fff;
 	}
 
 	.timing-text {
