@@ -1094,7 +1094,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 																src={getTokenImageUrl(asset)}
 																alt={asset.name || 'Token'}
 																class="mini-image"
-																onerror={(event) => setPlaceholderImage(event, asset)}
+																on:error={(event) => setPlaceholderImage(event, asset)}
 																loading="lazy"
 															/>
 														</div>

@@ -1369,7 +1369,7 @@
 									src={token.imageLink}
 									alt={token.name}
 									class="w-8 h-8 object-contain rounded"
-									onerror={(event) => setPlaceholderImage(event, token)}
+									on:error={(event) => setPlaceholderImage(event, token)}
 								/>
 							</div>
 							<div class="flex-1 min-w-0">
