@@ -61,7 +61,7 @@
 					<img
 						src={getTokenImageUrl(asset)}
 						alt={tokenName}
-						onerror={(event) => setPlaceholderImage(event, asset)}
+						on:error={(event) => setPlaceholderImage(event, asset)}
 						loading="lazy"
 					/>
 				{:else}

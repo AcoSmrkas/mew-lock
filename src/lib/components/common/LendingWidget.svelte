@@ -383,7 +383,7 @@
 												src={getImageUrl(token, true)}
 												alt={token.name}
 												class="token-image"
-												onerror={(e) => setPlaceholderImage(e, token)}
+												on:error={(e) => setPlaceholderImage(e, token)}
 											/>
 											<div class="token-details">
 												<span class="token-name">{token.name || 'Unknown Token'}</span>
@@ -437,7 +437,7 @@
 													src={getImageUrl(asset, true)}
 													alt={asset.name}
 													class="asset-image"
-													onerror={(e) => setPlaceholderImage(e, asset)}
+													on:error={(e) => setPlaceholderImage(e, asset)}
 												/>
 												<div class="asset-info">
 													<span class="asset-name">{asset.name || 'Unknown'}</span>

@@ -655,7 +655,7 @@
 														<img
 															src={getImageUrl(selectedToken, false)}
 															alt={selectedToken.name || 'Token'}
-															onerror={(event) => setPlaceholderImage(event, selectedToken)}
+															on:error={(event) => setPlaceholderImage(event, selectedToken)}
 															loading="lazy"
 														/>
 													{:else}
@@ -742,7 +742,7 @@
 													<img
 														src={getImageUrl(token, false)}
 														alt={token.name || 'Token'}
-														onerror={(event) => setPlaceholderImage(event, token)}
+														on:error={(event) => setPlaceholderImage(event, token)}
 														loading="lazy"
 													/>
 												{:else}
