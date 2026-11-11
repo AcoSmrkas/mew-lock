@@ -1,82 +1,17 @@
 import JSONbig from 'json-bigint-native';
 import { totalBoxes } from '$lib/store/store';
 import { ITEMS_PER_PAGE } from '$lib/common//const.ts';
-import { fetchMempoolTxs } from '$lib/api-explorer/mempool.ts';
 import axios from 'axios';
 import { CHAIN_URL, chainFetch, EXPLORER_URL } from '$lib/api-explorer/chain';
+import { createWalletClient } from '$lib/api-explorer/chainClient.js';
 
-var lastOutputBoxes: Record<string, any> = {};
-var lastInputBoxes: Record<string, any> = {};
+// A wallet's spendable boxes come from chain.mewfinance.com/wallet/boxes, which
+// applies pending transactions. chainClient (copied from chain-gateway) keeps the
+// user's own sent transaction until the gateway lists it.
+const wallet = createWalletClient({ parse: JSONbig.parse });
 
-// Drop unconfirmed/optimistic temp boxes. With an address, clears only that
-// address's entries; with no argument, clears every address (used on wallet
-// disconnect / address switch so optimistic boxes never bleed across accounts).
-export function clearTempBoxes(address?: string) {
-	if (address) {
-		delete lastInputBoxes[address];
-		delete lastOutputBoxes[address];
-	} else {
-		lastOutputBoxes = {};
-		lastInputBoxes = {};
-	}
-}
-
-export function updateTempBoxes(address, usedInputs, newOutputs) {
-	if (!lastInputBoxes[address]) {
-		lastInputBoxes[address] = [];
-	}
-
-	if (!lastOutputBoxes[address]) {
-		lastOutputBoxes[address] = [];
-	}
-
-	for (let boxId of usedInputs) {
-		if (!lastInputBoxes[address].includes(boxId)) {
-			console.log(`Saving used box ${boxId}`);
-			lastInputBoxes[address].push(boxId);
-		}
-	}
-
-	for (let output of newOutputs) {
-		if (!lastOutputBoxes[address].some((item) => item.boxId === output.boxId)) {
-			console.log(`Saving unconfirmed box ${output.boxId}`);
-			lastOutputBoxes[address].push(output);
-		}
-	}
-}
-
-async function checkTempOutBoxes(address) {
-	if (!lastOutputBoxes[address]) {
-		return;
-	}
-
-	let newBoxes = undefined;
-	for (let i = lastOutputBoxes[address].length - 1; i >= 0; i--) {
-		let boxId = lastOutputBoxes[address][i].boxId;
-
-		let boxStatus = null;
-		try {
-			boxStatus = await axios.get(`${EXPLORER_URL}/api/v1/boxes/` + boxId);
-		} catch {
-			// its ok
-		}
-
-		let boxSpent = false;
-		if (boxStatus && boxStatus.data && boxStatus.data.spentTransactionId) {
-			boxSpent = true;
-		}
-
-		if (!boxSpent) {
-			if (newBoxes) {
-				newBoxes.push(lastOutputBoxes[address][i]);
-			} else {
-				newBoxes = [lastOutputBoxes[address][i]];
-			}
-		}
-	}
-
-	lastOutputBoxes[address] = newBoxes;
-}
+export const updateTempBoxes = wallet.updateTempBoxes;
+export const clearTempBoxes = wallet.clearTempBoxes;
 
 function nautilusfFriendlyBox(box) {
 	let newBox = JSON.parse(JSON.stringify(box));
@@ -143,93 +78,13 @@ export async function fetchConfirmedBalance(address) {
 
 export async function fetchBoxes(address) {
 	try {
-		await checkTempOutBoxes(address);
+		const { items: boxes } = await wallet.fetchWalletBoxes(address);
 
-		let response = await axios.get(
-			`${EXPLORER_URL}/api/v1/boxes/unspent/byAddress/` +
-				address +
-				'?limit=500&offset=0&includeUnconfirmed=true',
-			{
-				headers: {
-					'Cache-Control': 'no-cache' // or 'no-store'
-				},
-				responseType: 'arraybuffer'
-			}
-		);
-
-		let buffer = new TextDecoder('utf-8').decode(response.data);
-		let stringFromBuffer = buffer.toString('utf8');
-		let boxes = JSONbig.parse(stringFromBuffer).items;
-
-		let parsedMempoolTxs = (await fetchMempoolTxs(address)).items;
-
-		for (const tx of parsedMempoolTxs) {
-			for (let output of tx.outputs) {
-				if (output.address != address) continue;
-				let found = false;
-				for (const box of boxes) {
-					if (box.boxId == output.boxId) {
-						found = true;
-					}
-				}
-
-				if (!found) {
-					console.log('Pushing mempool box', output.boxId);
-					boxes.push(output);
-				}
-			}
-		}
-
-		for (const tx of parsedMempoolTxs) {
-			for (let input of tx.inputs) {
-				if (input.address != address) continue;
-
-				for (let i = 0; i < boxes.length; i++) {
-					let box = boxes[i];
-					if (box.boxId == input.boxId) {
-						console.log('Removing mempool box', input.boxId);
-						boxes.splice(i, 1);
-						break;
-					}
-				}
-			}
-		}
-
-		if (lastOutputBoxes[address]) {
-			for (let i = 0; i < lastOutputBoxes[address].length; i++) {
-				let box = lastOutputBoxes[address][i];
-
-				let found = false;
-				for (let j = 0; j < boxes.length; j++) {
-					if (boxes[j].boxId == box.boxId) {
-						found = true;
-						break;
-					}
-				}
-
-				if (!found) {
-					console.log(`Adding unconfirmed from temp ${box.boxId}`);
-					boxes.push(box);
-				}
-			}
-		}
-
-		if (lastInputBoxes[address]) {
-			for (let i = boxes.length - 1; i >= 0; i--) {
-				for (let j = 0; j < lastInputBoxes[address].length; j++) {
-					if (boxes[i].boxId == lastInputBoxes[address][j]) {
-						console.log(`Removing from temp ${boxes[i].boxId}`);
-						boxes.splice(i, 1);
-						break;
-					}
-				}
-			}
-		}
-
-		for (let box of boxes) {
-			for (const [k, v] of Object.entries(box.additionalRegisters)) {
-				if (v.serializedValue) {
-					box.additionalRegisters[k] = v.serializedValue;
+		for (const box of boxes) {
+			for (const [k, v] of Object.entries(box.additionalRegisters ?? {})) {
+				const serialized = (v as { serializedValue?: string } | null)?.serializedValue;
+				if (serialized) {
+					box.additionalRegisters[k] = serialized;
 				}
 			}
 		}
