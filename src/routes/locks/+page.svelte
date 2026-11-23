@@ -166,7 +166,7 @@ import { fetchMewLockBoxes } from '$lib/contract/mewLockTx';
 
 	// Get ERG image (default Ergo logo)
 	function getErgImageUrl() {
-		return 'https://spectrum.fi/logos/ergo/0000000000000000000000000000000000000000000000000000000000000000.svg';
+		return 'https://ergexplorer.com/images/tokens/erg.svg';
 	}
 
 	// Convert public key to address using ErgoAddress

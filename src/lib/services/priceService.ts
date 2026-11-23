@@ -57,10 +57,10 @@ class PriceService {
 		const now = Date.now();
 
 		try {
-			// Fetch ERG price from CoinGecko
+			// Fetch the ERG price
 			await this.fetchErgPrice();
 			
-			// Fetch token prices from Spectrum
+			// Fetch token prices from ErgExplorer
 			await this.fetchTokenPrices();
 			
 			this.lastUpdate = now;
@@ -70,53 +70,63 @@ class PriceService {
 	}
 
 	private async fetchErgPrice(): Promise<void> {
+		// Our multi-source feed first; a stale (> 1 h) or missing value falls back to CoinGecko.
+		try {
+			const response = await fetch('https://api.ergexplorer.com/tokens/getErgPrice');
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+			const item = (await response.json())?.items?.[0];
+			const updated = Date.parse(String(item?.timestamp).slice(0, 19).replace(' ', 'T') + 'Z');
+			const usd = Number(item?.value);
+			if (Number.isFinite(usd) && usd > 0 && Date.now() - updated < 60 * 60 * 1000) {
+				this.priceData.erg.usd = usd;
+				return;
+			}
+		} catch (error) {
+			console.error('Error fetching ERG price:', error);
+		}
+
 		try {
 			const response = await fetch('https://api.coingecko.com/api/v3/coins/ergo');
 			const data = await response.json();
-			
-			if (data?.market_data?.current_price) {
+
+			if (data?.market_data?.current_price?.usd > 0) {
 				this.priceData.erg = {
-					usd: data.market_data.current_price.usd || 0,
+					usd: data.market_data.current_price.usd,
 					btc: data.market_data.current_price.btc || 0,
 					eth: data.market_data.current_price.eth || 0
 				};
 			}
 		} catch (error) {
-			console.error('Error fetching ERG price:', error);
-			// Fallback to ErgExplorer
-			try {
-				const fallbackResponse = await fetch('https://api.ergexplorer.com/tokens/getErgPrice');
-				const fallbackData = await fallbackResponse.json();
-				if (fallbackData?.items?.[0]?.value) {
-					this.priceData.erg.usd = Number(fallbackData.items[0].value);
-				}
-			} catch (fallbackError) {
-				console.error('Error fetching ERG price fallback:', fallbackError);
-			}
+			console.error('Error fetching ERG price fallback:', error);
 		}
 	}
 
 	private async fetchTokenPrices(): Promise<void> {
 		try {
-			const response = await fetch('https://api.spectrum.fi/v1/price-tracking/markets');
+			// One request for every token: { items: [{ id, ticker, price_erg, ... }] }, prices in ERG.
+			const response = await fetch('https://api.ergexplorer.com/tokens/getTokenPrices');
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
 			const data = await response.json();
-			
+			if (!Array.isArray(data?.items)) throw new Error('No price list');
+
 			const ergPrice = this.priceData.erg.usd;
-			
-			data.forEach((entry: any) => {
-				if (entry.baseSymbol === 'ERG' && entry.quoteId && entry.lastPrice) {
-					const lastPrice = Number(entry.lastPrice);
-					const tokenErgPrice = 1 / lastPrice;
-					const tokenUsdPrice = tokenErgPrice * ergPrice;
-					
-					this.priceData.tokens.set(entry.quoteId, {
-						symbol: entry.quoteSymbol,
+			const tokens = new Map<string, TokenPrice>();
+
+			// Without an ERG/USD rate no token has a USD price: leave them out, never price them at 0.
+			if (ergPrice > 0) {
+				for (const item of data.items) {
+					const tokenErgPrice = Number(item?.price_erg);
+					if (!item?.id || !Number.isFinite(tokenErgPrice) || tokenErgPrice <= 0) continue;
+					tokens.set(item.id, {
+						symbol: item.ticker || item.name || '',
 						ergPrice: tokenErgPrice,
-						usdPrice: tokenUsdPrice,
-						tokenId: entry.quoteId
+						usdPrice: tokenErgPrice * ergPrice,
+						tokenId: item.id
 					});
 				}
-			});
+			}
+
+			this.priceData.tokens = tokens;
 		} catch (error) {
 			console.error('Error fetching token prices:', error);
 		}
