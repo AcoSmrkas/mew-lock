@@ -273,6 +273,7 @@ export function getImageUrl(token) {
 				token.imageLink = '';
 			}
 
+			token.iconurl = tokenInfo.iconurl || '';
 			token.nsfw = tokenInfo.nsfw;
 			token.scam = tokenInfo.scam;
 			token.mintTx = tokenInfo.transactionId;
@@ -285,15 +286,8 @@ export function getImageUrl(token) {
 		return getPlaceholderImage(token);
 	}
 
-	let imageUrl;
-
-	if (hasIcon(token.tokenId)) {
-		return getIcon(token.tokenId);
-	}
-
-	imageUrl = token.imageLink || `https://spectrum.fi/logos/ergo/${token.tokenId}.svg`;
-
-	return imageUrl;
+	// The token's icon (tokens/byId iconurl), else its own image, else the placeholder.
+	return token.iconurl || token.imageLink || getPlaceholderImage(token);
 }
 
 function getPlaceholderImage(asset) {
