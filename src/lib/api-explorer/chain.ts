@@ -9,7 +9,7 @@ export const EXPLORER_URL = `${CHAIN_URL}/explorer`;
 
 const FALLBACKS: [string, string][] = [
 	[EXPLORER_URL, 'https://api.ergoplatform.com'],
-	[CHAIN_URL, 'https://node.sigmaspace.io']
+	[CHAIN_URL, 'https://node.ergopool.io']
 ];
 
 export function fallbackUrl(url: string): string | null {

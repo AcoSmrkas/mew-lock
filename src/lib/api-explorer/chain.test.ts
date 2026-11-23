@@ -24,7 +24,7 @@ function stubFetch(answer: (url: string) => Response | Promise<Response>) {
 describe('fallbackUrl', () => {
 	it('maps explorer reads to api.ergoplatform.com and node reads to a public node', () => {
 		expect(fallbackUrl(`${EXPLORER_URL}${PATH}`)).toBe(`https://api.ergoplatform.com${PATH}`);
-		expect(fallbackUrl(`${CHAIN_URL}/info`)).toBe('https://node.sigmaspace.io/info');
+		expect(fallbackUrl(`${CHAIN_URL}/info`)).toBe('https://node.ergopool.io/info');
 	});
 
 	it('leaves every other URL alone', () => {
